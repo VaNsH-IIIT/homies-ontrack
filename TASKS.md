@@ -5,60 +5,25 @@ Status: `[ ]` to do · `[~]` in progress · `[x]` merged to `main`. Update your 
 
 **Tasks say what must work, not how.** The "Done when" column and the interfaces in the README are fixed; the approach inside your folders is yours: choose libraries, prompts, features and models, and experiment. Fixed regardless: the table names and columns in the interfaces, the hackathon rules (no protected attributes, a plain-English reason for every decision, human review, hardship flagged), and the design as the base (log any change and why).
 
-## 📌 Review notes from P1 — read these first (updated 17:15 IST)
+## 📌 Final plan from P1 — read this first (updated 3 Oct, 21:50 IST)
 
-| For | What |
-|---|---|
-| **P3 (Kris)** | **Moving to Windows with a new Claude chat? Read "🔁 P3 restart on Windows" right below, all of it, before writing any code.** |
-| **P2 (Garv)** | P1 covers P2 until 19:50. Everything is merged (PRs #4, #6); status and your next steps are in `P2_REPORT.md` on `p2/report`. |
+**State:** everyone's work is merged into `main` (PRs #4, #6, #8, #10, #11, #12), verified by P1 on full data: 192 tests pass, benchmark dev 21/21, unseen rehearsal 21/21, all 5 app pages load. **No open issues.** Deck, README ("What changed": 24 rows) and video script have every number filled in.
+**Deadline: 4 Oct, 21:00 IST** (commits after it don't count). Extra benchmark questions: **4 Oct, 19:00 IST**.
 
-## 🔁 P3 restart on Windows (Kris + your new Claude chat): read all of this first
+| Who | Task | When |
+|---|---|---|
+| **P1 Vansh** | Full `run_all` on `main` with the new stable `golden_id`s (running now) → restart the app → **demo run #2** (full click-through, `docs/pitch/video_script.md`) | 3 Oct, ~22:15 |
+| **P2 Garv** | **Wire R5** now: Kris's merge added `gold.nba_recommendation.p_roll_forward`, so "which open cases are most likely to roll forward" can go live in Ask. Test after P1's run finishes (~22:15) | 3 Oct night |
+| **P2 Garv** | Fix the broken French accent in one call quote (`"…depuis ao�t"`, case `CS-2026-899195`; raw notes are fine, so probably transcript reading/encoding). Found by Kris | 3 Oct night |
+| **P3 Kris** | Small PR: drop the "golden_id differs between builds" note in `evaluation.py` (ids are stable now, commit `1fd561b`) and re-run `python -m ontrack.l4_nba.evaluation` on the new build | 3 Oct night |
+| **P3 Kris** | Confirm or fix one voice-over line in `VIDEO_AGENT_CARD_SEGMENT.md`: "the salary deposits stopped" for `CS-2026-583749`. The card's reasons show reduced income, not salary | 3 Oct night |
+| **P2 Garv** | Record the Ask segment (1:15–2:15) at 1080p: `python -m ontrack.l2_ask.warm_demo` first. Send the file (Drive link) to P1 | 4 Oct, by 14:00 |
+| **P3 Kris** | Record the Agent card + evaluation segment (2:15–4:15) at 1080p. Search by `CS-2026-583749`. Send the file to P1 | 4 Oct, by 14:00 |
+| **P1 Vansh** | Clear test decisions; record P1 segments (0:00–1:15, 4:15–5:00); stitch the video to ≤ 5:00; deck → PDF; README: video link, final check | 4 Oct, 14:00–18:30 |
+| **P1 Vansh** (+ Garv on call) | **19:00: final benchmark** with the extra questions: `run_benchmark` on Vansh's laptop (runbook in `BENCHMARK_NOTES.md`), commit `benchmark/answers.csv` exactly as generated | 4 Oct, 19:00–19:45 |
+| **All** | Code freeze 20:00; final `run_all` + submission by **20:30** (30 min buffer before 21:00) | 4 Oct |
 
-Your new chat has none of your old context. **Paste this whole section into it as your first message.**
-
-### 0. Before you leave Linux
-- Run `git status` on the Linux machine. **Commit and push everything to `p3/working`, even unfinished work** (`git commit -am "WIP" && git push`). P1 last saw **`75d99cc` at 16:21** ("WIP: fix EV ranking formula"). Anything not pushed is lost.
-- **Do not copy the old DuckDB file or old data folders.** That database was built from an older `main`: no text signals, old gold tables, and training data with the leak (see 3a). Build a fresh one on Windows (step 1).
-
-### 1. Set up on Windows (about 40 min, mostly waiting)
-1. Clone to a **short path** (`C:\dev\homies-ontrack`) and install: README → Setup steps 2–3. In `.env`: `MAPLE_DATA_DIR` = the unzipped **full** release (README step 4; not the 5% sample: final numbers must come from full data), `ONTRACK_WORK_DIR=D:/ontrack_work` (any folder outside the repo). An API key is optional: Garv's code falls back to the logged-in Claude Code CLI.
-2. Get your branch **and** the latest `main`:
-   ```bash
-   git fetch origin && git checkout p3/working && git pull
-   git merge origin/main            # AI_TOOLS.md conflict: keep both sets of rows
-   ```
-3. Build everything fresh, in one command (about 25 min on full data):
-   ```bash
-   python scripts/run_all.py --with-bronze --transcripts 0
-   ```
-   That runs bronze → Layer 1 build → contract → **text signals from notes (no LLM)** → **your L4** → benchmark. All steps should say OK. Then run `pytest tests/` (55 tests).
-4. `streamlit run src/ontrack/app/main.py` → page 3 (Agent card).
-
-### 2. What you already built (all on `p3/working`, runs end to end on full data)
-`l3_features/structured/features.py` (point-in-time `build_case_features`), `l4_nba/policy_gate.py` (+ 38 tests), `models.py` (LightGBM self-cure 30d + payment 7d), `ranker.py` (EV ranking + SHAP reasons), `hardship.py` (routing, + tests), `run.py`, `evaluation.py` + `EVALUATION.md`, `DESIGN_NOTES.md`, `app/pages/3_Agent_Card.py`. P1's run at 16:58: L4 took 586 s and wrote **96,000 recommendations**. The code works; the **results are wrong** for the reasons below.
-
-### 3. Fix, in this order (details in the issues)
-**a. [#3](https://github.com/VaNsH-IIIT/homies-ontrack/issues/3) Label leakage: blocker.** Current AUCs (self-cure **0.964**, payment-7d **0.997**) are leaks and must **never** go into the deck, README or EVALUATION. Cause: training rows include cases already cured or closed at `as_of`, and the payment label sits before the feature date. Fix:
-   - training population at `as_of` = cases **open and unresolved at `as_of`**: `case_open_date <= as_of AND (outcome_date IS NULL OR outcome_date > as_of) AND (cure_date IS NULL OR cure_date > as_of)`
-   - labels **strictly after `as_of`**: self-cure = `cure_flag AND as_of < cure_date <= as_of + 30d`; payment-7d = a `payment_taken_flag` contact with `as_of < contact_ts_utc <= as_of + 7d`
-   - stack monthly `as_of` dates (2026-01-01 … 2026-05-01) for training, validate on 2026-07-01, with the same `build_case_features(con, as_of)` each time
-   - sanity check: retrain without the top SHAP feature; if AUC collapses, something still leaks. **Expect about 0.65–0.85; that is the right result.**
-
-**b. [#7](https://github.com/VaNsH-IIIT/homies-ontrack/issues/7) Recommendation quality (from P1's end-to-end run).**
-   - **92% of cases get `hardship_referral`** (88,778 of 96,000), and no call / SMS / email is ever chosen; `channel` is always null. Your own WIP note says it: `hardship_referral` costs $0, so it wins everywhere. **Allow `hardship_referral` only for hardship cases**, then rank the contact actions the gate allows by expected recovery − cost − harm. Target a believable spread (do_nothing for likely self-cures, digital for low risk, calls for high risk) and fill `channel` and `time_window`.
-   - **Reasons read like raw features** ("2.0 total contacts on this case"). Write business reasons with whole numbers and why they matter, e.g. *"Likely to pay without a call (self-cure chance 68%): paid within 10 days in 4 of the last 5 cycles"*.
-   - **Agent card crashes** on null values (`if row.get("channel")` → *boolean value of NA is ambiguous*). Fix: first line inside the case loop: `row = row.astype(object).where(row.notna(), None)`.
-   - **Add a case_id / golden_id search box** to the agent card. Demo case: **`CS-2026-583749` / `G-0331645`** (4 systems, 5 products; said on a call "My pay got cut in Aug.").
-   - Human-only queue is 52,299 of 96,000 (54%). This is OK (hardship-first), but put the split by reason (case flag / text / vulnerability / dispute) in `EVALUATION.md`.
-
-**c. [#5](https://github.com/VaNsH-IIIT/homies-ontrack/issues/5) Text signals (Garv's, now on `main`).** In `hardship.py`, join **`features.text_signals_case`** on `case_id` once (columns `text_hardship_90d`, `text_hardship_evidence`, `text_dispute_any`, …) instead of one query per case. Bug: the current query has `WHERE hardship_signal = true`, so **disputes without hardship are missed**. Disputes go to the human queue on their own.
-
-**d. Revert your edits to P1 files.** Commit `1d736ea` changed `README.md`, `TASKS.md`, `docs/data_quality_report.md` and `docs/pitch/deck_outline.md` (that one has the leaky AUCs). After merging `main`: `git checkout origin/main -- README.md TASKS.md docs/` and commit. Put your design changes and numbers in the **PR description**; P1 copies them into the README and deck.
-
-**e. Open ONE PR** from `p3/working` → `main`, with: AUCs after the fix, the back-test vs `nba_recommendation_last` / `model_scores`, the fairness check, the action mix, and the human-queue split. Add your row in `AI_TOOLS.md`. P1 tests and merges it, then reruns the end-to-end demo.
-
-### 4. Rules (unchanged)
-Stay in your folders (`l3_features/structured/`, `l4_nba/`, `app/pages/3_*`, `tests/`). Never commit data, `*.duckdb` or `.env`. No protected attributes in features or decisions. `promises_to_pay` is **not** a model feature (only Ask may read it). Merge commits, not squash.
+Rules unchanged: stay in your folders, PRs to `main`, never commit data / `.duckdb` / `.env`, no hand edits to `answers.csv`.
 
 To see issues assigned to you: `gh issue list --assignee @me --repo VaNsH-IIIT/homies-ontrack`
 
