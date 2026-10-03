@@ -48,7 +48,9 @@ features.case_features (point-in-time, one row per case and as_of)
   test on 2026-07-01 (32K rows). Production calibration on 2026-08-29, the latest month with a complete outcome.
 - Results: self-cure AUC 0.83 on the test month (bank's `cure_30d` 0.72 on the same cases); payment AUC 0.57.
 - `p_roll_forward` = 1 - `p_cure_30d`: DPD rises by one a day until a case cures, so not curing within 30 days
-  means rolling to the next bucket (used by Layer 2's roll-forward question).
+  means rolling to the next bucket (used by Layer 2's roll-forward question). Cases that would pass 180 DPD
+  within 30 days (DPD 151-180; charge-off happens at 181 in this data) cannot roll to a worse bucket: their
+  `p_roll_forward` is NULL and the same number is `p_charge_off_risk`.
 
 ## Ranking (`l4_nba/ranker.py`)
 
