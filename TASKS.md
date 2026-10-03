@@ -23,6 +23,27 @@ Status: `[ ]` to do · `[~]` in progress · `[x]` merged to `main`. Update your 
 | **P1 Vansh** (+ Garv on call) | **19:00: final benchmark** with the extra questions: `run_benchmark` on Vansh's laptop (runbook in `BENCHMARK_NOTES.md`), commit `benchmark/answers.csv` exactly as generated | 4 Oct, 19:00–19:45 |
 | **All** | Code freeze 20:00; final `run_all` + submission by **20:30** (30 min buffer before 21:00) | 4 Oct |
 
+### ✨ Polish tasks: make every part work perfectly (3 Oct night → 4 Oct 14:00)
+
+Each one is done only when its "done when" holds on the full data. Post the result in issue #13.
+
+| ID | Who | Task | Done when |
+|---|---|---|---|
+| G1 | **Garv** | **Answer stability:** run the benchmark 3× with a fresh LLM cache each time and diff the answers (BQ-014 showed answers can flip) | All data answers identical across the 3 runs; document / call answers keep the same facts and citations; any flip is fixed like BQ-014 |
+| G2 | **Garv** | **Dry run of the 19:00 run:** a mock extra-questions file in the exact `benchmark_questions.csv` format (new ids, blank `metric_id`), run the way Vansh will run it (Claude Code CLI, `--workers 4`) | 0 errors, under 10 min for 35 + 15 questions, fallback written into the runbook (fewer workers, retry only failed ids) |
+| G3 | **Garv** | **Ask page hardening:** try an empty question, "DROP TABLE cases", a 2,000-character question, French, emoji | No traceback ever; a clear message for each; the 5 example buttons answer in < 3 s after `warm_demo` |
+| G4 | **Garv** | Record the Ask segment (1:15–2:15) and send it to Vansh | Every number on screen matches `VIDEO_ASK_SEGMENT.md`; 1080p, ≤ 60 s |
+| K1 | **Kris** | **Repeatable training:** fixed seeds plus LightGBM `deterministic=True` and fixed `num_threads`, so a re-run gives the same numbers; then drop the golden_id note and regenerate `EVALUATION.md` on the new build (stable ids) | Two runs of `l4_nba.run` give identical AUCs and identical recommendations for all 96,000 cases |
+| K2 | **Kris** | **Check the video facts:** confirm or fix "the salary deposits stopped" for `CS-2026-583749`, and every number in `VIDEO_AGENT_CARD_SEGMENT.md`, against the current build | Every claim traced to a query or table you can show |
+| K3 | **Kris** | **Agent card on edge cases:** 5 random cases per action, plus no contacts, no bureau pull, French-speaking, cease, insolvency, deceased, dispute-only | All render with 3 reasons and no error; the page loads in < 3 s; accept / edit / reject each logged |
+| K4 | **Kris** | Record the Agent card + evaluation segment (2:15–4:15) and send it to Vansh | Matches the checked script; 1080p, ≤ 2:00 |
+| V1 | **Vansh (P1)** | Finish the full run with stable ids; add the accent issue to the DQ report as a coded check (19 issue types); update 18 → 19 in the deck, diagram and script | `run_all` all OK; DQ report regenerated, not hand-edited |
+| V2 | **Vansh (P1)** | Test PR #14 (R5 + accent repair) on full data and merge it | R5 answers with SQL; demo quote reads "depuis août"; all tests pass |
+| V3 | **Vansh (P1)** | Demo run #2, full click-through; time every page | Every page loads in < 3 s; nothing on screen contradicts the deck |
+| V4 | **Vansh (P1)** | README "Submission" section at the top: links to every deliverable (architecture PDF/PNG, data contract, DQ report, `answers.csv`, deck PDF, video), plus a 3-command quick start for judges | Each link opens; a judge can run the system from the quick start alone |
+| V5 | **Vansh (P1)** | Clear test decisions; record P1 segments; stitch the video (≤ 5:00); deck → PDF | Video uploaded unlisted, linked in the README |
+
+
 Rules unchanged: stay in your folders, PRs to `main`, never commit data / `.duckdb` / `.env`, no hand edits to `answers.csv`.
 
 To see issues assigned to you: `gh issue list --assignee @me --repo VaNsH-IIIT/homies-ontrack`
