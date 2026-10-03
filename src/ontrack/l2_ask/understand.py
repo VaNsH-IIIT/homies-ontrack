@@ -55,6 +55,9 @@ METRIC_ALIASES = [
     (r"paid against promises|amount collected|how much .* collect", "collected_amount"),
     (r"payroll .* late|payroll delay", "payroll_delay_share"),
     (r"how many (?:collections )?cases are open|number of open cases|open cases? count", "open_case_count"),
+    (r"total overdue (?:amount |balance )?(?:on|of|for) open cases|total (?:amount )?overdue on open", "open_overdue_total"),
+    (r"how many (?:collections )?cases were opened|number of (?:collections )?cases opened|cases opened (?:in|per|by)",
+     "cases_opened"),
 ]
 
 
@@ -120,7 +123,7 @@ def parse_window(q: str, snapshot: date) -> tuple[str | None, str | None]:
     if re.search(r"\bthis month\b", ql):
         return snapshot.replace(day=1).isoformat(), snapshot.isoformat()
     # "opened in 2026" / "in 2026"
-    m = re.search(r"\bin (\d{4})\b", ql)
+    m = re.search(r"\b(?:in|of|during|for) (\d{4})\b", ql)            # "in 2026", "each month of 2026"
     if m:
         y = int(m.group(1))
         return date(y, 1, 1).isoformat(), min(date(y, 12, 31), snapshot).isoformat()
@@ -130,7 +133,7 @@ def parse_window(q: str, snapshot: date) -> tuple[str | None, str | None]:
 def parse_group(q: str, allowed: set[str]) -> tuple[str | None, str | None]:
     """(group_by token, unparsed phrase). Only phrases after 'by' / 'per' / 'compare' count as grouping."""
     ql = q.lower()
-    m = re.search(r"\b(?:by|per|for each|change with(?: the)?|compare)\b(.*)$", ql)
+    m = re.search(r"\b(?:by|per|for each|in each|each|change with(?: the)?|compare)\b(.*)$", ql)
     if not m:
         return None, None
     phrase = m.group(1)

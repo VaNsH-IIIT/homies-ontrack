@@ -103,6 +103,11 @@ METRICS: dict[str, Metric] = {m.metric_id: m for m in [
     # Not in metric_definitions (so not "certified"), but a plain count with the same open-case rule.
     Metric("open_case_count", "bronze.collections_cases", [], "open_cases", where=["outcome IS NULL"],
            dims=CASE_DIMS, note="count of open cases (outcome IS NULL); uncertified helper"),
+    Metric("open_overdue_total", "bronze.collections_cases", [("total_overdue_cad", "round(sum(total_overdue), 2)")],
+           "open_cases", where=["outcome IS NULL"], dims=CASE_DIMS,
+           note="total overdue on open cases; uncertified helper"),
+    Metric("cases_opened", "bronze.collections_cases", [], "cases", date_col="case_open_date", dims=CASE_DIMS,
+           note="cases opened in the window (case_open_date); uncertified helper"),
     Metric("payroll_delay_share", "bronze.deposit_accounts",
            [("payroll_delay_pct", _pct("payroll_delay_days > 7", 2))], "accounts",
            where=["snapshot_date = (SELECT max(snapshot_date) FROM bronze.deposit_accounts)", "payroll_deposit_flag"],
