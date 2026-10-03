@@ -41,6 +41,24 @@ m[3].metric("Calls today", f"{int(mix['n'].get('call', 0)):,}", "= daily call ca
 digital = int(sum(mix["n"].get(a, 0) for a in ("sms", "email", "push_notification")))
 m[4].metric("Digital payment links", f"{digital:,}")
 
+with st.expander("Queue overview for supervisors: what the book gets, and who goes to a person"):
+    o1, o2 = st.columns([1.3, 1])
+    with o1:
+        st.markdown("**Recommended actions**")
+        book = query("""SELECT action, count(*) AS cases, round(100.0 * count(*) / sum(count(*)) OVER (), 1) AS "% of book",
+                               round(sum(score)) AS "dollars at risk", round(avg(p_cure_30d) * 100, 1) AS "avg self-cure %"
+                        FROM gold.nba_recommendation GROUP BY 1 ORDER BY cases DESC""")
+        st.bar_chart(book.set_index("action")["cases"], horizontal=True, height=260)
+        st.dataframe(book, hide_index=True, width="stretch")
+    with o2:
+        st.markdown("**Human-only queue, by first reason**")
+        hq = query("""SELECT routing_category AS reason, count(*) AS cases,
+                             round(100.0 * count(*) / sum(count(*)) OVER (), 1) AS "% of queue"
+                      FROM gold.nba_recommendation WHERE needs_human_review GROUP BY 1 ORDER BY cases DESC""")
+        st.dataframe(hq, hide_index=True, width="stretch")
+        st.caption("Hardship first (case flag, then the customer's own words, then income shock); holds, cease, "
+                   "disputes, complaints and vulnerability need a person by policy.")
+
 # ---- Find a case ----
 q = st.text_input("Find a case by case_id or golden_id", value=DEMO_CASE,
                   help=f"Demo case {DEMO_CASE}. Clear the box to browse the queue.").strip()
@@ -127,6 +145,25 @@ with st.expander(f"Blocked actions ({len((r.get('blocked_actions') or '').split(
     else:
         st.write("Nothing is blocked for this case.")
     st.caption(f"Allowed: {r.get('allowed_actions')}")
+
+with st.expander("Why this channel: expected value of each allowed action"):
+    if r.get("action_values"):
+        vals = pd.DataFrame([x.split(": ", 1) for x in r["action_values"].split("; ")],
+                            columns=["action", "expected value vs doing nothing (CAD)"])
+        vals.insert(0, " ", ["⭐" if a == r["action"] else "" for a in vals["action"]])
+        st.dataframe(vals, hide_index=True, width="stretch")
+    else:
+        st.write("No contact channel is allowed for this case.")
+    path = r.get("decision_path")
+    st.caption({
+        "hardship": "Hardship: a person decides. Values are shown for context only; no automated contact.",
+        "human": "Needs a person: values are shown for context only.",
+        "self_cure": "Likely to pay without contact: waiting a week beats any contact here.",
+        "call_queue_full": "A call would be next, but today's call slots went to cases with more at stake.",
+        "not_worth_contact": "Every allowed channel costs more than it is likely to recover.",
+    }.get(path, "Value = overdue x chance it stays unpaid x the channel's measured payment rate x this customer's "
+                "responsiveness - unit cost. Calls go first to the cases with the most at stake where contact "
+                "has not worked, up to the day's call capacity, even when a payment link scores higher."))
 
 # ---- Decision ----
 st.divider()

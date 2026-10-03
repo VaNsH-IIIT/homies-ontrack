@@ -219,6 +219,73 @@ The one large gap is `marital_status = separated` (more hardship referrals and h
 | 45-59 | 21,490 | 0.489 | 0.051 | 0.275 | 0.071 | 0.629 | 0.061 |
 | 60+ | 6,806 | 0.465 | 0.057 | 0.270 | 0.078 | 0.626 | 0.063 |
 
+### Is the model equally accurate for every group? (test month, offline)
+
+Self-cure model on the 2026-07-01 test cases (overall AUC 0.829), split by protected group (groups of 300+ cases). A fair model ranks equally well and is equally calibrated in every group.
+
+| attribute | groups | lowest AUC | highest AUC | AUC gap | over-prediction gap |
+|---|---|---|---|---|---|
+| gender_code | 3 | 0.824 | 0.833 | 0.009 | 0.010 |
+| marital_status | 7 | 0.811 | 0.849 | 0.037 | 0.047 |
+| citizenship_status | 4 | 0.815 | 0.832 | 0.017 | 0.022 |
+| newcomer_program_flag | 2 | 0.800 | 0.832 | 0.032 | 0.022 |
+| accessibility_needs_flag | 2 | 0.828 | 0.846 | 0.018 | 0.006 |
+| age_band | 4 | 0.800 | 0.845 | 0.045 | 0.047 |
+
+Largest AUC gap between groups: 0.045; largest gap in over-prediction: 4.7 points. Per group:
+
+`gender_code`
+
+| gender_code | cases | AUC | predicted self-cure | observed self-cure | over-prediction |
+|---|---|---|---|---|---|
+| F | 15,229 | 0.824 | 0.276 | 0.234 | 0.043 |
+| M | 15,261 | 0.833 | 0.274 | 0.226 | 0.048 |
+| X | 319 | 0.831 | 0.272 | 0.219 | 0.052 |
+
+`marital_status`
+
+| marital_status | cases | AUC | predicted self-cure | observed self-cure | over-prediction |
+|---|---|---|---|---|---|
+| common_law | 3,950 | 0.831 | 0.278 | 0.235 | 0.043 |
+| divorced | 1,846 | 0.834 | 0.283 | 0.223 | 0.061 |
+| married | 9,687 | 0.832 | 0.275 | 0.233 | 0.042 |
+| separated | 2,631 | 0.841 | 0.236 | 0.163 | 0.073 |
+| single | 8,454 | 0.811 | 0.286 | 0.242 | 0.044 |
+| undisclosed | 1,443 | 0.849 | 0.268 | 0.241 | 0.027 |
+| widowed | 903 | 0.829 | 0.277 | 0.250 | 0.027 |
+
+`citizenship_status`
+
+| citizenship_status | cases | AUC | predicted self-cure | observed self-cure | over-prediction |
+|---|---|---|---|---|---|
+| citizen | 23,773 | 0.832 | 0.270 | 0.222 | 0.049 |
+| permanent_resident | 4,834 | 0.816 | 0.290 | 0.256 | 0.034 |
+| study_permit | 1,064 | 0.815 | 0.299 | 0.273 | 0.026 |
+| work_permit | 1,407 | 0.824 | 0.286 | 0.254 | 0.032 |
+
+`newcomer_program_flag`
+
+| newcomer_program_flag | cases | AUC | predicted self-cure | observed self-cure | over-prediction |
+|---|---|---|---|---|---|
+| false | 28,129 | 0.832 | 0.271 | 0.224 | 0.047 |
+| true | 3,263 | 0.800 | 0.308 | 0.283 | 0.025 |
+
+`accessibility_needs_flag`
+
+| accessibility_needs_flag | cases | AUC | predicted self-cure | observed self-cure | over-prediction |
+|---|---|---|---|---|---|
+| false | 30,474 | 0.828 | 0.275 | 0.230 | 0.045 |
+| true | 918 | 0.846 | 0.276 | 0.225 | 0.051 |
+
+`age_band`
+
+| age_band | cases | AUC | predicted self-cure | observed self-cure | over-prediction |
+|---|---|---|---|---|---|
+| 18-29 | 10,369 | 0.812 | 0.278 | 0.229 | 0.050 |
+| 30-44 | 10,750 | 0.845 | 0.259 | 0.205 | 0.054 |
+| 45-59 | 7,234 | 0.836 | 0.273 | 0.233 | 0.041 |
+| 60+ | 2,897 | 0.800 | 0.327 | 0.319 | 0.007 |
+
 ## 6. Notes
 
 - The 96,000 open cases were all opened Apr-Sep 2026 and never resolve inside the release, so later training months have lower self-cure rates (61% of cases open on 2026-04-01 cured within 30 days, 10% of those open on 2026-08-29). Production probabilities are calibrated on 2026-08-29, the latest month with a complete 30-day outcome; test metrics use the June calibrator.
