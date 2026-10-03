@@ -4,6 +4,7 @@ import datetime as dt
 import numpy as np
 
 from ontrack.l4_nba.ranker import (
+    action_values_text,
     SELF_CURE_THRESHOLD,
     _fact,
     _why,
@@ -108,3 +109,11 @@ class TestReasons:
         assert "2026-10-05" in counterfactual("do_nothing", [], 0.4, d)
         drivers = [("days_since_last_payment", "x", False)]
         assert "a payment arrives" in counterfactual("email", drivers, 0.1, d)
+
+
+class TestActionValues:
+    def test_best_first_with_waiting_as_zero(self):
+        assert action_values_text({"call": 10.0, "email": 41.2, "reminder_letter": -0.5}) ==             "email: $41.20; call: $10.00; reminder_letter: -$0.50; do_nothing: $0.00"
+
+    def test_nothing_allowed(self):
+        assert action_values_text({}) is None

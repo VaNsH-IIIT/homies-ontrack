@@ -312,6 +312,14 @@ def wants_call(row: dict, allowed: list[str], values: dict) -> bool:
     return no_response or row["action"] == "call"
 
 
+def action_values_text(values: dict) -> str | None:
+    """Expected net value (CAD, vs doing nothing) of every allowed contact, best first, for the agent card."""
+    if not values:
+        return None
+    parts = [f"{a}: {'-' if v < 0 else ''}${abs(v):,.2f}" for a, v in sorted(values.items(), key=lambda x: (-x[1], x[0]))]
+    return "; ".join(parts + ["do_nothing: $0.00"])
+
+
 def _pct(p: float) -> str:
     return "under 1%" if p < 0.005 else "over 99%" if p > 0.995 else f"{p:.0%}"
 
@@ -472,6 +480,7 @@ def build_recommendations(con, routed: pd.DataFrame, as_of: str = config.SNAPSHO
             "p_roll_forward": round(1 - float(r["p_cure"]), 4),
             "overdue_now": round(float(r["overdue_now"] or 0), 2),
             "expected_value": round(float(r["values"].get(r["action"], 0.0)), 2),
+            "action_values": action_values_text(r["values"]),
             "decision_path": r["path"], "model_version": m_cure["meta"]["model_version"],
         })
     rec = pd.DataFrame(out)
