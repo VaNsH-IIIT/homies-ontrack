@@ -147,7 +147,10 @@ def understand(question: str, metric_id: str | None = None, as_of_date: str = co
                 break
     if not u.metric:
         return u
-    u.start, u.end = parse_window(question, snapshot)
+    try:
+        u.start, u.end = parse_window(question, snapshot)
+    except ValueError:                                   # impossible date ("31 February"): leave it to the agent
+        u.unresolved.append("date window")
     if u.metric == "roll_rate":
         return u
     m = metrics.METRICS.get(u.metric)
