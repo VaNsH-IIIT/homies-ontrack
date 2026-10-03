@@ -22,3 +22,4 @@ shap>=0.45
 
 # demo
 streamlit>=1.38
+pytest
