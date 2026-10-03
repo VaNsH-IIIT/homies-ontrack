@@ -177,10 +177,19 @@ def mix_section(con) -> list[str]:
     same = agree.loc[agree["bank_mapped"] == agree["ours"], "cases"].sum()
     known = agree.loc[agree["bank_last"].notna(), "cases"].sum()
     top = agree[agree["bank_last"].notna()].sort_values("cases", ascending=False).head(10)[["bank_last", "ours", "cases"]]
+    hard = agree[agree["ours"] == "hardship_referral"].assign(bank=lambda d: d["bank_last"].fillna("(none)"))
+    hard = hard.groupby("bank", as_index=False)["cases"].sum().sort_values("cases", ascending=False)
+    n_hard = int(hard["cases"].sum())
+    share = lambda names: hard.loc[hard["bank"].isin(names), "cases"].sum() / max(n_hard, 1)  # noqa: E731
+    contact = share(["call_evening", "call_daytime", "sms_payment_link", "send_letter"])
+    plan = share(["offer_hardship_plan"])
+    hard["share"] = hard["cases"] / max(n_hard, 1)
     out += [f"Agreement with the bank's last recommendation on the same open cases: {same:,} of {known:,} "
             f"({same / max(known, 1):.0%}) where the bank had one. Largest combinations:", "", md_table(top), "",
-            "Disagreement is expected: the bank's engine sends an SMS link to almost everyone, including customers "
-            "in hardship; OnTrack sends hardship to a person first.", ""]
+            f"Where they differ most: for the {n_hard:,} cases OnTrack sends to a hardship specialist, the bank's last "
+            f"recommendation was a collection contact for {contact:.0%} (call, SMS payment link or letter) and a "
+            f"hardship plan for only {plan:.0%}:", "", md_table(hard.rename(columns={"bank": "bank's last recommendation"})),
+            ""]
     return out
 
 
