@@ -44,7 +44,7 @@ PII_TERMS_RE = _w(r"names?|full names?|first names?|last names?|surnames?|phone 
                   r"card numbers?|contact details|personal details")
 PII_INTENT_RE = _w(r"list|export|show|give|get|pull|download|extract|print|dump|send me|provide|share|"
                    r"what (?:is|are)|who (?:is|are)|which customers|look ?up")
-PROHIBITED_RE = _w(r"marketing|market to|cross[- ]?sell(?:ing)?|up[- ]?sell(?:ing)?|promotions?|promote|"
+PROHIBITED_RE = _w(r"marketing|market to|cross[- ]?sell(?:ing)?|up[- ]?sell(?:ing)?|promotions?|promotional|promote|"
                    r"advertis\w*|credit approvals?|approve (?:a |the |for )?(?:loan|credit|card)s?|underwrit\w*|"
                    r"credit limit increases?|raise (?:their|the) limits?|pre[- ]?approv\w*|re-?identif\w*|"
                    r"de-?anonymi\w*|sell (?:the )?data")

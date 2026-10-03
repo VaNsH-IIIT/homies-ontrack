@@ -127,3 +127,26 @@ git add benchmark/answers.csv && git commit -m "Benchmark: final answers" && git
 * Any column layout works as long as `question_id` and `question_text` exist; a failing question is retried once
   and still gets a row. Per-question trace: `$ONTRACK_WORK_DIR/benchmark_trace.jsonl`.
 * ~10 s per document question, ~20–60 s per non-certified data question, <1 s for certified metrics and rule refusals.
+
+## Unseen-question rehearsal and test-split check (issue #9)
+
+**Rehearsal** (`python -m ontrack.l2_ask.rehearsal`): 21 new questions with answers written by hand (independent
+SQL that does not use our templates; key facts + citation for documents and calls): 11 data (6 certified, 5 not),
+5 policy (incl. "can we call on 30 Sep" = must not be refused), 1 call summary, 4 refusals. **21/21** on a fresh run
+(no cache). Found and fixed: "promotional" was refused only by the agent, now by the rules too.
+
+**Test split, hand-checked** (no labels; checked against SQL / documents by hand):
+
+| Q | Check | Verdict |
+|---|---|---|
+| BQ-001, 009, 033 | facts and sections match POL-COLL-001 §5.3 / §7.3, PRC-COLL-010 §3.3 | ✅ |
+| BQ-008 | 29.46% with the certified default filters (insolvency / deceased holds excluded); 28.51% without. Kept the certified definition (dev gold always applies default filters) | ✅ (definition risk noted) |
+| BQ-013 | sum of `amount_paid_against` by `paid_date` in Sep 2026 (metric time basis = payment date) | ✅ |
+| BQ-014 | pilot = `case_assignment_history.assignment_method = 'randomised_pilot'`. Certified agents are higher under every definition (30 days from assignment 2.5% vs 1.6%; ever 3.6% vs 2.5%). One earlier run used the strategy test (`collections_cases.assignment_method = 'random'`) and said "No": fixed by a data convention in the prompt | ✅ "Yes" |
+| BQ-015 | one row per account in `card_accounts` / `loan_accounts` (no snapshot double counting); 12 months = 29 Sep 2025 to 28 Sep 2026 | ✅ |
+| BQ-020 | answered from the policies (not refused); says no policy permits legal action at two missed payments | ✅ |
+| BQ-021 | matches transcript 510864 | ✅ |
+| BQ-023, 029 | refused (PII; protected) | ✅ |
+| BQ-025 | certified formula (outbound attempts / distinct cases in contact_history). Alternative "per open case incl. zero attempts" would be lower (1-30: 1.16 vs 1.50) | ✅ (definition risk noted) |
+| BQ-027 | `sum(contact_cost_cad)/count(*)` by channel, system events excluded, channel_v2 coalesced | ✅ |
+| BQ-030 | dialer outage INC-0923, ~60% capacity cut, calls 3,044 / 3,126 vs ~7,300 | ✅ |
