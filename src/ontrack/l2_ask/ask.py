@@ -374,19 +374,31 @@ class Engine:
                       table=df, sql=safe)
 
     def roll_forward(self, question: str) -> Answer | None:
+        """R5 / G5: roll-forward and charge-off risk lists from gold.nba_recommendation (P3's scores)."""
         from ontrack.l2_ask import nba_questions as nq
-        if not re.search(nq.ROLL_FORWARD_RE, question.lower()):
+        q = question.lower()
+        charge_off = bool(re.search(nq.CHARGE_OFF_RE, q))       # checked first: "most likely to be charged off"
+        if not charge_off and not re.search(nq.ROLL_FORWARD_RE, q):
             return None
         try:
             ok, _, risk = nq.status(self.con.cursor())
             if not ok or not risk:
                 return None
-            m = re.search(r"\btop (\d+)\b", question.lower())
-            safe, df = self.run_sql(nq.rollforward_sql(risk, int(m.group(1)) if m else 20))
+            m = re.search(r"\btop (\d+)\b", q)
+            limit = int(m.group(1)) if m else 20
+            cols = nq.columns(self.con.cursor())
+            if charge_off:
+                if nq.CHARGE_OFF_COL not in cols:
+                    return None
+                risk, filt = nq.CHARGE_OFF_COL, "open cases at 151-180 DPD (charge-off at 181)"
+                safe, df = self.run_sql(nq.chargeoff_sql(limit, cols))
+            else:
+                filt = "open cases up to 150 DPD"
+                safe, df = self.run_sql(nq.rollforward_sql(risk, limit, cols))
         except Exception:  # noqa: BLE001 - fall back to the normal path
             return None
         return Answer(format_table(df), safe + "\n-- sources: [\"gold.nba_recommendation (P3 model scores)\"]",
-                      False, "data", {"source": "gold.nba_recommendation", "ranked_by": risk, "filter": "open cases"},
+                      False, "data", {"source": "gold.nba_recommendation", "ranked_by": risk, "filter": filt},
                       table=df, sql=safe)
 
     def answer(self, question: str, as_of_date: str = config.SNAPSHOT_DATE, metric_id: str | None = None,

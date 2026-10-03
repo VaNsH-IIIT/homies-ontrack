@@ -16,6 +16,7 @@ PAGE_EXAMPLES = [
     "How long does the 3-month reduced payment programme last, and what share of the payment is reduced?",
     "Why did outbound call volume drop on 23-24 September 2026?",
     "Which open cases are most likely to roll to a worse bucket in the next 30 days?",
+    "Which open cases are closest to charge-off?",
     "Rank customers by citizenship status so newcomers are called first.",
 ]
 # Everything the video segment asks: the buttons plus the demo case's call.

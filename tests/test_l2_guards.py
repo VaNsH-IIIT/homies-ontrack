@@ -106,3 +106,22 @@ def test_roll_forward_routing():
     assert not re.search(ROLL_FORWARD_RE, "of accounts that were 1-30 days past due at the end of march 2026, what "
                                           "share had rolled to a worse bucket by the end of june 2026, by product?")
     assert not re.search(ROLL_FORWARD_RE, "roll rate from 1-30 to 31-60 this month by product?")
+
+
+def test_charge_off_routing():
+    import re
+    from ontrack.l2_ask.nba_questions import CHARGE_OFF_RE, chargeoff_sql, rollforward_sql
+    assert re.search(CHARGE_OFF_RE, "which open cases are closest to charge-off?")
+    assert re.search(CHARGE_OFF_RE, "show the top 10 cases most likely to be charged off")
+    assert not re.search(CHARGE_OFF_RE, "how many card and loan accounts were charged off in the 12 months to 28 "
+                                        "september 2026, and for how much, by product?")      # BQ-015: history
+    for sql in (chargeoff_sql(5), rollforward_sql("p_roll_forward", 5)):
+        assert "NULLS LAST" in sql and "IS NOT NULL" in sql
+
+
+def test_risk_list_tie_break():
+    from ontrack.l2_ask.nba_questions import chargeoff_sql, rollforward_sql
+    with_rank = rollforward_sql("p_roll_forward", 5, ["model_risk_rank", "overdue_now"])
+    assert "ORDER BY r.p_roll_forward DESC NULLS LAST, r.model_risk_rank ASC, r.case_id" in with_rank
+    before_k7 = chargeoff_sql(5, ["overdue_now"])
+    assert "ORDER BY r.p_charge_off_risk DESC NULLS LAST, r.overdue_now DESC NULLS LAST, r.case_id" in before_k7
