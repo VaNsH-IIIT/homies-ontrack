@@ -256,8 +256,9 @@ def notes_section() -> list[str]:
             "- The bank's no-contact holdout cured as often as its champion strategy (63.4% vs 62.7% within 30 "
             "days). The holdout still had some contacts, so this is a hint, not proof, that contact adds little for "
             "customers who would pay anyway; it is why OnTrack waits on likely self-cures.",
-            "- `golden_id` values can differ between builds (the demo customer is G-0331645 on P1's build and "
-            "G-0331648 on a fresh Windows build); `case_id` is stable, so the demo uses CS-2026-583749.", ""]
+            "- Training is repeatable: fixed seeds, deterministic LightGBM on 4 threads, rows read in a fixed order "
+            "and inputs rounded to 6 decimals, so two runs give the same AUCs and the same 96,000 recommendations.",
+            ""]
 
 
 def write_evaluation_report(con) -> str:

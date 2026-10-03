@@ -172,16 +172,23 @@ contacts AS (
            count(*) FILTER (WHERE clicked AND ago < 30) AS link_clicks_30d,
            count(*) FILTER (WHERE callback AND ago < 30) AS callback_requested_30d,
            bool_or(hardship_mentioned)::INT AS hardship_mentioned_any,
-           bool_or(dispute_raised)::INT AS dispute_raised_any,
-           mode(contact_hour_local) FILTER (WHERE rpc_flag) AS best_rpc_hour
+           bool_or(dispute_raised)::INT AS dispute_raised_any
     FROM ct GROUP BY 1
+),
+best_hour AS (   -- hour with the most right-party contacts; ties go to the earlier hour (repeatable)
+    SELECT case_id, contact_hour_local AS best_rpc_hour
+    FROM (SELECT case_id, contact_hour_local, count(*) AS n FROM ct
+          WHERE rpc_flag AND contact_hour_local IS NOT NULL GROUP BY 1, 2)
+    QUALIFY row_number() OVER (PARTITION BY case_id ORDER BY n DESC, contact_hour_local) = 1
 ),
 bureau AS (
     SELECT b.golden_id, b.risk_score, b.utilisation, b.delinquent_trades, b.inquiries_hard_6m,
            (DATE '{as_of}' - b.pull_date)::INT AS bureau_age_days
     FROM _p3_bureau b
     WHERE b.pull_date <= DATE '{as_of}' AND b.golden_id IN (SELECT golden_id FROM pop)
-    QUALIFY row_number() OVER (PARTITION BY b.golden_id ORDER BY b.pull_date DESC) = 1
+    -- same-day pulls from two sources: break the tie on values so every run picks the same one
+    QUALIFY row_number() OVER (PARTITION BY b.golden_id ORDER BY b.pull_date DESC, b.risk_score, b.utilisation,
+                                                               b.delinquent_trades, b.inquiries_hard_6m) = 1
 ),
 salary AS (
     SELECT golden_id,
@@ -241,10 +248,11 @@ SELECT p.case_id, p.golden_id, p.crm_customer_id, DATE '{as_of}' AS as_of_date,
        CASE WHEN s.prior > 0 THEN (s.recent - s.prior) / s.prior END AS salary_drop_pct,
        coalesce(s.has_payroll, 0) AS has_payroll,
        a.acct_months_min_paid_6m, a.acct_utilisation, a.acct_max_dpd, a.acct_overlimit,
-       c.best_rpc_hour
+       h.best_rpc_hour
 FROM pop p
 LEFT JOIN others o ON o.case_id = p.case_id
 LEFT JOIN contacts c ON c.case_id = p.case_id
+LEFT JOIN best_hour h ON h.case_id = p.case_id
 LEFT JOIN bureau b ON b.golden_id = p.golden_id
 LEFT JOIN salary s ON s.golden_id = p.golden_id
 LEFT JOIN accounts a ON a.golden_id = p.golden_id

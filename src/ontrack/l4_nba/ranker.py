@@ -69,7 +69,8 @@ def channel_economics(con, as_of: str = config.SNAPSHOT_DATE) -> dict:
             FROM gold.contact_timeline t JOIN bronze.contact_history h ON h.contact_id = t.contact_id
             WHERE t.case_id IS NOT NULL AND ({PAYMENT_FLAGS})
         )
-        SELECT c.channel, count(*) AS n, avg((p.ts IS NOT NULL AND p.ts < c.ts + INTERVAL 7 DAY)::INT) AS rate
+        SELECT c.channel, count(*) AS n,
+               round(avg((p.ts IS NOT NULL AND p.ts < c.ts + INTERVAL 7 DAY)::INT), 6) AS rate
         FROM c ASOF LEFT JOIN p ON c.case_id = p.case_id AND p.ts >= c.ts
         GROUP BY 1
     """).fetchdf().set_index("channel")
@@ -393,6 +394,7 @@ def build_recommendations(con, routed: pd.DataFrame, as_of: str = config.SNAPSHO
         JOIN gold.case_360 c ON c.case_id = f.case_id
         LEFT JOIN gold.c360_customer cu ON cu.golden_id = f.golden_id
         WHERE f.as_of_date = DATE '{as_of}'
+        ORDER BY f.case_id
     """).fetchdf()
     df = feats.merge(routed, on="case_id", how="left", validate="one_to_one")
     for col in ("hardship_flag", "needs_human_review"):
@@ -402,8 +404,8 @@ def build_recommendations(con, routed: pd.DataFrame, as_of: str = config.SNAPSHO
     cols = m_cure["feature_cols"]
     df["p_cure"] = predict(m_cure, df)
     df["p_payment"] = predict(m_pay, df)
-    resp = (df["p_payment"] / max(df["p_payment"].mean(), 1e-6)).clip(0.5, 2.0)
-    contrib = m_cure["booster"].predict(df[cols].astype(float).to_numpy(), pred_contrib=True)[:, :-1]
+    resp = (df["p_payment"] / max(df["p_payment"].mean(), 1e-6)).clip(0.5, 2.0).round(6)
+    contrib = m_cure["booster"].predict(np.round(df[cols].astype(float).to_numpy(), 6), pred_contrib=True)[:, :-1]
     econ = channel_economics(con, as_of)
 
     records = df.to_dict("records")
@@ -420,14 +422,14 @@ def build_recommendations(con, routed: pd.DataFrame, as_of: str = config.SNAPSHO
         values = contact_values(float(r["overdue_now"] or 0), float(r["p_cure"]), float(resp.iat[i]), allowed, econ)
         action, path = choose_action(r, allowed, values)
         r.update(action=action, path=path, allowed=allowed, blocked=blocked, values=values,
-                 expected_loss=float(r["overdue_now"] or 0) * (1 - float(r["p_cure"])))
+                 expected_loss=round(float(r["overdue_now"] or 0) * (1 - float(r["p_cure"])), 6))
         r["call_candidate"] = wants_call(r, allowed, values)
         r["shap_i"] = i
         rows.append(r)
 
     # Call capacity: the day's call slots go to the candidates with the most dollars at risk
     call_capacity = econ["call"]["capacity"]
-    cands = sorted((r for r in rows if r["call_candidate"]), key=lambda r: -r["expected_loss"])
+    cands = sorted((r for r in rows if r["call_candidate"]), key=lambda r: (-r["expected_loss"], r["case_id"]))
     for rank, r in enumerate(cands):
         if rank < call_capacity:
             r["call_reason"] = "best_channel" if r["action"] == "call" else "no_response"

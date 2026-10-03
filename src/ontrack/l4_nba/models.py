@@ -77,11 +77,15 @@ MONOTONE = {
     },
 }
 
+# Repeatable training (K1): every seed fixed, deterministic histogram building on a fixed number of threads.
+# Together with ordered input rows and rounded inputs (load_frame / _matrix), two runs give identical models.
 PARAMS = {
     "objective": "binary", "metric": "auc", "learning_rate": 0.03, "num_leaves": 31,
     "min_child_samples": 100, "feature_fraction": 0.8, "bagging_fraction": 0.8, "bagging_freq": 1,
-    "lambda_l2": 1.0, "verbosity": -1, "seed": 42, "deterministic": True, "num_threads": 4,
+    "lambda_l2": 1.0, "verbosity": -1, "seed": 42, "bagging_seed": 42, "feature_fraction_seed": 42,
+    "data_random_seed": 42, "deterministic": True, "force_col_wise": True, "num_threads": 4,
 }
+ROUND_DECIMALS = 6   # parallel float sums can differ in the last bits between runs
 
 
 def ensure_features(con, dates: list[str]) -> None:
@@ -104,11 +108,12 @@ def load_frame(con, model_name: str, dates: list[str]) -> pd.DataFrame:
         SELECT f.*, l.label FROM {TABLE} f
         JOIN ({labels}) l ON l.case_id = f.case_id AND l.as_of_date = f.as_of_date
         WHERE f.as_of_date IN ({in_list})
+        ORDER BY f.as_of_date, f.case_id
     """).fetchdf()
 
 
 def _matrix(df: pd.DataFrame, cols: list[str]) -> np.ndarray:
-    return df[cols].astype(float).to_numpy()
+    return np.round(df[cols].astype(float).to_numpy(), ROUND_DECIMALS)
 
 
 def _fit(train: pd.DataFrame, valid: pd.DataFrame, cols: list[str], model_name: str) -> lgb.Booster:
