@@ -12,6 +12,7 @@ from ontrack.l4_nba.ranker import (
     contact_values,
     counterfactual,
     driver_reasons,
+    roll_forward_columns,
     wants_call,
 )
 
@@ -117,3 +118,12 @@ class TestActionValues:
 
     def test_nothing_allowed(self):
         assert action_values_text({}) is None
+
+
+class TestRollForward:
+    def test_cases_below_180_can_roll_forward(self):
+        assert roll_forward_columns(0.3, "151-180") == (0.7, None)
+
+    def test_180_plus_is_charge_off_risk_not_roll_forward(self):
+        # P1 review on #14: 180+ cases topped the roll-forward list but cannot roll to a worse bucket
+        assert roll_forward_columns(0.1, "180+") == (None, 0.9)
