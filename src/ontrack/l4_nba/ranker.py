@@ -284,15 +284,21 @@ def counterfactual(action: str, drivers: list[tuple[str, str, bool]], p_cure: fl
 # ----------------------------------------------------------------------------------------------------
 # Ranking
 # ----------------------------------------------------------------------------------------------------
-def roll_forward_columns(p_cure: float, bucket: str | None) -> tuple[float | None, float | None]:
+CHARGE_OFF_DPD = 180   # every charged-off case in the release was charged off at 181 DPD; open cases top out at 180
+
+
+def roll_forward_columns(p_cure: float, dpd) -> tuple[float | None, float | None]:
     """(p_roll_forward, p_charge_off_risk) for one case.
 
     DPD rises by one a day until a case cures, so not curing within 30 days means rolling to the next 30-day
-    bucket, except for cases already in the worst bucket (180+): they cannot roll further, and the same chance
-    of staying unpaid is their charge-off risk instead.
+    bucket, unless that takes the case past 180 DPD: then the next step is charge-off, not a worse bucket,
+    and the same chance of staying unpaid is its charge-off risk. (The source `current_bucket` label '180+' is
+    not used: most open cases carrying it are below 180 DPD.)
     """
     risk = round(1 - float(p_cure), 4)
-    return (None, risk) if bucket == "180+" else (risk, None)
+    if dpd is not None and not pd.isna(dpd) and float(dpd) + 30 > CHARGE_OFF_DPD:
+        return None, risk
+    return risk, None
 
 
 def contact_values(overdue: float, p_cure: float, responsiveness: float, allowed: list[str], econ: dict) -> dict:
@@ -408,6 +414,7 @@ def build_recommendations(con, routed: pd.DataFrame, as_of: str = config.SNAPSHO
                coalesce(cu.deceased_flag, false) OR coalesce(c.deceased_hold_flag, false) AS deceased_flag,
                coalesce(cu.third_party_hold_flag, false) OR coalesce(c.third_party_rep_flag, false) AS third_party_hold_flag,
                coalesce(c.dispute_flag, false) AS dispute_flag, c.current_bucket_derived AS current_bucket,
+               c.current_dpd,
                coalesce(cu.vulnerability_flag, false) OR coalesce(c.vulnerable_customer_flag, false) AS vulnerability_flag,
                coalesce(c.contacts_last_7d, 0) AS contacts_last_7d, coalesce(c.contact_cap_7d, 7) AS contact_cap_7d
         FROM {TABLE} f
@@ -488,8 +495,9 @@ def build_recommendations(con, routed: pd.DataFrame, as_of: str = config.SNAPSHO
             "p_cure_30d": round(float(r["p_cure"]), 4), "p_payment_7d": round(float(r["p_payment"]), 4),
             # the names match what Layer 2's roll-forward question looks for (R5, #5); see roll_forward_columns
             "current_bucket": r.get("current_bucket"),
-            "p_roll_forward": roll_forward_columns(r["p_cure"], r.get("current_bucket"))[0],
-            "p_charge_off_risk": roll_forward_columns(r["p_cure"], r.get("current_bucket"))[1],
+            "current_dpd": r.get("current_dpd"),
+            "p_roll_forward": roll_forward_columns(r["p_cure"], r.get("current_dpd"))[0],
+            "p_charge_off_risk": roll_forward_columns(r["p_cure"], r.get("current_dpd"))[1],
             "overdue_now": round(float(r["overdue_now"] or 0), 2),
             "expected_value": round(float(r["values"].get(r["action"], 0.0)), 2),
             "action_values": action_values_text(r["values"]),

@@ -121,9 +121,13 @@ class TestActionValues:
 
 
 class TestRollForward:
-    def test_cases_below_180_can_roll_forward(self):
-        assert roll_forward_columns(0.3, "151-180") == (0.7, None)
+    def test_room_to_roll_forward(self):
+        assert roll_forward_columns(0.3, 150) == (0.7, None)   # 150 + 30 = 180: still a bucket, not charge-off
 
-    def test_180_plus_is_charge_off_risk_not_roll_forward(self):
-        # P1 review on #14: 180+ cases topped the roll-forward list but cannot roll to a worse bucket
-        assert roll_forward_columns(0.1, "180+") == (None, 0.9)
+    def test_past_180_within_30_days_is_charge_off_risk(self):
+        # P1 review on #14: cases at 180 DPD topped the roll-forward list but cannot roll to a worse bucket
+        assert roll_forward_columns(0.1, 151) == (None, 0.9)
+        assert roll_forward_columns(0.1, 180) == (None, 0.9)
+
+    def test_unknown_dpd_counts_as_roll_forward(self):
+        assert roll_forward_columns(0.2, None) == (0.8, None)
