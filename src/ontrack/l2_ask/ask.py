@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from ontrack import config
 from ontrack.l2_ask import llm, metrics, scope, sql_guard, understand
 
-PROMPT_VERSION = "ask-v5"
+PROMPT_VERSION = "ask-v6"
 MAX_TURNS = 14
 MAX_SQL_ERRORS = 6          # repair budget across the whole question (design: up to two per query)
 RESULT_PREVIEW_ROWS = 40
@@ -156,6 +156,12 @@ How to answer:
 - Events raised during contacts (disputes, complaints, hardship mentions, cease requests, payments taken) are counted
   in contact_history flags (dispute_raised_flag, complaint_raised_flag, ...) by contact_ts_local, not from case
   columns. Volumes of calls / contacts also come from contact_history.
+- Two different experiments exist. The agent-assignment pilot ("randomised pilot", certified agents, routing) is
+  case_assignment_history.assignment_method = 'randomised_pilot' (certified_for_vulnerable_flag and
+  hardship_flag_at_assignment are per assignment). The treatment-strategy test (champion / challenger_A /
+  challenger_B / no_contact_holdout) is collections_cases.test_cell with collections_cases.assignment_method = 'random'.
+  days_to_cure counts from case opening; pilot cases are assigned about 30 days after opening, so measure a pilot's
+  N-day cure from the assignment date (cure_date between assigned date and assigned date + N days).
 - Label periods and groups in the question's own words (e.g. '15-22 Sep', '7-14 Sep'), not ISO ranges.
 - Document questions: answer in one or two plain sentences with the key facts (numbers, durations, conditions),
   from CURRENT documents only; where an FAQ or script disagrees with a policy or programme terms, the policy wins. sources = list like ["POL-COLL-001 §5.2", "FAQ-COLL-001 Q2", "qa_checklist item 7"].

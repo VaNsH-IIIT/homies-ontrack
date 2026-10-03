@@ -7,7 +7,7 @@ Required by the brief: which AI tools we used and for what. Each teammate adds t
 | Tool | Used by | What for |
 |---|---|---|
 | Claude Code (Anthropic) | P1 Vansh | Design doc drafting and review; repo scaffold and team plan; Layer 1 code (bronze, silver, identity resolution incl. Splink, gold, data contract, DQ report); Streamlit shell and C360 page; architecture diagram; reviewing teammates' branches (found wrong column names, non-persisting decision buttons) |
-| Claude Code (Anthropic) | P2 Garv | Read the brief, design and dataset; benchmark analysis (BENCHMARK_NOTES.md); Layer 2 code: runner and dev scorer, sqlglot SQL guard, certified-metric SQL templates and "understood as" parser, scope guard rules and red-team set, Claude tool agent for NL-to-SQL and cited answers; all code reviewed and tested against dev gold answers |
+| Claude Code (Anthropic) | P2 Garv | Read the brief, design and dataset; benchmark analysis (BENCHMARK_NOTES.md); Layer 2 code: runner and dev scorer, sqlglot SQL guard, certified-metric SQL templates and "understood as" parser, scope guard rules and red-team set, Claude agent for NL-to-SQL and cited answers, BM25 cited search, Ask page; Layer 3 text code: notes and call models, Claude extraction with verified quotes, evaluation on the public labels; 21-question unseen rehearsal and hand-check of the 14 test answers; 81 pytest tests; PR descriptions and team status report. All code reviewed and tested against the dev gold answers and hand-written SQL |
 | Claude Code (Anthropic) | P3 Kris | _to add_ |
 
 ## AI / ML inside the system
@@ -15,8 +15,8 @@ Required by the brief: which AI tools we used and for what. Each teammate adds t
 | Component | Technique | Where |
 |---|---|---|
 | Identity resolution, tier 3 | Splink (Fellegi-Sunter probabilistic record linkage, EM-trained, unsupervised) | `src/ontrack/l1_factory/probabilistic.py` |
-| Layer 2 Ask | Claude (Anthropic API): NL-to-SQL over certified metrics, refusals, cited search | `src/ontrack/l2_ask/` (P2) |
-| Layer 3 text features | Claude with a JSON schema: hardship signal, stated reason, stated payday, dispute, each with an evidence quote | `src/ontrack/l3_features/text/` (P2) |
+| Layer 2 Ask | Rules + certified-metric SQL templates first (no LLM); then a Claude agent (Anthropic API, or the Claude Code CLI as fallback) writes guarded SQL and cited document / call answers; BM25 (DuckDB full-text) search over policy sections and notes | `src/ontrack/l2_ask/` (P2) |
+| Layer 3 text features | Character n-gram logistic-regression models trained on the 500 public labels (notes and calls; every note and call of open cases), plus Claude with a JSON schema on calls (quote verified in its turn): hardship signal, stated reason, stated payday, dispute, each with evidence | `src/ontrack/l3_features/text/` (P2) |
 | Layer 4 models | LightGBM + SHAP | `src/ontrack/l4_nba/` (P3) |
 
 All data is synthetic, so sending it to an API is allowed by the brief. Protected attributes never reach any model or LLM call.
