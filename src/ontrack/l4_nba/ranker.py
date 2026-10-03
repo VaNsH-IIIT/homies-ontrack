@@ -430,6 +430,9 @@ def build_recommendations(con, routed: pd.DataFrame, as_of: str = config.SNAPSHO
             "routing_reasons": r.get("routing_reasons"),
             "text_evidence": r.get("text_evidence"), "text_source": r.get("text_source"),
             "p_cure_30d": round(float(r["p_cure"]), 4), "p_payment_7d": round(float(r["p_payment"]), 4),
+            # DPD rises by one a day until a case cures, so not curing within 30 days = rolling to the next
+            # 30-day bucket; the name matches what Layer 2's roll-forward question looks for (R5, #5)
+            "p_roll_forward": round(1 - float(r["p_cure"]), 4),
             "overdue_now": round(float(r["overdue_now"] or 0), 2),
             "expected_value": round(float(r["values"].get(r["action"], 0.0)), 2),
             "decision_path": r["path"], "model_version": m_cure["meta"]["model_version"],
