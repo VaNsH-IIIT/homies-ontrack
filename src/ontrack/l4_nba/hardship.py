@@ -1,160 +1,183 @@
-"""Hardship routing: flag cases that must go to a human-only queue (owner: P3).
+"""Hardship routing: who goes to the human-only queue, and why (owner: P3).
 
-Combines structured signals (payroll delay, EI deposits, payment failures,
-case hardship_flag) with text signals from P2 (when available).
+Two separate questions, answered for every open case:
+
+* **hardship_flag**: is the customer in financial hardship? Evidence, any of
+    - the case's own ``hardship_flag`` (set by the bank),
+    - the customer said so in a note or call in the last 90 days (P2's ``features.text_signals_case``,
+      with the verbatim quote as evidence),
+    - an income shock, for customers paid by an employer into a deposit account with us: salary deposit
+      missing or late in 2 of the last 3 months, or income down 50%+ against the 6 months before. (In the
+      training months such cases cured within 30 days 3-10% of the time, against 43-49% for the rest.
+      Customers without payroll deposits are not judged on salary gaps: they never have a salary.)
+  Hardship cases get ``hardship_referral`` and a person decides.
+* **needs_human_review**: hardship, or anything else a machine should not act on alone: vulnerability,
+  a dispute (case flag, mentioned in a note/call, or raised on a contact), a complaint, insolvency /
+  deceased / third-party holds, or a cease-communication request.
+
+Every routed case stores its reasons (``routing_reason`` = the first, ``routing_reasons`` = all) and a
+``routing_category`` used for the queue split in EVALUATION.md.
 """
 from __future__ import annotations
 
-import datetime as dt
+import pandas as pd
 
+from ontrack import config
 
-STRUCTURED_SIGNALS = [
-    "hardship_flag",
-    "vulnerability_flag",
-    "dispute_flag",
-    "complaint_flag",
+SALARY_GAP_MONTHS = 2          # of the last 3 months
+INCOME_DROP_PCT = -0.50        # vs the 6 months before
+
+# (category, is_hardship) in priority order: the first match is the case's routing_category
+CATEGORIES = [
+    ("hardship_case_flag", True),
+    ("hardship_text", True),
+    ("hardship_income", True),
+    ("vulnerability", False),
+    ("dispute", False),
+    ("complaint", False),
+    ("hold", False),
+    ("cease", False),
 ]
 
 
-def _check_structured(case_row: dict) -> list[str]:
-    """Return routing reasons from structured case/customer fields."""
-    reasons = []
-    if case_row.get("hardship_flag"):
-        reasons.append("Case flagged for hardship")
-    if case_row.get("vulnerability_flag"):
-        reasons.append("Customer has vulnerability flag")
-    if case_row.get("dispute_flag"):
-        reasons.append("Active dispute on case")
-    if case_row.get("complaint_flag"):
-        reasons.append("Active complaint on case")
-    if case_row.get("insolvency_flag"):
-        reasons.append("Customer is in insolvency/bankruptcy")
-    if case_row.get("deceased_flag"):
-        reasons.append("Customer is deceased")
-    dpd = case_row.get("dpd_at_entry", 0) or 0
-    if dpd == 0 and case_row.get("total_past_due", 0) == 0:
-        reasons.append("No delinquency — possible data or hardship case")
-    return reasons
-
-
-def _check_payment_distress(case_row: dict) -> list[str]:
-    """Detect payment distress patterns from feature values."""
-    reasons = []
-    payments_90d = case_row.get("payments_90d", 0) or 0
-    payments_30d = case_row.get("payments_30d", 0) or 0
-    days_since = case_row.get("days_since_last_payment", 999) or 999
-    if payments_90d >= 2 and payments_30d == 0 and days_since > 45:
-        reasons.append("Payment pattern suggests sudden financial difficulty (was paying, then stopped)")
-    return reasons
-
-
-def _check_text_signals(con, case_id: str) -> list[str]:
-    """Pull text signals from P2's features.text_signals if available."""
-    reasons = []
+def _truthy(v) -> bool:
     try:
-        rows = con.execute("""
-            SELECT hardship_signal, hardship_confidence, evidence_quote,
-                   stated_delay_reason, dispute_mentioned
-            FROM features.text_signals
-            WHERE case_id = ? AND hardship_signal = true
-            ORDER BY event_ts DESC LIMIT 3
-        """, [case_id]).fetchall()
-    except Exception:
-        return reasons
-
-    for row in rows:
-        conf = row[1] or 0
-        quote = row[2] or ""
-        if conf >= 0.7:
-            snippet = quote[:80] + "..." if len(quote) > 80 else quote
-            reasons.append(f"Hardship detected in conversation: \"{snippet}\" (confidence {conf:.0%})")
-        delay = row[3]
-        if delay:
-            reasons.append(f"Customer stated delay reason: {delay}")
-        if row[4]:
-            reasons.append("Dispute mentioned in conversation")
-    return reasons
+        return bool(v) and not pd.isna(v)
+    except (TypeError, ValueError):
+        return bool(v)
 
 
-def assess_hardship(
-    case_row: dict,
-    con=None,
-) -> tuple[bool, bool, list[str]]:
-    """Assess hardship and human review need for a case.
-
-    Returns
-    -------
-    hardship_flag : bool
-        True if the case should be treated as hardship.
-    needs_human_review : bool
-        True if the case must go to a human-only queue.
-    reasons : list[str]
-        Plain-English reasons for the routing decision.
-    """
-    reasons = []
-
-    reasons.extend(_check_structured(case_row))
-    reasons.extend(_check_payment_distress(case_row))
-
-    if con is not None:
-        case_id = case_row.get("case_id")
-        if case_id:
-            reasons.extend(_check_text_signals(con, str(case_id)))
-
-    hardship = bool(reasons)
-    needs_human = hardship
-    return hardship, needs_human, reasons
-
-
-def route_hardship_cases(con, as_of_ts: dt.datetime | None = None) -> int:
-    """Flag hardship cases in gold.nba_recommendation and print routing counts."""
+def _num(v, default=0.0) -> float:
     try:
-        recs = con.execute("""
-            SELECT r.case_id, r.golden_id,
-                   cs.hardship_flag, cs.complaint_flag,
-                   cu.vulnerability_flag, cu.insolvency_flag, cu.deceased_flag,
-                   f.payments_90d, f.payments_30d, f.days_since_last_payment,
-                   f.total_past_due, f.dpd_at_entry
-            FROM gold.nba_recommendation r
-            JOIN gold.case_360 cs ON cs.case_id = r.case_id
-            LEFT JOIN gold.c360_customer cu ON cu.golden_id = r.golden_id
-            LEFT JOIN features.case_features f ON f.case_id = r.case_id
-        """).fetchdf()
-    except Exception:
-        print("No recommendations to route.")
-        return 0
+        return default if v is None or pd.isna(v) else float(v)
+    except (TypeError, ValueError):
+        return default
 
-    hardship_count = 0
-    human_review_count = 0
-    routing_reasons = []
 
-    for _, row in recs.iterrows():
-        row_dict = row.to_dict()
-        hardship, needs_human, reasons = assess_hardship(row_dict, con)
-        if hardship:
-            hardship_count += 1
-        if needs_human:
-            human_review_count += 1
-        if reasons:
-            routing_reasons.append((row_dict["case_id"], reasons))
+def _check_structured(row: dict) -> list[tuple[str, str]]:
+    """(category, reason) from the case and customer flags."""
+    out = []
+    if _truthy(row.get("hardship_flag")):
+        why = row.get("hardship_reason")
+        out.append(("hardship_case_flag", "Case flagged for hardship"
+                    + (f" ({str(why).replace('_', ' ')})" if _truthy(why) else "")))
+    if _truthy(row.get("vulnerability_flag")):
+        out.append(("vulnerability", "Customer is flagged as vulnerable: needs a certified agent"))
+    if _truthy(row.get("dispute_flag")):
+        out.append(("dispute", "Open dispute on the case"))
+    if _truthy(row.get("complaint_flag")):
+        out.append(("complaint", "Open complaint on the case"))
+    if _truthy(row.get("insolvency_flag")):
+        out.append(("hold", "Insolvency hold (bankruptcy or consumer proposal)"))
+    if _truthy(row.get("deceased_flag")):
+        out.append(("hold", "Deceased hold"))
+    if _truthy(row.get("third_party_hold_flag")):
+        out.append(("hold", "Third-party representative on file: contact them, not the customer"))
+    if _truthy(row.get("cease_communication_flag")):
+        out.append(("cease", "Customer asked us to stop contacting them"))
+    return out
 
-        if hardship or needs_human:
-            con.execute("""
-                UPDATE gold.nba_recommendation
-                SET hardship_flag = ?, needs_human_review = ?
-                WHERE case_id = ?
-            """, [hardship, needs_human, str(row_dict["case_id"])])
 
-    print(f"\nHardship routing summary:")
-    print(f"  Total cases:        {len(recs):,d}")
-    print(f"  Hardship flagged:   {hardship_count:,d}")
-    print(f"  Human review queue: {human_review_count:,d}")
+def _check_income(row: dict) -> list[tuple[str, str]]:
+    """Income shock from salary deposits (point-in-time features), payroll customers only."""
+    out = []
+    if not _truthy(row.get("has_payroll")):
+        return out
+    gaps = int(_num(row.get("salary_gap_months_3m")))
+    if gaps >= SALARY_GAP_MONTHS:
+        out.append(("hardship_income", f"Salary deposit missing or late in {gaps} of the last 3 months"))
+    drop = row.get("salary_drop_pct")
+    if drop is not None and not pd.isna(drop) and float(drop) <= INCOME_DROP_PCT:
+        out.append(("hardship_income", f"Income down {abs(float(drop)):.0%} against the 6 months before"))
+    return out
 
-    if routing_reasons:
-        print(f"\nSample routing reasons (first 5):")
-        for case_id, reasons in routing_reasons[:5]:
-            print(f"  Case {case_id}:")
-            for r in reasons[:3]:
-                print(f"    - {r}")
 
-    return hardship_count
+def _check_text(row: dict) -> list[tuple[str, str]]:
+    """Signals from notes and calls (P2's features.text_signals_case). Disputes count without hardship."""
+    out = []
+    if _truthy(row.get("text_hardship_90d")):
+        quote = str(row.get("text_hardship_evidence") or "").strip()
+        if len(quote) > 140:
+            quote = quote[:137].rstrip() + "..."
+        out.append(("hardship_text", f'Customer described hardship in the last 90 days: "{quote}"' if quote
+                    else "Customer described hardship in a note or call in the last 90 days"))
+    if _truthy(row.get("text_dispute_any")):
+        out.append(("dispute", "Customer disputed the debt in a note or call"))
+    if _truthy(row.get("dispute_raised_any")) and not _truthy(row.get("dispute_flag")):
+        out.append(("dispute", "Dispute raised on a past contact"))
+    return out
+
+
+def assess_hardship(row: dict) -> dict:
+    """Route one case. Returns hardship_flag, needs_human_review, routing_category, routing_reason(s)."""
+    found = _check_structured(row) + _check_text(row) + _check_income(row)
+    order = {c: i for i, (c, _) in enumerate(CATEGORIES)}
+    found.sort(key=lambda x: order[x[0]])
+    hardship_cats = {c for c, h in CATEGORIES if h}
+    reasons = list(dict.fromkeys(r for _, r in found))
+    return {
+        "hardship_flag": any(c in hardship_cats for c, _ in found),
+        "needs_human_review": bool(found),
+        "routing_category": found[0][0] if found else None,
+        "routing_reason": reasons[0] if reasons else None,
+        "routing_reasons": "; ".join(reasons) if reasons else None,
+    }
+
+
+ROUTING_SQL = """
+SELECT f.case_id,
+       coalesce(c.hardship_flag, false) AS hardship_flag, c.hardship_reason,
+       coalesce(c.dispute_flag, false) AS dispute_flag,
+       coalesce(c.complaint_flag, false) AS complaint_flag,
+       coalesce(cu.vulnerability_flag, false) OR coalesce(c.vulnerable_customer_flag, false) AS vulnerability_flag,
+       coalesce(cu.insolvency_flag, false) OR coalesce(c.insolvency_hold_flag, false) AS insolvency_flag,
+       coalesce(cu.deceased_flag, false) OR coalesce(c.deceased_hold_flag, false) AS deceased_flag,
+       coalesce(cu.third_party_hold_flag, false) OR coalesce(c.third_party_rep_flag, false) AS third_party_hold_flag,
+       coalesce(cu.cease_communication_flag, false) OR coalesce(c.cease_contact_flag, false) AS cease_communication_flag,
+       f.has_payroll, f.salary_gap_months_3m, f.salary_drop_pct, f.dispute_raised_any,
+       {text_cols}
+FROM features.case_features f
+JOIN gold.case_360 c ON c.case_id = f.case_id
+LEFT JOIN gold.c360_customer cu ON cu.golden_id = f.golden_id
+{text_join}
+WHERE f.as_of_date = DATE '{as_of}'
+"""
+
+TEXT_COLS = ("t.text_hardship_90d, t.text_hardship_evidence, t.text_hardship_source, "
+             "t.text_hardship_confidence, t.text_dispute_any")
+NO_TEXT_COLS = ("NULL AS text_hardship_90d, NULL AS text_hardship_evidence, NULL AS text_hardship_source, "
+                "NULL AS text_hardship_confidence, NULL AS text_dispute_any")
+
+
+def has_text_signals(con) -> bool:
+    return bool(con.execute("SELECT count(*) FROM duckdb_tables() WHERE schema_name = 'features' "
+                            "AND table_name = 'text_signals_case'").fetchone()[0])
+
+
+def route_cases(con, as_of: str = config.SNAPSHOT_DATE) -> pd.DataFrame:
+    """Route every case in features.case_features at ``as_of`` (one query, one join on text signals)."""
+    text = has_text_signals(con)
+    sql = ROUTING_SQL.format(
+        as_of=as_of,
+        text_cols=TEXT_COLS if text else NO_TEXT_COLS,
+        text_join="LEFT JOIN features.text_signals_case t ON t.case_id = f.case_id" if text else "")
+    df = con.execute(sql).fetchdf()
+    routed = pd.DataFrame([assess_hardship(r) for r in df.to_dict("records")], index=df.index)
+    out = pd.concat([df[["case_id"]], routed], axis=1)
+    out["text_evidence"] = df["text_hardship_evidence"].where(df["text_hardship_90d"].fillna(False).astype(bool))
+    out["text_source"] = df["text_hardship_source"].where(df["text_hardship_90d"].fillna(False).astype(bool))
+    if not text:
+        print("  (features.text_signals_case not found: routing without text signals)")
+    return out
+
+
+def print_summary(routed: pd.DataFrame) -> None:
+    n = len(routed)
+    print(f"Hardship routing: {n:,} open cases")
+    print(f"  hardship flagged:   {int(routed['hardship_flag'].sum()):>7,}")
+    print(f"  human-only queue:   {int(routed['needs_human_review'].sum()):>7,}  "
+          f"({routed['needs_human_review'].mean():.0%})")
+    split = routed["routing_category"].value_counts()
+    for cat, _ in CATEGORIES:
+        if cat in split:
+            print(f"    {cat:20s} {int(split[cat]):>7,}")
