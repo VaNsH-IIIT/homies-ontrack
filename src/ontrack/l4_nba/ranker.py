@@ -159,15 +159,22 @@ def rank_actions(
     expected_amount: float,
     allowed_actions: list[str],
 ) -> list[tuple[str, float]]:
-    """Rank allowed actions by net expected value."""
+    """Rank allowed actions by net expected value.
+
+    For do_nothing: value comes only from natural self-cure.
+    For contact actions: baseline cure value plus incremental payment
+    lift from the contact, minus cost.
+    """
     scored = []
+    baseline_ev = p_cure * expected_amount * 0.3
     for action in allowed_actions:
         multiplier = ACTION_RECOVERY_MULTIPLIER.get(action, 0.5)
         cost = ACTION_COSTS.get(action, 0.0)
         if action == "do_nothing":
-            ev = p_cure * expected_amount * multiplier
+            ev = baseline_ev
         else:
-            ev = p_payment * expected_amount * multiplier - cost
+            incremental = p_payment * expected_amount * multiplier
+            ev = baseline_ev + incremental - cost
         scored.append((action, ev))
     scored.sort(key=lambda x: -x[1])
     return scored
