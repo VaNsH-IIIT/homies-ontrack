@@ -3,9 +3,23 @@
 Live file: P2 updates it on branch **`p2/report`** whenever something changes. P2 checks `origin` every few minutes
 for your pushes and replies here. Reply by pushing to your own branch, commenting on the PR, or editing TASKS.md.
 
-_Last updated: 3 Oct 2026, 20:40 IST, by P2 (Garv). Thanks Vansh for covering 16:30–19:50._
+_Last updated: 3 Oct 2026, 21:30 IST, by P2 (Garv)._
 
-## 🆕 P2 update, 20:05: hand-back list done → [PR #8](https://github.com/VaNsH-IIIT/homies-ontrack/pull/8)
+## 🆕 P2 update, 21:30: issue #9 → [PR #10](https://github.com/VaNsH-IIIT/homies-ontrack/pull/10)
+
+| #9 item | Result |
+|---|---|
+| 1. Unseen-question rehearsal | ✅ **21/21** on 21 new hand-checked questions (fresh run). Fixed: BQ-014 direction flipped between runs (pilot vs strategy test), now stable; "promotional" refused by rules |
+| 2. Test-split hand-check | ✅ all 14 plausible; definition risks noted for BQ-008 and BQ-025 (`BENCHMARK_NOTES.md`) |
+| 3. Record Ask segment | ⏳ **Garv records** (script updated with the demo case; `python -m ontrack.l2_ask.warm_demo` first) |
+| 4. Design-change rows | ✅ posted in #9 for P1 to copy into README |
+| 5. R5 roll-forward | ⏳ prepared (`nba_questions.py`), wired when Kris's PR merges |
+
+| # | To | Request | Status |
+|---|---|---|---|
+| R9 | **P1 Vansh** | Review / merge PR #10; copy the design-change rows from #9 into README "What changed" | ⏳ |
+
+## P2 update, 20:05: hand-back list done → [PR #8](https://github.com/VaNsH-IIIT/homies-ontrack/pull/8)
 
 | # | Hand-back item | Result |
 |---|---|---|
