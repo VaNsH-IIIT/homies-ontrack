@@ -5,11 +5,17 @@ from ontrack.app.common import header, query
 
 header("Collections 360", "One customer, one golden_id: every source system resolved, with match confidence and lineage.")
 
-EXAMPLES = query("""SELECT c.golden_id FROM gold.c360_customer c
+@st.cache_data(show_spinner=False)
+def examples() -> list[str]:
+    """Customers linked across 4+ systems with an open case (scans 1M rows once, then cached)."""
+    return query("""SELECT c.golden_id FROM gold.c360_customer c
                     WHERE c.source_key_count >= 4 AND c.open_case_count > 0
                     ORDER BY c.golden_id LIMIT 5""").golden_id.tolist()
 
-q = st.text_input("Find a customer by golden_id, CRM id, source key (card / loan / CIF) or account id",
+
+EXAMPLES = examples()
+
+q = st.text_input("Find a customer by golden_id, CRM id, source key (card / loan / CIF), account id or case id",
                   value=EXAMPLES[0] if EXAMPLES else "",
                   help=f"Examples: {', '.join(EXAMPLES)}")
 if not q:
@@ -20,7 +26,8 @@ gid = query("""
     SELECT golden_id FROM gold.c360_customer WHERE golden_id = ?
     UNION SELECT golden_id FROM gold.customer_xref WHERE source_key = ?
     UNION SELECT golden_id FROM gold.c360_account WHERE account_id = ?
-    LIMIT 1""", [q, q, q])
+    UNION SELECT golden_id FROM gold.case_360 WHERE case_id = ?
+    LIMIT 1""", [q, q, q, q])
 if gid.empty:
     st.warning("No customer found for that id.")
     st.stop()
