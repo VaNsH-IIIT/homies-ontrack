@@ -1,414 +1,452 @@
-"""Ranker: pick the best allowed action for each open case (owner: P3).
+"""Ranker: the next best action for every open case, with reasons a person can read (owner: P3).
 
-For each case:
-  1. Policy gate → allowed/blocked actions
-  2. Score allowed actions with models
-  3. Rank by expected net value (recovery - cost)
-  4. Generate top-3 SHAP reasons in plain English
-  5. Write gold.nba_recommendation and l4.decision_log
+Order of decisions for each open case (issue #7):
+
+1. **Hardship** (``hardship.py``: case flag, the customer's own words, income shock) -> ``hardship_referral``,
+   human-only queue. Only hardship cases can get it.
+2. **Needs a person for another reason** (vulnerability, dispute, complaint, holds, cease) -> ``specialist_agent``
+   (or ``do_nothing`` if even that is blocked, e.g. deceased), human-only queue.
+3. **Likely to pay on its own** (calibrated self-cure chance >= 35%, 3.5x the open book's ~10%) -> ``do_nothing``
+   for 7 days, then re-score. Contacting customers who pay anyway costs money and goodwill; in the bank's own
+   test cells the no-contact holdout cured as often as the champion strategy (63.4% vs 62.7% within 30 days;
+   the holdout was not contact-free, so this is a hint, not proof).
+4. **Everyone else**: each contact the policy gate allows is valued as
+   ``overdue x (1 - p_cure) x response_rate(channel) x responsiveness - unit_cost``
+   with response rates measured from ``contact_history`` (payment within 7 days of an outbound contact) and
+   unit costs and call capacity from ``channel_capacity``. ``responsiveness`` is the payment model's score
+   relative to the open book (0.5x-2x). Payment links by SMS / email convert ~4x better than calls per
+   contact at a fraction of the cost, so digital wins by default. **Calls** go to the cases with the most
+   dollars at risk where contact has not worked (2+ contacts in 30 days, no payment, no link clicked) or
+   where a call is the only channel allowed, up to the day's call capacity: a conversation is where
+   hardship comes out (6.4% of calls vs 0% of digital contacts) and arrangements are made.
+
+Reasons: ``reason_1`` says why this action, with the numbers; ``reason_2`` / ``reason_3`` are the two biggest
+drivers of the self-cure estimate (LightGBM SHAP contributions) in business words; ``counterfactual`` says
+what would change the recommendation. ``score`` = dollars at risk (overdue x (1 - self-cure chance)), the
+queue priority.
 """
 from __future__ import annotations
 
 import datetime as dt
-import uuid
 
 import numpy as np
-import shap
+import pandas as pd
 
 from ontrack import config
-from ontrack.l4_nba.policy_gate import evaluate, needs_human_review, ACTIONS
+from ontrack.l3_features.structured.features import PRODUCT_CODES, OPEN_REASON_CODES, TABLE
+from ontrack.l4_nba.policy_gate import evaluate, service_notes
 
-MODEL_VERSION = "v0.1"
+SELF_CURE_THRESHOLD = 0.35   # 3.5x the open book's 30-day self-cure rate (~10%): wait a week, then re-score
+SPECIALIST_COST_MULTIPLIER = 3.0          # senior agent, longer conversation than a standard call
+CONTACT_ACTIONS = {"call": "call", "sms": "sms", "email": "email", "push_notification": "push",
+                   "reminder_letter": "letter"}
+CHANNEL_OF = {"call": "phone", "sms": "sms", "email": "email", "push_notification": "push",
+              "reminder_letter": "letter", "specialist_agent": "phone", "hardship_referral": "human queue",
+              "do_nothing": "none"}
+ACTION_LABEL = {"call": "Call", "sms": "SMS payment link", "email": "Email payment link",
+                "push_notification": "App push with payment link", "reminder_letter": "Reminder letter"}
+PEAK_CALL_HOUR = 17     # highest right-party-contact rate in contact_history (70% at 17:00-19:00 local)
 
-ACTION_COSTS = {
-    "do_nothing": 0.0,
-    "call": 8.50,
-    "sms": 0.15,
-    "email": 0.05,
-    "push_notification": 0.03,
-    "reminder_letter": 2.00,
-    "hardship_referral": 0.0,
-    "specialist_agent": 15.00,
-}
-
-ACTION_RECOVERY_MULTIPLIER = {
-    "do_nothing": 0.3,
-    "call": 1.0,
-    "sms": 0.6,
-    "email": 0.5,
-    "push_notification": 0.4,
-    "reminder_letter": 0.7,
-    "hardship_referral": 0.8,
-    "specialist_agent": 1.2,
-}
-
-REASON_TEMPLATES = {
-    "dpd_current": "Currently {value} days past due",
-    "past_due_max": "Maximum past-due amount is ${value:,.0f}",
-    "total_past_due": "Total past-due across accounts is ${value:,.0f}",
-    "past_due_ratio": "Past-due is {value:.0%} of total balance",
-    "days_since_last_payment": "No payment in {value} days",
-    "payments_90d": "{value} payments in the last 90 days",
-    "payments_30d": "{value} payments in the last 30 days",
-    "rpc_rate_30d": "Right-party contact rate is {value:.0%} in the last 30 days",
-    "contacts_30d": "{value} contact attempts in the last 30 days",
-    "contacts_7d": "{value} contacts in the last 7 days",
-    "case_age_days": "Case has been open for {value} days",
-    "bureau_score_current": "Bureau score is {value}",
-    "score_delta_90d": "Bureau score changed by {value} in the last 90 days",
-    "utilisation_current": "Credit utilisation is {value:.0%}",
-    "total_balance": "Total balance is ${value:,.0f}",
-    "total_exposure": "Total exposure is ${value:,.0f}",
-    "n_accounts": "Customer has {value} accounts",
-    "open_case_count": "{value} open collection cases",
-    "dpd_at_entry": "DPD was {value} at case entry",
-    "rpc_count": "{value} right-party contacts total",
-    "total_contacts": "{value} total contacts on this case",
-    "accounts_30dpd": "{value} accounts are 30+ days past due",
-    "inquiries_hard_3m": "{value} hard credit inquiries in the last 3 months",
-    "products_held": "Customer holds {value} products",
-    "total_overdue": "Total overdue amount is ${value:,.0f}",
-}
+PAYMENT_FLAGS = ("coalesce(h.payment_taken_flag, false) OR coalesce(h.link_payment_flag, false) "
+                 "OR coalesce(h.app_payment_after_contact_flag, false) "
+                 "OR coalesce(h.ivr_self_serve_payment_flag, false)")
 
 
-COUNTERFACTUAL_TEMPLATES = {
-    "dpd_current": "Would improve if DPD dropped below {threshold}",
-    "past_due_max": "Would improve if past-due amount fell below ${threshold:,.0f}",
-    "total_past_due": "Would improve if total past-due fell below ${threshold:,.0f}",
-    "past_due_ratio": "Would improve if past-due ratio dropped below {threshold:.0%}",
-    "days_since_last_payment": "Would change if a payment were made within {threshold} days",
-    "payments_90d": "Would improve with at least {threshold} payments in 90 days",
-    "payments_30d": "Would improve with at least {threshold} payment in 30 days",
-    "rpc_rate_30d": "Would improve if RPC rate exceeded {threshold:.0%}",
-    "contacts_30d": "Would change if contact frequency adjusted to {threshold}",
-    "bureau_score_current": "Would improve if bureau score rose above {threshold}",
-    "case_age_days": "Would change if resolved within {threshold} days",
-}
-
-COUNTERFACTUAL_THRESHOLDS = {
-    "dpd_current": 30, "past_due_max": 500, "total_past_due": 1000,
-    "past_due_ratio": 0.1, "days_since_last_payment": 30, "payments_90d": 2,
-    "payments_30d": 1, "rpc_rate_30d": 0.5, "contacts_30d": 3,
-    "bureau_score_current": 650, "case_age_days": 60,
-}
-
-
-def _format_reason(feature_name: str, feature_value: float, shap_value: float) -> str:
-    """Turn a SHAP feature into a plain-English reason."""
-    template = REASON_TEMPLATES.get(feature_name)
-    if template:
-        try:
-            fact = template.format(value=feature_value)
-        except (ValueError, KeyError):
-            fact = f"{feature_name} = {feature_value}"
-    else:
-        fact = f"{feature_name} = {feature_value}"
-    return fact
-
-
-def _counterfactual(feature_name: str) -> str | None:
-    """Generate a 'would change if…' line for the top driver."""
-    tmpl = COUNTERFACTUAL_TEMPLATES.get(feature_name)
-    threshold = COUNTERFACTUAL_THRESHOLDS.get(feature_name)
-    if tmpl and threshold is not None:
-        try:
-            return tmpl.format(threshold=threshold)
-        except (ValueError, KeyError):
-            pass
-    return None
-
-
-def get_shap_reasons(
-    model_dict: dict,
-    features_row: np.ndarray,
-    feature_values: dict[str, float],
-    top_n: int = 3,
-    include_counterfactual: bool = True,
-    precomputed_shap: np.ndarray | None = None,
-) -> list[str]:
-    """Get top-N SHAP-based reasons for a prediction, with optional counterfactual."""
-    feature_cols = model_dict["feature_cols"]
-
-    if precomputed_shap is not None:
-        shap_vals = precomputed_shap
-    else:
-        booster = model_dict["booster"]
-        explainer = shap.TreeExplainer(booster)
-        shap_vals = explainer.shap_values(features_row.reshape(1, -1))[0]
-
-    indices = np.argsort(np.abs(shap_vals))[::-1][:top_n]
-    reasons = []
-    for idx in indices:
-        fname = feature_cols[idx]
-        fval = feature_values.get(fname, features_row[idx])
-        reasons.append(_format_reason(fname, fval, shap_vals[idx]))
-
-    if include_counterfactual and len(indices) > 0:
-        top_fname = feature_cols[indices[0]]
-        cf = _counterfactual(top_fname)
-        if cf:
-            reasons.append(cf)
-
-    return reasons
-
-
-def rank_actions(
-    case_row: dict,
-    p_cure: float,
-    p_payment: float,
-    expected_amount: float,
-    allowed_actions: list[str],
-) -> list[tuple[str, float]]:
-    """Rank allowed actions by net expected value.
-
-    For do_nothing: value comes only from natural self-cure.
-    For contact actions: baseline cure value plus incremental payment
-    lift from the contact, minus cost.
-    """
-    scored = []
-    baseline_ev = p_cure * expected_amount * 0.3
-    for action in allowed_actions:
-        multiplier = ACTION_RECOVERY_MULTIPLIER.get(action, 0.5)
-        cost = ACTION_COSTS.get(action, 0.0)
-        if action == "do_nothing":
-            ev = baseline_ev
-        else:
-            incremental = p_payment * expected_amount * multiplier
-            ev = baseline_ev + incremental - cost
-        scored.append((action, ev))
-    scored.sort(key=lambda x: -x[1])
-    return scored
-
-
-def recommend_for_case(
-    case_row: dict,
-    features_row: np.ndarray,
-    feature_values: dict[str, float],
-    model_cure: dict,
-    model_payment: dict | None,
-    as_of_ts: dt.datetime | None = None,
-) -> dict:
-    """Generate the NBA recommendation for one case."""
-    from ontrack.l4_nba.models import predict
-    import pandas as pd
-
-    feature_cols_cure = model_cure["feature_cols"]
-    cure_features = np.array([feature_values.get(c, 0.0) for c in feature_cols_cure], dtype=float)
-    np.nan_to_num(cure_features, copy=False)
-    p_cure = model_cure["booster"].predict(cure_features.reshape(1, -1))[0]
-
-    if model_payment:
-        feature_cols_pay = model_payment["feature_cols"]
-        pay_features = np.array([feature_values.get(c, 0.0) for c in feature_cols_pay], dtype=float)
-        np.nan_to_num(pay_features, copy=False)
-        p_payment = model_payment["booster"].predict(pay_features.reshape(1, -1))[0]
-    else:
-        p_payment = 1.0 - p_cure
-
-    gate_results = evaluate(case_row, as_of_ts)
-    allowed = [a for a, r in gate_results.items() if r.allowed]
-    blocked = [a for a, r in gate_results.items() if not r.allowed]
-    blocked_reasons = {a: r.reasons for a, r in gate_results.items() if not r.allowed}
-
-    expected_amount = feature_values.get("total_past_due", feature_values.get("total_overdue", 1000.0))
-    ranked = rank_actions(case_row, p_cure, p_payment, expected_amount, allowed)
-    best_action = ranked[0][0] if ranked else "do_nothing"
-    best_score = ranked[0][1] if ranked else 0.0
-
-    try:
-        reasons = get_shap_reasons(model_cure, cure_features, feature_values,
-                                   top_n=3, include_counterfactual=True)
-    except Exception:
-        reasons = ["Model prediction based on case features",
-                    "Contact and payment history considered",
-                    "Bureau and delinquency data analysed"]
-
-    human_review, review_reason = needs_human_review(case_row)
-
-    time_window = "17:00-19:00 local" if best_action == "call" else "next business day"
-
-    return {
-        "case_id": case_row.get("case_id"),
-        "golden_id": case_row.get("golden_id"),
-        "as_of_ts": as_of_ts or dt.datetime.now(),
-        "action": best_action,
-        "channel": best_action if best_action in ("call", "sms", "email") else None,
-        "time_window": time_window,
-        "score": round(float(best_score), 4),
-        "reason_1": reasons[0] if len(reasons) > 0 else None,
-        "reason_2": reasons[1] if len(reasons) > 1 else None,
-        "reason_3": reasons[2] if len(reasons) > 2 else None,
-        "blocked_actions": ", ".join(blocked) if blocked else None,
-        "hardship_flag": case_row.get("hardship_flag", False),
-        "needs_human_review": human_review,
-        "model_version": MODEL_VERSION,
-        "p_cure_30d": round(float(p_cure), 4),
-        "p_payment_7d": round(float(p_payment), 4),
-    }
-
-
-def build_recommendations(con, as_of_ts: dt.datetime | None = None) -> int:
-    """Score all open cases and write gold.nba_recommendation."""
-    from ontrack.l3_features.structured.features import build_case_features
-    from ontrack.l4_nba.models import load_model
-    import pandas as pd
-
-    build_case_features(con, config.SNAPSHOT_DATE)
-
-    try:
-        model_cure = load_model("self_cure_30d")
-    except FileNotFoundError:
-        print("WARNING: self_cure_30d model not found. Train models first.")
-        return 0
-
-    try:
-        model_payment = load_model("payment_7d")
-    except FileNotFoundError:
-        model_payment = None
-        print("WARNING: payment_7d model not found, using fallback.")
-
-    features_df = con.execute("""
-        SELECT f.*, cs.hardship_flag, cs.complaint_flag,
-               cu.consent_call, cu.consent_sms, cu.consent_email,
-               cu.consent_push, cu.consent_autodialer,
-               cu.internal_do_not_call_flag, cu.cease_communication_flag,
-               cu.insolvency_flag, cu.deceased_flag, cu.third_party_hold_flag,
-               cu.vulnerability_flag, cu.preferred_language
-        FROM features.case_features f
-        JOIN gold.case_360 cs ON cs.case_id = f.case_id
-        LEFT JOIN gold.c360_customer cu ON cu.golden_id = f.golden_id
-        WHERE cs.outcome IS NULL
-    """).fetchdf()
-
-    if features_df.empty:
-        print("No open cases to recommend for.")
-        return 0
-
-    feature_cols = model_cure["feature_cols"]
-    X = features_df[feature_cols].fillna(0).values.astype(float)
-    np.nan_to_num(X, copy=False)
-
-    # Batch predictions
-    p_cure_all = model_cure["booster"].predict(X)
-    if model_payment:
-        pay_cols = model_payment["feature_cols"]
-        X_pay = features_df[pay_cols].fillna(0).values.astype(float)
-        np.nan_to_num(X_pay, copy=False)
-        p_payment_all = model_payment["booster"].predict(X_pay)
-    else:
-        p_payment_all = 1.0 - p_cure_all
-
-    # Batch SHAP values
-    print("Computing SHAP explanations (batch)...", flush=True)
-    explainer = shap.TreeExplainer(model_cure["booster"])
-    shap_all = explainer.shap_values(X)
-    print(f"SHAP done for {len(X):,d} cases.", flush=True)
-
-    recommendations = []
-    for i, (_, row) in enumerate(features_df.iterrows()):
-        row_dict = row.to_dict()
-        feature_values = {c: float(row_dict.get(c, 0) or 0) for c in feature_cols}
-        p_cure = p_cure_all[i]
-        p_payment = p_payment_all[i]
-
-        gate_results = evaluate(row_dict, as_of_ts)
-        allowed = [a for a, r in gate_results.items() if r.allowed]
-        blocked = [a for a, r in gate_results.items() if not r.allowed]
-
-        expected_amount = feature_values.get("total_past_due", feature_values.get("total_overdue", 1000.0))
-        ranked = rank_actions(row_dict, p_cure, p_payment, expected_amount, allowed)
-        best_action = ranked[0][0] if ranked else "do_nothing"
-        best_score = ranked[0][1] if ranked else 0.0
-
-        try:
-            reasons = get_shap_reasons(
-                model_cure, X[i], feature_values,
-                top_n=3, include_counterfactual=True,
-                precomputed_shap=shap_all[i],
-            )
-        except Exception:
-            reasons = ["Model prediction based on case features",
-                        "Contact and payment history considered",
-                        "Bureau and delinquency data analysed"]
-
-        human_review, _ = needs_human_review(row_dict)
-        time_window = "17:00-19:00 local" if best_action == "call" else "next business day"
-
-        recommendations.append({
-            "case_id": row_dict.get("case_id"),
-            "golden_id": row_dict.get("golden_id"),
-            "as_of_ts": as_of_ts or dt.datetime.now(),
-            "action": best_action,
-            "channel": best_action if best_action in ("call", "sms", "email") else None,
-            "time_window": time_window,
-            "score": round(float(best_score), 4),
-            "reason_1": reasons[0] if len(reasons) > 0 else None,
-            "reason_2": reasons[1] if len(reasons) > 1 else None,
-            "reason_3": reasons[2] if len(reasons) > 2 else None,
-            "blocked_actions": ", ".join(blocked) if blocked else None,
-            "hardship_flag": row_dict.get("hardship_flag", False),
-            "needs_human_review": human_review,
-            "model_version": MODEL_VERSION,
-            "p_cure_30d": round(float(p_cure), 4),
-            "p_payment_7d": round(float(p_payment), 4),
-        })
-
-        if (i + 1) % 50000 == 0:
-            print(f"  {i + 1:,d} / {len(features_df):,d} cases processed", flush=True)
-
-    rec_df = pd.DataFrame(recommendations)
-    con.execute("CREATE OR REPLACE TABLE gold.nba_recommendation AS SELECT * FROM rec_df")
-
-    n = con.execute("SELECT count(*) FROM gold.nba_recommendation").fetchone()[0]
-    print(f"\ngold.nba_recommendation  {n:>12,d} rows", flush=True)
-
-    print("\n--- Sample recommendations (5) ---")
-    sample = con.execute("""
-        SELECT case_id, action, score, reason_1, reason_2, reason_3,
-               blocked_actions, hardship_flag, needs_human_review
-        FROM gold.nba_recommendation
-        ORDER BY score DESC
-        LIMIT 5
-    """).fetchdf()
-    print(sample.to_string(index=False))
-
-    return n
-
-
-def create_decision_log(con) -> None:
-    """Create the l4.decision_log table."""
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS l4.decision_log (
-            decision_id VARCHAR PRIMARY KEY,
-            case_id VARCHAR,
-            agent_id VARCHAR,
-            recommended_action VARCHAR,
-            agent_action VARCHAR,
-            final_action VARCHAR,
-            reason_code VARCHAR,
-            note VARCHAR,
-            ts TIMESTAMP DEFAULT now()
+# ----------------------------------------------------------------------------------------------------
+# Channel economics, measured
+# ----------------------------------------------------------------------------------------------------
+def channel_economics(con, as_of: str = config.SNAPSHOT_DATE) -> dict:
+    """Response rate (payment within 7 days of an outbound contact, last 12 months), unit cost and capacity."""
+    rates = con.execute(f"""
+        WITH c AS (
+            SELECT t.case_id, t.contact_ts_utc AS ts, t.channel
+            FROM gold.contact_timeline t JOIN bronze.contact_history h ON h.contact_id = t.contact_id
+            WHERE h.direction = 'outbound' AND t.case_id IS NOT NULL
+              AND t.contact_ts_utc >= DATE '{as_of}' - INTERVAL 1 YEAR AND t.contact_ts_utc < DATE '{as_of}'
+        ),
+        p AS (
+            SELECT t.case_id, t.contact_ts_utc AS ts
+            FROM gold.contact_timeline t JOIN bronze.contact_history h ON h.contact_id = t.contact_id
+            WHERE t.case_id IS NOT NULL AND ({PAYMENT_FLAGS})
         )
-    """)
+        SELECT c.channel, count(*) AS n, avg((p.ts IS NOT NULL AND p.ts < c.ts + INTERVAL 7 DAY)::INT) AS rate
+        FROM c ASOF LEFT JOIN p ON c.case_id = p.case_id AND p.ts >= c.ts
+        GROUP BY 1
+    """).fetchdf().set_index("channel")
+    cap = con.execute("""
+        SELECT channel, sum(capacity_units) AS capacity, avg(unit_cost_cad) AS unit_cost
+        FROM bronze.channel_capacity
+        WHERE date = (SELECT max(date) FROM bronze.channel_capacity) AND NOT coalesce(outage_flag, false)
+        GROUP BY 1
+    """).fetchdf().set_index("channel")
+    out = {}
+    for action, ch in CONTACT_ACTIONS.items():
+        out[action] = {"rate": float(rates["rate"].get(ch, 0.0)), "contacts": int(rates["n"].get(ch, 0)),
+                       "unit_cost": float(cap["unit_cost"].get(ch, 0.0)),
+                       "capacity": int(cap["capacity"].get(ch, 0))}
+    out["specialist_agent"] = {"rate": out["call"]["rate"], "contacts": out["call"]["contacts"],
+                               "unit_cost": out["call"]["unit_cost"] * SPECIALIST_COST_MULTIPLIER, "capacity": 0}
+    return out
 
 
-def record_decision(
-    con,
-    case_id: str,
-    agent_id: str,
-    recommended_action: str,
-    agent_action: str,
-    final_action: str,
-    reason_code: str = "",
-    note: str = "",
-) -> str:
-    """Record an agent's accept/edit/reject decision."""
-    decision_id = str(uuid.uuid4())
-    con.execute("""
-        INSERT INTO l4.decision_log
-        (decision_id, case_id, agent_id, recommended_action, agent_action,
-         final_action, reason_code, note, ts)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, now())
-    """, [decision_id, case_id, agent_id, recommended_action, agent_action,
-          final_action, reason_code, note])
-    return decision_id
+# ----------------------------------------------------------------------------------------------------
+# Reasons in business words
+# ----------------------------------------------------------------------------------------------------
+PRODUCT_NAMES = {v: k.replace("_", " ") for k, v in PRODUCT_CODES.items()}
+REASON_NAMES = {1: "a missed payment", 2: "a returned pre-authorised payment", 3: "going over the limit",
+                4: "a manual referral"}
+_ = OPEN_REASON_CODES  # codes defined next to the feature SQL
+
+
+def _n(v) -> int:
+    return int(round(float(v)))
+
+
+def _fact(f: str, v: float) -> str | None:
+    """A plain statement of the feature value with whole numbers, or None when not worth showing."""
+    if v is None or (isinstance(v, float) and np.isnan(v)):
+        return None
+    never = v >= 999
+    facts = {
+        "case_age_days": f"In collections for {_n(v)} days",
+        "overdue_now": f"${v:,.0f} overdue now",
+        "entry_overdue": f"${v:,.0f} overdue when the case opened",
+        "overdue_growth_pct": (f"Arrears up {v:.0%} since the case opened" if v > 0.005
+                               else "Arrears have not grown since the case opened"),
+        "prior_cases_12m": (f"{_n(v)} earlier collections case{'s' if _n(v) != 1 else ''} in the past 12 months"
+                            if v >= 1 else "First collections case in 12 months"),
+        "product_code": f"{PRODUCT_NAMES.get(_n(v), 'other').capitalize()} account",
+        "open_reason_code": f"Case opened after {REASON_NAMES.get(_n(v), 'a missed payment')}",
+        "other_open_cases": (f"Also behind on {_n(v)} other case{'s' if _n(v) != 1 else ''}" if v >= 1
+                             else "No other open collections case"),
+        "contacts_total": f"{_n(v)} contacts on this case so far",
+        "contacts_30d": f"{_n(v)} contacts in the last 30 days",
+        "contacts_7d": f"{_n(v)} contacts in the last 7 days",
+        "inbound_30d": (f"Customer contacted us {_n(v)} time{'s' if _n(v) != 1 else ''} in the last 30 days"
+                        if v >= 1 else "Customer has not contacted us in the last 30 days"),
+        "rpc_30d": f"Reached the customer {_n(v)} time{'s' if _n(v) != 1 else ''} in the last 30 days",
+        "rpc_rate_30d": f"Answered {v:.0%} of contact attempts in the last 30 days",
+        "days_since_last_contact": ("Not contacted on this case yet" if never
+                                    else f"Last contact {_n(v)} days ago"),
+        "days_since_last_rpc": ("Never reached in person on this case" if never
+                                else f"Last spoke with the customer {_n(v)} days ago"),
+        "payments_total": f"{_n(v)} payment{'s' if _n(v) != 1 else ''} on this case so far",
+        "payments_30d": f"{_n(v)} payment{'s' if _n(v) != 1 else ''} in the last 30 days",
+        "payment_amount_90d": f"${v:,.0f} paid in the last 90 days",
+        "days_since_last_payment": ("No payment on this case yet" if never
+                                    else f"Last payment {_n(v)} days ago"),
+        "link_clicks_30d": (f"Opened a payment link {_n(v)} time{'s' if _n(v) != 1 else ''} in the last 30 days"
+                            if v >= 1 else "Has not opened a payment link in the last 30 days"),
+        "callback_requested_30d": f"Asked for a call back {_n(v)} time{'s' if _n(v) != 1 else ''} in 30 days",
+        "hardship_mentioned_any": ("Mentioned money trouble on a past call" if v >= 1
+                                   else "No money trouble mentioned on past contacts"),
+        "dispute_raised_any": "Raised a dispute on a past contact" if v >= 1 else "No dispute raised",
+        "bureau_score": f"Credit bureau score {_n(v)}",
+        "bureau_utilisation": f"Using {v:.0%} of revolving credit at other lenders",
+        "bureau_delinquent_trades": (f"{_n(v)} account{'s' if _n(v) != 1 else ''} in arrears at other lenders"
+                                     if v >= 1 else "No arrears at other lenders"),
+        "bureau_inquiries_6m": f"{_n(v)} credit application{'s' if _n(v) != 1 else ''} in the last 6 months",
+        "bureau_age_days": f"Credit bureau data from {_n(v)} days ago",
+        "salary_gap_months_3m": (f"Salary missing or late in {_n(v)} of the last 3 months" if v >= 1
+                                 else "Salary arrived on time for the last 3 months"),
+        "salary_drop_pct": (f"Income down {abs(v):.0%} on the previous 6 months" if v < -0.05 else
+                            f"Income up {v:.0%} on the previous 6 months" if v > 0.05
+                            else "Income steady over the last 9 months"),
+        "has_payroll": "Salary paid into an account with us" if v >= 1 else "No salary deposits with us",
+        "acct_months_min_paid_6m": f"Paid at least the minimum in {_n(v)} of the last 6 statements",
+        "acct_utilisation": f"Using {v:.0%} of credit limits with us",
+        "acct_max_dpd": f"{_n(v)} days past due on the worst account two months ago",
+        "acct_overlimit": "Over the credit limit two months ago" if v >= 1 else "Within credit limits",
+    }
+    return facts.get(f)
+
+
+# feature -> (why when it raises the self-cure chance, why when it lowers it,
+#             value check for the first, value check for the second). A custom phrase is only used when
+#             the value agrees with it; otherwise the neutral phrase is used, so a reason never contradicts
+#             its own number.
+_WHY = {
+    "case_age_days": ("most cases this new pay on their own", "the longer a case runs, the less it clears on its own",
+                      lambda v: v <= 30, lambda v: v > 30),
+    "overdue_now": ("small enough to clear on its own", "larger arrears rarely clear without help",
+                    lambda v: v < 300, lambda v: v >= 300),
+    "acct_months_min_paid_6m": ("a habit of paying", "has missed minimum payments before",
+                                lambda v: v >= 4, lambda v: v <= 3),
+    "bureau_delinquent_trades": ("not behind elsewhere", "stretched across lenders",
+                                 lambda v: v < 1, lambda v: v >= 1),
+    "bureau_inquiries_6m": ("not looking for new credit", "looking for credit, a sign of strain",
+                            lambda v: v <= 1, lambda v: v >= 2),
+    "salary_gap_months_3m": ("steady income", "income interrupted", lambda v: v < 1, lambda v: v >= 1),
+    "salary_drop_pct": ("income holding up", "less money coming in", lambda v: v >= -0.05, lambda v: v < -0.05),
+    "inbound_30d": ("engaged with us", "not engaging with us", lambda v: v >= 1, lambda v: v < 1),
+    "link_clicks_30d": ("responds to digital reminders", "digital reminders are not working",
+                        lambda v: v >= 1, lambda v: v < 1),
+    "days_since_last_payment": ("paying recently", "no recent payment", lambda v: v <= 30, lambda v: v > 30),
+    "hardship_mentioned_any": ("no sign of money trouble", "a sign it may not clear on its own",
+                               lambda v: v < 1, lambda v: v >= 1),
+    "prior_cases_12m": ("no history of arrears", "repeat arrears", lambda v: v < 1, lambda v: v >= 1),
+    "bureau_score": ("good credit standing", "weak credit standing", lambda v: v >= 680, lambda v: v < 620),
+}
+
+
+def _why(f: str, up: bool, v: float | None = None) -> str:
+    """Why the fact matters, given the direction it pushes the self-cure chance."""
+    if f in _WHY and v is not None:
+        up_txt, down_txt, up_ok, down_ok = _WHY[f]
+        if up and up_ok(v):
+            return up_txt
+        if not up and down_ok(v):
+            return down_txt
+    return "points to paying on its own" if up else "points away from paying on its own"
+
+
+# Model inputs that mean nothing to an agent: used by the model, never shown as a reason.
+HIDDEN_DRIVERS = {"bureau_age_days"}
+
+
+def driver_reasons(shap_row: np.ndarray, values: dict, cols: list[str], k: int = 2) -> list[tuple[str, str, bool]]:
+    """Top-k drivers as (feature, sentence, raises_cure_chance)."""
+    out = []
+    for i in np.argsort(-np.abs(shap_row)):
+        f = cols[i]
+        if f in HIDDEN_DRIVERS:
+            continue
+        fact = _fact(f, values.get(f))
+        if fact is None or abs(shap_row[i]) < 1e-6:
+            continue
+        up = bool(shap_row[i] > 0)
+        out.append((f, f"{fact}: {_why(f, up, float(values.get(f)))}", up))
+        if len(out) == k:
+            break
+    return out
+
+
+COUNTERFACTUALS = {
+    "days_since_last_payment": "a payment arrives",
+    "payments_30d": "a payment arrives",
+    "acct_months_min_paid_6m": "the customer pays at least the minimum this month",
+    "link_clicks_30d": "the customer opens a payment link",
+    "inbound_30d": "the customer gets in touch",
+    "overdue_now": "the overdue amount falls",
+    "salary_gap_months_3m": "salary deposits resume",
+    "salary_drop_pct": "income recovers",
+}
+
+
+def counterfactual(action: str, drivers: list[tuple[str, str, bool]], p_cure: float, as_of: dt.date) -> str:
+    if action == "hardship_referral":
+        return "Automated contact resumes only after a person has reviewed the hardship and agreed a plan"
+    if action == "specialist_agent":
+        return "Goes back to automated treatment only once a person clears the flag"
+    if action == "do_nothing":
+        return f"Would switch to a contact if no payment arrives by {(as_of + dt.timedelta(days=7)).isoformat()}"
+    for f, _, up in drivers:
+        if not up and f in COUNTERFACTUALS:
+            return f"Would switch to no contact if {COUNTERFACTUALS[f]} (self-cure chance now {_pct(p_cure)})"
+    return f"Would switch to no contact if the self-cure chance rose above {SELF_CURE_THRESHOLD:.0%} (now {_pct(p_cure)})"
+
+
+# ----------------------------------------------------------------------------------------------------
+# Ranking
+# ----------------------------------------------------------------------------------------------------
+def contact_values(overdue: float, p_cure: float, responsiveness: float, allowed: list[str], econ: dict) -> dict:
+    """Expected net value (CAD) of each allowed contact action versus doing nothing."""
+    return {a: overdue * (1 - p_cure) * econ[a]["rate"] * responsiveness - econ[a]["unit_cost"]
+            for a in allowed if a in CONTACT_ACTIONS}
+
+
+def choose_action(row: dict, allowed: list[str], values: dict) -> tuple[str, str]:
+    """Pick the action before call capacity is applied. Returns (action, decision path)."""
+    if row["hardship_flag"]:
+        return "hardship_referral", "hardship"
+    if row["needs_human_review"]:
+        return ("specialist_agent" if "specialist_agent" in allowed else "do_nothing"), "human"
+    if row["p_cure"] >= SELF_CURE_THRESHOLD:
+        return "do_nothing", "self_cure"
+    if not values or max(values.values()) <= 0:
+        return "do_nothing", "not_worth_contact"
+    best = max(values, key=values.get)
+    return best, "value"
+
+
+def wants_call(row: dict, allowed: list[str], values: dict) -> bool:
+    """Call candidates (capacity-limited): contact has not worked, or a call is the best allowed channel."""
+    if "call" not in allowed or row["path"] != "value":
+        return False
+    no_response = row["contacts_30d"] >= 2 and row["payments_30d"] == 0 and row["link_clicks_30d"] == 0
+    return no_response or row["action"] == "call"
+
+
+def _pct(p: float) -> str:
+    return "under 1%" if p < 0.005 else "over 99%" if p > 0.995 else f"{p:.0%}"
+
+
+def _cad(x: float) -> str:
+    return "under 1 cent" if x < 0.01 else f"${x:.2f}"
+
+
+def _time_window(action: str, best_hour) -> str:
+    if action in ("call", "specialist_agent"):
+        h = int(best_hour) if best_hour is not None and not pd.isna(best_hour) and 8 <= best_hour <= 19 else PEAK_CALL_HOUR
+        return f"{h:02d}:00-{h + 2:02d}:00 local (customer answers most at this time)" if h != PEAK_CALL_HOUR \
+            else f"{h:02d}:00-{h + 2:02d}:00 local (best answer rate)"
+    if action in ("sms", "email", "push_notification"):
+        return "09:00-12:00 local"
+    if action == "reminder_letter":
+        return "next mailing day"
+    if action == "hardship_referral":
+        return "within 1 business day"
+    return "review again in 7 days"
+
+
+def _reason_1(r: dict, econ: dict) -> str:
+    a, p, amt = r["action"], r["p_cure"], r["overdue_now"]
+    if a == "hardship_referral":
+        quote = str(r.get("text_evidence") or "").strip()
+        if quote and r.get("routing_category") != "hardship_text":   # add the customer's own words
+            quote = quote if len(quote) <= 120 else quote[:117].rstrip() + "..."
+            return f'Hardship: {r["routing_reason"]}; the customer said "{quote}"'
+        return f"Hardship: {r['routing_reason']}"
+    if a == "specialist_agent":
+        return f"Needs a person: {r['routing_reason']}"
+    if a == "do_nothing" and r["path"] == "self_cure":
+        return (f"Likely to pay without contact: self-cure chance {_pct(p)} in 30 days, 3.5x the open-book "
+                f"average; contacting now would cost money and goodwill for little gain")
+    if a == "do_nothing" and r["path"] == "call_queue_full":
+        return (f"Call needed but today's {econ['call']['capacity']:,} call slots went to cases with more at stake, "
+                f"and no other channel is allowed: first in line for tomorrow's calls")
+    if a == "do_nothing" and r["path"] == "human":
+        return f"Needs a person, no contact allowed: {r['routing_reason']}"
+    if a == "do_nothing" and not any(x in CONTACT_ACTIONS for x in r["allowed"]):
+        why = next((v[0] for k in ("sms", "email", "call") for v in [r["blocked"].get(k)] if v), "policy")
+        return f"No contact allowed today ({why}); review again in 7 days"
+    if a == "do_nothing":
+        return f"Not worth a contact: ${amt:,.0f} overdue, every allowed channel costs more than it is likely to recover"
+    risk = f"{_pct(1 - p)} chance the ${amt:,.0f} stays unpaid without action"
+    if a == "call":
+        why = ("contact in the last 30 days brought no payment and no link was opened; a conversation is "
+               "where arrangements are made and hardship comes out") if r["call_reason"] == "no_response" \
+            else "the best channel the customer has allowed us to use"
+        return f"Call: {risk}; {why}"
+    e = econ[a]
+    if a == "reminder_letter":
+        return (f"Reminder letter: {risk}; no digital channel or call slot available, and a letter "
+                f"(payment within 7 days after {e['rate']:.0%}, {_cad(e['unit_cost'])}) is still worth sending")
+    extra = " (call queue full today)" if r["path"] == "call_queue_full" else ""
+    return (f"{ACTION_LABEL[a]}{extra}: {risk}; links bring a payment within 7 days after {e['rate']:.0%} of "
+            f"contacts at {_cad(e['unit_cost'])} each (calls {econ['call']['rate']:.0%} at {_cad(econ['call']['unit_cost'])})")
+
+
+def build_recommendations(con, routed: pd.DataFrame, as_of: str = config.SNAPSHOT_DATE) -> pd.DataFrame:
+    """Score, route and rank every open case; returns the recommendation frame."""
+    from ontrack.l4_nba.models import load_model, predict
+
+    as_of_date = dt.date.fromisoformat(as_of)
+    contact_day = as_of_date + dt.timedelta(days=1)   # recommendations are for the next working day
+    contact_ts = dt.datetime.combine(contact_day, dt.time(12, 0))
+
+    feats = con.execute(f"""
+        SELECT f.*,
+               cu.consent_call, cu.consent_sms, cu.consent_email, cu.consent_push, cu.consent_autodialer,
+               cu.internal_do_not_call_flag, cu.preferred_language,
+               coalesce(cu.cease_communication_flag, false) OR coalesce(c.cease_contact_flag, false) AS cease_communication_flag,
+               coalesce(cu.insolvency_flag, false) OR coalesce(c.insolvency_hold_flag, false) AS insolvency_flag,
+               coalesce(cu.deceased_flag, false) OR coalesce(c.deceased_hold_flag, false) AS deceased_flag,
+               coalesce(cu.third_party_hold_flag, false) OR coalesce(c.third_party_rep_flag, false) AS third_party_hold_flag,
+               coalesce(c.dispute_flag, false) AS dispute_flag,
+               coalesce(c.contacts_last_7d, 0) AS contacts_last_7d, coalesce(c.contact_cap_7d, 7) AS contact_cap_7d
+        FROM {TABLE} f
+        JOIN gold.case_360 c ON c.case_id = f.case_id
+        LEFT JOIN gold.c360_customer cu ON cu.golden_id = f.golden_id
+        WHERE f.as_of_date = DATE '{as_of}'
+    """).fetchdf()
+    df = feats.merge(routed, on="case_id", how="left", validate="one_to_one")
+    for col in ("hardship_flag", "needs_human_review"):
+        df[col] = df[col].fillna(False).astype(bool)
+
+    m_cure, m_pay = load_model("self_cure_30d"), load_model("payment_7d")
+    cols = m_cure["feature_cols"]
+    df["p_cure"] = predict(m_cure, df)
+    df["p_payment"] = predict(m_pay, df)
+    resp = (df["p_payment"] / max(df["p_payment"].mean(), 1e-6)).clip(0.5, 2.0)
+    contrib = m_cure["booster"].predict(df[cols].astype(float).to_numpy(), pred_contrib=True)[:, :-1]
+    econ = channel_economics(con, as_of)
+
+    records = df.to_dict("records")
+    rows = []
+    for i, r in enumerate(records):
+        r = {k: (None if (not isinstance(v, (list, dict, str)) and pd.isna(v)) else v) for k, v in r.items()}
+        r["hardship_flag"] = bool(r["hardship_flag"])
+        r["needs_human_review"] = bool(r["needs_human_review"])
+        gate = evaluate(r, contact_ts)
+        allowed = [a for a, g in gate.items() if g.allowed]
+        if not r["hardship_flag"]:
+            allowed = [a for a in allowed if a != "hardship_referral"]   # hardship_referral is for hardship only
+        blocked = {a: g.reasons for a, g in gate.items() if not g.allowed}
+        values = contact_values(float(r["overdue_now"] or 0), float(r["p_cure"]), float(resp.iat[i]), allowed, econ)
+        action, path = choose_action(r, allowed, values)
+        r.update(action=action, path=path, allowed=allowed, blocked=blocked, values=values,
+                 expected_loss=float(r["overdue_now"] or 0) * (1 - float(r["p_cure"])))
+        r["call_candidate"] = wants_call(r, allowed, values)
+        r["shap_i"] = i
+        rows.append(r)
+
+    # Call capacity: the day's call slots go to the candidates with the most dollars at risk
+    call_capacity = econ["call"]["capacity"]
+    cands = sorted((r for r in rows if r["call_candidate"]), key=lambda r: -r["expected_loss"])
+    for rank, r in enumerate(cands):
+        if rank < call_capacity:
+            r["call_reason"] = "best_channel" if r["action"] == "call" else "no_response"
+            r["action"] = "call"
+        elif r["action"] == "call":   # over capacity: best other channel, or first in line tomorrow
+            others = {a: v for a, v in r["values"].items() if a != "call" and v > 0}
+            r["action"] = max(others, key=others.get) if others else "do_nothing"
+            r["path"] = "call_queue_full"
+    for r in rows:
+        r.setdefault("call_reason", None)
+    assert sum(r["action"] == "call" for r in rows) <= call_capacity, "call capacity exceeded"
+
+    out = []
+    for r in rows:
+        values_f = {c: r.get(c) for c in cols}
+        drivers = driver_reasons(contrib[r["shap_i"]], values_f, cols)
+        reasons = [_reason_1(r, econ)] + [d[1] for d in drivers]
+        notes = service_notes(r) if r["action"] in ("call", "specialist_agent") else []
+        out.append({
+            "case_id": r["case_id"], "golden_id": r["golden_id"],
+            "as_of_ts": dt.datetime.combine(as_of_date, dt.time(0, 0)),
+            "action": r["action"], "channel": CHANNEL_OF[r["action"]],
+            "time_window": _time_window(r["action"], r.get("best_rpc_hour")),
+            "score": round(r["expected_loss"], 2),
+            "reason_1": reasons[0], "reason_2": reasons[1] if len(reasons) > 1 else None,
+            "reason_3": reasons[2] if len(reasons) > 2 else None,
+            "counterfactual": counterfactual(r["action"], drivers, float(r["p_cure"]), as_of_date),
+            "blocked_actions": ", ".join(sorted(r["blocked"])) or None,
+            "blocked_reasons": "; ".join(f"{a}: {' / '.join(v)}" for a, v in sorted(r["blocked"].items())) or None,
+            "allowed_actions": ", ".join(r["allowed"]),
+            "service_notes": "; ".join(notes) or None,
+            "hardship_flag": r["hardship_flag"], "needs_human_review": r["needs_human_review"],
+            "routing_category": r.get("routing_category"), "routing_reason": r.get("routing_reason"),
+            "routing_reasons": r.get("routing_reasons"),
+            "text_evidence": r.get("text_evidence"), "text_source": r.get("text_source"),
+            "p_cure_30d": round(float(r["p_cure"]), 4), "p_payment_7d": round(float(r["p_payment"]), 4),
+            "overdue_now": round(float(r["overdue_now"] or 0), 2),
+            "expected_value": round(float(r["values"].get(r["action"], 0.0)), 2),
+            "decision_path": r["path"], "model_version": m_cure["meta"]["model_version"],
+        })
+    rec = pd.DataFrame(out)
+    con.execute("CREATE OR REPLACE TABLE gold.nba_recommendation AS SELECT * FROM rec")
+    return rec
+
+
+def print_summary(rec: pd.DataFrame, econ: dict | None = None) -> None:
+    n = len(rec)
+    print(f"gold.nba_recommendation  {n:,} rows")
+    mix = rec["action"].value_counts()
+    for a, k in mix.items():
+        print(f"  {a:20s} {k:>7,}  ({k / n:.1%})")
+    print(f"  human-only queue: {int(rec['needs_human_review'].sum()):,} ({rec['needs_human_review'].mean():.0%})")
+    if econ:
+        print("  channel economics (payment within 7 days of a contact, last 12 months):")
+        for a, e in econ.items():
+            print(f"    {a:18s} rate {e['rate']:.1%}  cost ${e['unit_cost']:.3f}  capacity {e['capacity']:,}")

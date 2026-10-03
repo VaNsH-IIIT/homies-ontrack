@@ -82,7 +82,8 @@ class TestCeaseComm:
     def test_cease_blocks_all_outbound(self):
         blocks = check_cease_communication(base_row(cease_communication_flag=True))
         blocked_actions = {b[0] for b in blocks}
-        assert blocked_actions == {"call", "sms", "email", "push_notification", "reminder_letter"}
+        assert blocked_actions == {"call", "sms", "email", "push_notification", "reminder_letter",
+                                   "specialist_agent"}
 
     def test_no_cease_no_blocks(self):
         assert check_cease_communication(base_row()) == []

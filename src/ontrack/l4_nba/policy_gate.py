@@ -86,7 +86,7 @@ def check_consent(row: dict[str, Any]) -> list[tuple[str, str]]:
 def check_cease_communication(row: dict[str, Any]) -> list[tuple[str, str]]:
     """Cease communication flag blocks all outbound contact."""
     if _get(row, "cease_communication_flag", False):
-        return [(a, "Cease communication flag is active") for a in OUTBOUND_ACTIONS]
+        return [(a, "Cease communication flag is active") for a in OUTBOUND_ACTIONS | {"specialist_agent"}]
     return []
 
 
@@ -104,8 +104,9 @@ def check_holds(row: dict[str, Any]) -> list[tuple[str, str]]:
     """Insolvency, deceased, and third-party holds block automated actions."""
     blocks = []
     if _get(row, "insolvency_flag", False):
-        for a in OUTBOUND_ACTIONS:
-            blocks.append((a, "Insolvency hold — account is in bankruptcy or consumer proposal"))
+        for a in OUTBOUND_ACTIONS | {"specialist_agent"}:
+            blocks.append((a, "Insolvency hold — account is in bankruptcy or consumer proposal; "
+                              "deal with the trustee, not the customer"))
     if _get(row, "deceased_flag", False):
         for a in ACTIONS:
             if a != "do_nothing":

@@ -36,6 +36,10 @@ MODEL_VERSION = "p3-v1.0"
 TRAIN_DATES = ["2025-11-01", "2025-12-01", "2026-01-01", "2026-02-01", "2026-03-01", "2026-04-01", "2026-05-01"]
 VALID_DATE = "2026-06-01"   # early stopping + calibration
 TEST_DATE = "2026-07-01"    # reported metrics; the bank's scores dated 2026-06-30 line up with it
+# Production calibration: the latest as_of whose 30-day outcome is complete (as_of + 30 = snapshot). Its
+# population (long-running open cases, ~10% self-cure) is closest to the live book, so the probabilities
+# shown to agents are realistic. Ranking and AUC do not depend on it.
+LIVE_CALIBRATION_DATE = "2026-08-29"
 
 LABEL_SQL = {
     "self_cure_30d": """
@@ -166,8 +170,14 @@ def train_model(con, model_name: str) -> dict:
     booster_wo = _fit(train, valid, cols_wo, model_name)
     auc_wo = _auc(test["label"], booster_wo.predict(_matrix(test, cols_wo)))
 
+    live = load_frame(con, model_name, [LIVE_CALIBRATION_DATE])
+    iso_live = IsotonicRegression(out_of_bounds="clip", y_min=0.0, y_max=1.0).fit(
+        booster.predict(_matrix(live, cols)), live["label"])
+
     meta = {
         "model_name": model_name, "model_version": MODEL_VERSION,
+        "live_calibration": {"as_of": LIVE_CALIBRATION_DATE, "rows": len(live),
+                             "positive_rate": round(float(live["label"].mean()), 4)},
         "train_dates": TRAIN_DATES, "valid_date": VALID_DATE, "test_date": TEST_DATE,
         "rows": {"train": len(train), "valid": len(valid), "test": len(test)},
         "positive_rate": {"train": round(float(train["label"].mean()), 4),
@@ -188,7 +198,8 @@ def train_model(con, model_name: str) -> dict:
 
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     with open(MODEL_DIR / f"{model_name}.pkl", "wb") as f:
-        pickle.dump({"booster": booster, "calibrator": iso, "feature_cols": cols, "meta": meta}, f)
+        pickle.dump({"booster": booster, "calibrator": iso_live, "calibrator_test": iso,
+                     "feature_cols": cols, "meta": meta}, f)
     with open(MODEL_DIR / f"{model_name}_meta.json", "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2, default=str)
 
@@ -216,7 +227,7 @@ def predict(model: dict, df: pd.DataFrame) -> np.ndarray:
 
 
 def train_all(con) -> dict[str, dict]:
-    ensure_features(con, TRAIN_DATES + [VALID_DATE, TEST_DATE])
+    ensure_features(con, TRAIN_DATES + [VALID_DATE, TEST_DATE, LIVE_CALIBRATION_DATE])
     return {name: train_model(con, name) for name in LABEL_SQL}
 
 
