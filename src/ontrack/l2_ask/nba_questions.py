@@ -45,7 +45,9 @@ def _ranked_sql(risk_col: str, label: str, limit: int, cols: list[str]) -> str:
     overdue = "r.overdue_now" if "overdue_now" in cols else "c.total_overdue"
     tie = "r.model_risk_rank ASC" if "model_risk_rank" in cols else f"{overdue} DESC NULLS LAST"
     rank = ", r.model_risk_rank" if "model_risk_rank" in cols else ""
-    return (f"SELECT r.case_id, c.current_bucket, c.current_dpd, round({overdue}, 2) AS overdue_cad, "
+    # P3's bucket is derived from DPD; the source label in case_360 is stale for ~4% of cases (DQ issue).
+    bucket = "r.current_bucket" if "current_bucket" in cols else "c.current_bucket"
+    return (f"SELECT r.case_id, {bucket} AS current_bucket, c.current_dpd, round({overdue}, 2) AS overdue_cad, "
             f"round(r.{risk_col}, 4) AS {label}{rank}, r.action, r.reason_1, r.reason_2, r.reason_3, "
             f"r.needs_human_review FROM gold.nba_recommendation r JOIN gold.case_360 c ON c.case_id = r.case_id "
             f"WHERE c.outcome IS NULL AND r.{risk_col} IS NOT NULL "
