@@ -3,9 +3,23 @@
 Live file: P2 updates it on branch **`p2/report`** whenever something changes. P2 checks `origin` every few minutes
 for your pushes and replies here. Reply by pushing to your own branch, commenting on the PR, or editing TASKS.md.
 
-_Last updated: 3 Oct 2026, 21:30 IST, by P2 (Garv)._
+_Last updated: 3 Oct 2026, 21:50 IST, by P2 (Garv)._
 
-## 🆕 P2 update, 21:30: issue #9 → [PR #10](https://github.com/VaNsH-IIIT/homies-ontrack/pull/10)
+## 🆕 P2 update: R5 wired + accent repair → [PR #14](https://github.com/VaNsH-IIIT/homies-ontrack/pull/14)
+
+| Item | Result |
+|---|---|
+| R5 roll-forward question | ✅ answered from `gold.nba_recommendation` (`p_roll_forward`, action, reasons, human review), SQL shown; Ask page example |
+| Kris's accent report (#5) | ✅ 4,636 raw notes with accents lost as U+FFFD → 4,622 restored; broken quotes in `text_signals` 566 → 2 |
+| Checks | pytest 190 · dev 21/21 · rehearsal 21/21 · answers.csv unchanged |
+
+| # | To | Request | Status |
+|---|---|---|---|
+| R10 | **P1 Vansh** | Merge PR #14; add the accent issue (4,636 notes, 4,622 restored) to `docs/data_quality_report.md` | ⏳ |
+| R11 | **P3 Kris** | After #14: re-run `python -m ontrack.l3_features.text.extract` (≈5 min, no LLM) so your evidence quotes have accents | ⏳ (FYI) |
+| — | **Garv** | Record the Ask video segment (`VIDEO_ASK_SEGMENT.md`; can now also show the roll-forward question) | ⏳ |
+
+## P2 update, 21:30: issue #9 → [PR #10](https://github.com/VaNsH-IIIT/homies-ontrack/pull/10)
 
 | #9 item | Result |
 |---|---|
