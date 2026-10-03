@@ -158,7 +158,7 @@ data/                local only, git-ignored
 
 ## How to run
 
-**Everything in one command:** `python scripts/run_all.py --with-bronze` (first run, about 25 min on full data; later runs drop `--with-bronze`). Add `--transcripts 0` to skip LLM calls. It prints a pass/fail summary per step.
+**Everything in one command:** `python scripts/run_all.py --with-bronze` (first run, about 25 min on full data; later runs drop `--with-bronze`). Add `--transcripts 0` for no LLM calls (every note and call is still scored by the trained models). It prints a pass/fail summary per step.
 
 | Step | Command | Owner |
 |---|---|---|
