@@ -121,10 +121,10 @@ The benchmark is **scored automatically** and counts towards the 30% technical s
 ### P2 · Garv
 | ID | Task | Done when |
 |---|---|---|
-| P2-T6 | Text signals with Claude: `hardship_signal`, `stated_delay_reason`, `stated_payday`, `dispute_mentioned`, each with a confidence and the exact evidence quote (+ `turn_index`). Score on `labels/agent_notes_labels_public_500.csv` and `labels/call_transcripts_labels_public_500.csv`; then run on notes/transcripts of open cases (batched, cached) → `features.text_signals` | precision/recall per signal printed; table written with the interface columns |
-| P2-T7 | Cited search (RAG) over `reference_documents` (`files/docs/`) and agent notes, for document-type benchmark questions; answers cite `doc_id` / section or `note_id` | document questions in the dev set answered with citations |
-| P2-T8 | Ask page `src/ontrack/app/pages/2_Ask.py`: question box, editable "understood as" tokens, answer table, **SQL shown**, clear refusal message | page works in the app |
-| P2-T9 | Benchmark hardening: full released set (dev + test) → `benchmark/answers.csv` in one command; error analysis on dev; ready for the 19:00 extra questions on 4 Oct | answers file for all questions; dev score in PR |
+| ✅ P2-T6 | Text signals with Claude: `hardship_signal`, `stated_delay_reason`, `stated_payday`, `dispute_mentioned`, each with a confidence and the exact evidence quote (+ `turn_index`). Score on `labels/agent_notes_labels_public_500.csv` and `labels/call_transcripts_labels_public_500.csv`; then run on notes/transcripts of open cases (batched, cached) → `features.text_signals` | precision/recall per signal printed; table written with the interface columns |
+| ✅ P2-T7 | Cited search (RAG) over `reference_documents` (`files/docs/`) and agent notes, for document-type benchmark questions; answers cite `doc_id` / section or `note_id` | document questions in the dev set answered with citations |
+| ✅ P2-T8 | Ask page `src/ontrack/app/pages/2_Ask.py`: question box, editable "understood as" tokens, answer table, **SQL shown**, clear refusal message | page works in the app |
+| ✅ P2-T9 | Benchmark hardening: full released set (dev + test) → `benchmark/answers.csv` in one command; error analysis on dev; ready for the 19:00 extra questions on 4 Oct | answers file for all questions; dev score in PR |
 
 ### P3 · Kris
 | ID | Task | Done when |

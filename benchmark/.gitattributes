@@ -1,0 +1,2 @@
+# Answers must keep the template's LF line endings on every checkout (no CRLF conversion).
+*.csv -text
