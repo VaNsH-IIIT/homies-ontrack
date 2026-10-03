@@ -7,7 +7,7 @@ Required by the brief: which AI tools we used and for what. Each teammate adds t
 | Tool | Used by | What for |
 |---|---|---|
 | Claude Code (Anthropic) | P1 Vansh | Design doc drafting and review; repo scaffold and team plan; Layer 1 code (bronze, silver, identity resolution incl. Splink, gold, data contract, DQ report); Streamlit shell and C360 page; architecture diagram; reviewing teammates' branches (found wrong column names, non-persisting decision buttons) |
-| Claude Code (Anthropic) | P2 Garv | _to add_ |
+| Claude Code (Anthropic) | P2 Garv | Read the brief, design and dataset; benchmark analysis (BENCHMARK_NOTES.md); Layer 2 code: runner and dev scorer, sqlglot SQL guard, certified-metric SQL templates and "understood as" parser, scope guard rules and red-team set, Claude tool agent for NL-to-SQL and cited answers; all code reviewed and tested against dev gold answers |
 | Claude Code (Anthropic) | P3 Kris | _to add_ |
 
 ## AI / ML inside the system
