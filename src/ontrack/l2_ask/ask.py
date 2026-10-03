@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from ontrack import config
 from ontrack.l2_ask import llm, metrics, scope, sql_guard, understand
 
-PROMPT_VERSION = "ask-v3"
+PROMPT_VERSION = "ask-v4"
 MAX_TURNS = 14
 MAX_SQL_ERRORS = 6          # repair budget across the whole question (design: up to two per query)
 RESULT_PREVIEW_ROWS = 40
@@ -154,7 +154,9 @@ How to answer:
   columns. Volumes of calls / contacts also come from contact_history.
 - Label periods and groups in the question's own words (e.g. '15-22 Sep', '7-14 Sep'), not ISO ranges.
 - Document questions: answer in one or two plain sentences with the key facts (numbers, durations, conditions),
-  from CURRENT documents only. sources = list like ["POL-COLL-001 §5.2", "FAQ-COLL-001 Q2", "qa_checklist item 7"].
+  from CURRENT documents only; where an FAQ or script disagrees with a policy or programme terms, the policy wins. sources = list like ["POL-COLL-001 §5.2", "FAQ-COLL-001 Q2", "qa_checklist item 7"].
+- Questions about what notes say (across cases or for one case): use search_notes / case_notes and cite the note ids
+  ("note N-... (case CS-...)") in sources.
 - Questions about a specific case's call: use case_calls, take the most recent recorded call, and answer
   "reason; promise (amount and date); next step" in one line. sources = ["transcript <transcript_id>"].
 - Questions that ask WHY something happened, or ask for a conclusion (does X beat Y, is it higher, did it change):
@@ -194,6 +196,19 @@ TOOLS = [
                                                           "limit": {"type": "integer"}}, "required": ["case_id"]},
     },
     {
+        "name": "search_documents",
+        "description": "BM25 search over reference-document sections; returns sections with their citation "
+                       "(e.g. 'POL-COLL-004 §4.2'), version and whether they are current.",
+        "input_schema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]},
+    },
+    {
+        "name": "search_notes",
+        "description": "BM25 search over agent notes (optionally for one case); each hit is cited as "
+                       "'note <note_id> (case <case_id>)'. Use for questions about what notes say across cases.",
+        "input_schema": {"type": "object", "properties": {"query": {"type": "string"}, "case_id": {"type": "string"},
+                                                          "limit": {"type": "integer"}}, "required": ["query"]},
+    },
+    {
         "name": "case_notes",
         "description": "Agent notes for a case, most recent first (note_id, note_ts, note_type, text).",
         "input_schema": {"type": "object", "properties": {"case_id": {"type": "string"},
@@ -231,6 +246,7 @@ ACTION_SCHEMA = {
         "metric_id": {"type": "string"}, "start": {"type": "string"}, "end": {"type": "string"},
         "group_by": {"type": "string"}, "filters": {"type": "array", "items": {"type": "string"}},
         "table": {"type": "string"}, "case_id": {"type": "string"}, "limit": {"type": "integer"},
+        "query": {"type": "string"},
         "refused": {"type": "boolean"},
         "kind": {"type": "string", "enum": ["data", "explain", "document", "transcript", "refusal"]},
         "answer_sql": {"type": "string"}, "answer_text": {"type": "string"},
@@ -442,6 +458,13 @@ class Engine:
                 return self.describe_table(args.get("table", "")), False
             if name == "case_calls":
                 return self.case_calls(args.get("case_id", ""), args.get("limit") or 3), False
+            if name == "search_documents":
+                from ontrack.l2_ask import search
+                return search.format_hits(search.search_docs(args.get("query", ""), 5), "docs"), False
+            if name == "search_notes":
+                from ontrack.l2_ask import search
+                return search.format_hits(search.search_notes(args.get("query", ""), args.get("limit") or 10,
+                                                              args.get("case_id")), "notes"), False
             if name == "case_notes":
                 return self.case_notes(args.get("case_id", ""), args.get("limit") or 10), False
             return f"Unknown tool {name}", True
