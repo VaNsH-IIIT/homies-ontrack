@@ -12,6 +12,7 @@ from ontrack.l4_nba.ranker import (
     contact_values,
     counterfactual,
     driver_reasons,
+    risk_rank,
     roll_forward_columns,
     wants_call,
 )
@@ -131,3 +132,12 @@ class TestRollForward:
 
     def test_unknown_dpd_counts_as_roll_forward(self):
         assert roll_forward_columns(0.2, None) == (0.8, None)
+
+
+class TestRiskRank:
+    def test_lowest_self_cure_score_is_rank_1(self):
+        assert risk_rank(np.array([0.30, 0.01, 0.20]), ["A", "B", "C"]).tolist() == [3, 1, 2]
+
+    def test_ties_go_to_case_id_and_ranks_are_unique(self):
+        r = risk_rank(np.array([0.1, 0.1, 0.05]), ["Z", "A", "M"])
+        assert r.tolist() == [3, 2, 1] and len(set(r.tolist())) == 3
