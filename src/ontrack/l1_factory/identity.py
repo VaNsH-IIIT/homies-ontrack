@@ -148,6 +148,24 @@ def resolve(nodes, edges, crm_dobs):
     return uf, best, refused
 
 
+def golden_ids(uf) -> dict:
+    """golden_id per key, stable across builds: derived from the person's anchor key (their smallest CRM
+    key, else their smallest key), so it changes only if that person's own records change, never because
+    other people's clusters did."""
+    import hashlib
+    clusters = {}
+    for node in uf.parent:
+        clusters.setdefault(uf.find(node), []).append(node)
+    out = {}
+    for nodes in clusters.values():
+        anchor = min((n for n in nodes if n.startswith("crm:")), default=min(nodes))
+        gid = "G-" + hashlib.sha1(anchor.encode()).hexdigest()[:16].upper()
+        out.update(dict.fromkeys(nodes, gid))
+    if len(set(out.values())) != len(clusters):
+        raise RuntimeError("golden_id collision")  # 64-bit ids: about 1 in 37 million at 1M people
+    return out
+
+
 def main() -> None:
     con = connect()
     con.execute("CREATE OR REPLACE TABLE silver.identity_edges (a VARCHAR, b VARCHAR, conf DOUBLE, method VARCHAR)")
@@ -179,16 +197,12 @@ def main() -> None:
         con.unregister("refused_arrow")
     print(f"  conflict guard refused {len(refused):,d} links between clusters with different dates of birth", flush=True)
 
-    # golden_id per component, numbered by the component's smallest key for stability.
-    roots = {}
+    gid = golden_ids(uf)
     rows = []
     for node in sorted(uf.parent):
-        root = uf.find(node)
-        if root not in roots:
-            roots[root] = f"G-{len(roots) + 1:07d}"
         system, key = node.split(":", 1)
         conf, method = best.get(node, (1.0, "singleton"))
-        rows.append((roots[root], {"crm": "crm", "card": "cards", "loan": "loans", "cif": "core_banking"}[system],
+        rows.append((gid[node], {"crm": "crm", "card": "cards", "loan": "loans", "cif": "core_banking"}[system],
                      key, method, conf))
 
     import pyarrow as pa  # bulk insert: row-by-row inserts of millions of keys are far too slow

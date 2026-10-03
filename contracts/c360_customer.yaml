@@ -38,7 +38,7 @@ schema:
     type: string
     required: true
     unique: true
-    description: Person id from identity resolution (gold.customer_xref).
+    description: Person id from identity resolution (gold.customer_xref). Stable across builds - 'G-' + 16 hex of a hash of the person's anchor key (smallest CRM key, else smallest key); changes only if that person's own records change.
     classification: internal
   - {name: primary_crm_customer_id, type: string, description: Surviving CRM record (not a duplicate, most recently updated)., classification: internal}
   - {name: province_code, type: string, description: Province (contact rules only, not a model input)., classification: quasi_identifier}

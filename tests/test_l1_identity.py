@@ -59,3 +59,22 @@ def test_each_key_records_its_strongest_evidence():
     edges = [("crm:A", "card:X", 0.96, "splink"), ("crm:A", "card:X", 0.98, "case_account")]
     _, best, _ = resolve(["crm:A", "card:X"], edges, {})
     assert best["card:X"] == (0.98, "case_account")
+
+
+def test_golden_id_is_stable_when_other_people_change():
+    from ontrack.l1_factory.identity import golden_ids
+    edges = [("crm:A", "card:X", 0.98, "case_account")]
+    before = golden_ids(resolve(["crm:A", "card:X", "crm:M"], edges, {})[0])
+    # A new person appears and another person's records merge: A's id must not move.
+    edges_after = edges + [("crm:M", "loan:N", 0.97, "name_dob_postal")]
+    after = golden_ids(resolve(["crm:0", "crm:A", "card:X", "crm:M", "loan:N"], edges_after, {})[0])
+    assert after["crm:A"] == after["card:X"] == before["crm:A"]
+    assert after["crm:M"] == after["loan:N"] == before["crm:M"]
+    assert len({after[n] for n in after}) == 3
+
+
+def test_golden_id_anchors_on_the_crm_record():
+    from ontrack.l1_factory.identity import golden_ids
+    uf, _, _ = resolve(["card:A", "crm:Z"], [("crm:Z", "card:A", 0.98, "case_account")], {})
+    alone, _, _ = resolve(["crm:Z"], [], {})
+    assert golden_ids(uf)["card:A"] == golden_ids(alone)["crm:Z"]  # a card key joining keeps the CRM-based id
