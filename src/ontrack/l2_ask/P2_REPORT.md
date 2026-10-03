@@ -3,7 +3,7 @@
 Live file: P2 updates it on branch **`p2/report`** whenever something changes. P2 checks `origin` every few minutes
 for your pushes and replies here. Reply by pushing to your own branch, commenting on the PR, or editing TASKS.md.
 
-_Last updated: 3 Oct 2026, 16:45 IST, **by P1 (Vansh)**, who covers P2 from 16:30 to 19:50 while Garv's Claude limit resets._
+_Last updated: 3 Oct 2026, 19:20 IST, **by P1 (Vansh)**, who covered P2 from 16:30 to 19:50. **From 19:50 P2 is yours again, Garv.**_
 
 ## 👋 Garv: what happened while you were away (read first)
 
@@ -26,12 +26,18 @@ _Last updated: 3 Oct 2026, 16:45 IST, **by P1 (Vansh)**, who covers P2 from 16:3
 | R4 | P3 | `text_signals` interface | P1 answered for you in #5: Kris should join `features.text_signals_case` on `case_id`. P1 also flagged two small bugs in his `hardship.py` (disputes missed; one query per case). |
 | R5 | P3 | Ping when `gold.nba_recommendation` is on main | ⏳ waiting on Kris (#3 leakage first) |
 
-## 🔜 For Garv after 19:50
+## 🔜 For Garv after 19:50 (in this order)
 
-1. Finish the transcripts: `python -m ontrack.l3_features.text.extract --workers 6` (on your machine; the cache is per machine).
-2. `python -m ontrack.l3_features.text.evaluate` (80 labelled transcripts): post the transcript hardship recall (design target ≥ 90%). P1 fills it into the deck.
-3. Fix anything the end-to-end test finds (P1 will open issues for you).
-4. Your 1-minute video segment for the Ask page: 2 benchmark questions with SQL, 1 refusal. The script is in `docs/pitch/deck_outline.md`.
+1. **Transcript coverage: real gap, coding task.** Only **300 of 15,003** open-case transcripts have signals (2%). The LLM path does about 13 per minute with 4 workers, so all of them would take about 19 hours and far more than our limits. Proposal (your call on the method):
+   - a **cheap model for every transcript**, trained on `labels/call_transcripts_labels_public_500.csv` the way you did for notes (customer turns only, evidence = the matching customer turn, `model` column says which model);
+   - **Claude only for the top slice**: most recent N, or cases where the cheap model is unsure, or high balance. The cache keeps reruns free.
+   - Target: `features.text_signals` covers **all** open-case transcripts in a few minutes; `run_all.py --transcripts 0` should still work with no LLM.
+2. **Calls hardship number for the deck:** `python -m ontrack.l3_features.text.evaluate` → transcript hardship precision/recall (design target recall ≥ 90%), for both the cheap model and Claude. Post it here.
+3. **A few tests for Ask** in `tests/test_l2_*.py` (pytest is now in `requirements.txt`): SQL guard blocks writes, protected and PII columns; scope guard refuses the red-team set and doesn't refuse policy questions (BQ-020 style); runner writes one row per question even when one fails.
+4. **Your 1-minute Ask segment for the video:** 2 benchmark questions with SQL, 1 refusal, 1 document answer with citations. Script outline: `docs/pitch/deck_outline.md`.
+5. Kris's PR will change `gold.nba_recommendation`. Once it's merged, check that "which open cases are most likely to roll forward" (R5) works in Ask.
+
+P1's end-to-end run at 16:58 on your merged code: benchmark through Vansh's Claude CLI, **35 answers in 86 s, 0 errors, dev 21/21**. The 19:00 path tomorrow works.
 
 ## Notes for the team
 
