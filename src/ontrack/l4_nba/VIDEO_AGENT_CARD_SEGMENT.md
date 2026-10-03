@@ -20,7 +20,7 @@ Every claim below is checked against the build with stable golden_ids (commit 1f
 | Time | On screen | Voice-over |
 |---|---|---|
 | 3:30 | EVALUATION section 4: queue split | "62% of the open book goes to a person first: about 46,000 hardship cases, nearly 9,000 of them found only in what customers said in notes and calls, and about 2,500 only in their salary deposits, plus vulnerability, disputes, complaints and legal holds." |
-| 3:45 | EVALUATION section 2: back-test table | "We tested like with like: the same cases on 1 July, outcomes after that date. Our self-cure model scores 0.83 AUC against 0.72 for the bank's current model, and of the cases it says need action now, 99.5% really did not pay on their own." |
+| 3:45 | EVALUATION sections 2 and 2b: back-test table, then the dollar table | "We tested like with like: the same cases on 1 July, outcomes after that date. Our self-cure model scores 0.83 AUC against 0.72 for the bank's current model, and of the cases it says need action now, more than 99% really did not pay on their own. On today's book that is about 160 thousand dollars more in expected payments per round of contacts than the bank's current recommendations, counted conservatively." |
 | 4:00 | EVALUATION section 5: fairness summary | "Fairness is tested offline across gender, age, citizenship, newcomer and accessibility groups: protected attributes are never inputs, and for the cases the model decides alone the gaps stay within a few points." |
 
 ## Fact check (K2): every claim and where it comes from
@@ -44,6 +44,7 @@ Exact counts are from Kris's build; the submission is P1's build (hardship 46,23
 | Links bring a payment within a week 12%, calls 3% | SMS 12.1%, email 12.2%, call 2.8% | `ranker.channel_economics()`: payment within 7 days of an outbound contact, last 12 months |
 | A call costs 240 times a text | $2.40 vs $0.01 | `bronze.channel_capacity.unit_cost_cad` |
 | Self-cure AUC 0.83 vs 0.72 for the bank's model | 0.830 vs 0.717 on the same 29,680 cases | `EVALUATION.md` section 2 (`cure_30d` row) |
-| 99.5% of "act now" cases did not pay on their own | 0.995 | `EVALUATION.md` section 2 |
+| More than 99% of "act now" cases did not pay on their own | 0.995 (P1's build: 0.994) | `EVALUATION.md` section 2 |
+| About $160K more expected payments per round of contacts | +$162,275 (P1's build may differ slightly) | `EVALUATION.md` section 2b: median payment $71.68, measured channel rates, automated cases only, blocked bank actions count as nothing |
 | Fairness gaps for automated decisions stay within a few points | max 5.5 points (digital rate by marital status; gender 5.1 points, from the small U / X groups) | `EVALUATION.md` section 5 |
 
