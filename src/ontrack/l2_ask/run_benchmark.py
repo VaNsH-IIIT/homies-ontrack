@@ -97,7 +97,7 @@ def main(argv: list[str] | None = None) -> int:
 
     out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, "w", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=FIELDS, quoting=csv.QUOTE_ALL)
+        w = csv.DictWriter(f, fieldnames=FIELDS, quoting=csv.QUOTE_ALL, lineterminator="\n")  # as the template
         w.writeheader()
         w.writerows(rows)
     print(f"Wrote {len(rows)} answers to {out} in {time.time() - start:.0f}s ({failed} errors)")

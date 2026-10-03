@@ -64,7 +64,7 @@ def _read_docs() -> list[dict]:
 
 def _df_text(con, sql: str) -> str:
     df = con.execute(sql).df()
-    return df.to_csv(index=False).strip()
+    return df.to_csv(index=False, lineterminator="\n").strip()
 
 
 def build_context(con, schema: sql_guard.Schema) -> str:
@@ -448,7 +448,7 @@ class Engine:
         try:
             if name == "run_sql":
                 safe, df = self.run_sql(args.get("sql", ""))
-                return (f"rows: {len(df)}\n" + df.head(RESULT_PREVIEW_ROWS).to_csv(index=False)), False
+                return (f"rows: {len(df)}\n" + df.head(RESULT_PREVIEW_ROWS).to_csv(index=False, lineterminator="\n")), False
             if name == "certified_metric":
                 mid = args.get("metric_id", "")
                 if mid == "roll_rate":
@@ -457,7 +457,7 @@ class Engine:
                     sql = metrics.certified_sql(mid, args.get("start") or None, args.get("end") or None,
                                                 args.get("group_by") or None, args.get("filters") or [])
                 safe, df = self.run_sql(sql)
-                return (f"sql: {safe}\nrows: {len(df)}\n" + df.head(RESULT_PREVIEW_ROWS).to_csv(index=False)), False
+                return (f"sql: {safe}\nrows: {len(df)}\n" + df.head(RESULT_PREVIEW_ROWS).to_csv(index=False, lineterminator="\n")), False
             if name == "describe_table":
                 return self.describe_table(args.get("table", "")), False
             if name == "case_calls":
@@ -502,4 +502,4 @@ def format_table(df) -> str:
     for c in out.columns:
         if str(out[c].dtype).startswith("float"):
             out[c] = out[c].map(lambda x: "" if x != x else (f"{x:.6f}".rstrip("0").rstrip(".") or "0"))
-    return out.to_csv(index=False).strip()
+    return out.to_csv(index=False, lineterminator="\n").strip()
