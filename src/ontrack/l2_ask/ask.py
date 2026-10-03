@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from ontrack import config
 from ontrack.l2_ask import llm, metrics, scope, sql_guard, understand
 
-PROMPT_VERSION = "ask-v1"
+PROMPT_VERSION = "ask-v3"
 MAX_TURNS = 14
 MAX_SQL_ERRORS = 6          # repair budget across the whole question (design: up to two per query)
 RESULT_PREVIEW_ROWS = 40
@@ -149,12 +149,17 @@ How to answer:
   account_monthly_snapshot.month_end_date come in several formats (try_strptime with '%Y-%m-%d', '%d/%m/%Y', '%Y%m%d').
   Promise rates use resolved promises only (kept, partially_kept, broken). Comparisons of strategies or pilots use
   randomised cases only (assignment_method = 'random').
+- Events raised during contacts (disputes, complaints, hardship mentions, cease requests, payments taken) are counted
+  in contact_history flags (dispute_raised_flag, complaint_raised_flag, ...) by contact_ts_local, not from case
+  columns. Volumes of calls / contacts also come from contact_history.
+- Label periods and groups in the question's own words (e.g. '15-22 Sep', '7-14 Sep'), not ISO ranges.
 - Document questions: answer in one or two plain sentences with the key facts (numbers, durations, conditions),
   from CURRENT documents only. sources = list like ["POL-COLL-001 §5.2", "FAQ-COLL-001 Q2", "qa_checklist item 7"].
 - Questions about a specific case's call: use case_calls, take the most recent recorded call, and answer
   "reason; promise (amount and date); next step" in one line. sources = ["transcript <transcript_id>"].
-- Questions that need both data and documents (e.g. why did a metric change): query the data and cite the document
-  or ops event, put both the SQL and the document id in sources.
+- Questions that ask WHY something happened, or ask for a conclusion (does X beat Y, is it higher, did it change):
+  kind = "explain": answer_text = one or two sentences with the conclusion, the cause or direction and the key
+  numbers; answer_sql = the supporting query; cite any document or ops event in sources.
 - Be efficient: usually 1-4 queries. If a query is rejected by the guard, read the reason and fix the query.
 """
 
@@ -201,7 +206,7 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "refused": {"type": "boolean"},
-                "kind": {"type": "string", "enum": ["data", "document", "transcript", "refusal"]},
+                "kind": {"type": "string", "enum": ["data", "explain", "document", "transcript", "refusal"]},
                 "answer_sql": {"type": "string", "description": "data: the final query whose result is the answer"},
                 "answer_text": {"type": "string", "description": "document / transcript / refusal: the answer text; "
                                                                   "data: optional one-line insight"},
@@ -215,6 +220,34 @@ TOOLS = [
         },
     },
 ]
+
+# One flat JSON object per step: the action name plus that action's arguments.
+ACTION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "thought": {"type": "string", "description": "one short sentence: why this action"},
+        "action": {"type": "string", "enum": [t["name"] for t in TOOLS]},
+        "sql": {"type": "string"},
+        "metric_id": {"type": "string"}, "start": {"type": "string"}, "end": {"type": "string"},
+        "group_by": {"type": "string"}, "filters": {"type": "array", "items": {"type": "string"}},
+        "table": {"type": "string"}, "case_id": {"type": "string"}, "limit": {"type": "integer"},
+        "refused": {"type": "boolean"},
+        "kind": {"type": "string", "enum": ["data", "explain", "document", "transcript", "refusal"]},
+        "answer_sql": {"type": "string"}, "answer_text": {"type": "string"},
+        "sources": {"type": "array", "items": {"type": "string"}},
+        "understood_as": {"type": "object", "additionalProperties": {"type": "string"}},
+    },
+    "required": ["action"],
+}
+
+
+def tools_text() -> str:
+    lines = ["# Actions (return exactly one per step as JSON: {\"action\": name, ...its arguments})"]
+    for t in TOOLS:
+        args = ", ".join(f"{k}{'' if k in t['input_schema'].get('required', []) else '?'}"
+                         for k in t["input_schema"]["properties"])
+        lines.append(f"- {t['name']}({args}): {t['description']}")
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -343,55 +376,52 @@ class Engine:
             return Answer(reason, json.dumps(sources, ensure_ascii=False) if sources else "", True, "refuse",
                           understood)
         sql = (final.get("answer_sql") or "").strip()
-        if final.get("kind") == "data" and sql:
+        if final.get("kind") in ("data", "explain") and sql:
             try:                                         # check 3: the final query goes through the guard again
                 safe, df = self.run_sql(sql)
             except Exception as e:  # noqa: BLE001
                 return Answer(f"Could not run the final query: {e}", sql, False, "error", understood)
             src = safe if not sources else safe + "\n-- sources: " + json.dumps(sources, ensure_ascii=False)
+            if final.get("kind") == "explain" and text:
+                return Answer(text + "\n\n" + format_table(df), src, False, "explain", understood, table=df,
+                              sql=safe)
             return Answer(format_table(df), src, False, "data", understood, table=df, sql=safe)
         return Answer(text, json.dumps(sources, ensure_ascii=False), False, final.get("kind") or "document",
                       understood)
 
     def _agent(self, question, as_of_date, metric_id, question_id, tolerance):
-        if self._client is None:
-            self._client = llm.client()
-        # Stable prefix (rules + schema + metrics + documents) is cached; the question varies after it.
-        system = [{"type": "text", "text": SYSTEM_RULES + "\n\n" + self.context,
-                   "cache_control": {"type": "ephemeral"}}]
+        """Tool loop as a JSON 'next action' protocol, so the API and the Claude Code CLI share one path.
+        Each turn the model sees the question and every previous action with its result, and returns one action."""
+        # Stable prefix (rules + tools + schema + metrics + documents) is cached; the question varies after it.
+        system = SYSTEM_RULES + "\n\n" + tools_text() + "\n\n" + self.context
         hints = [f"As-of date: {as_of_date}."]
         if metric_id:
             hints.append(f"Certified metric: {metric_id}.")
         if tolerance:
             hints.append(f"Scoring tolerance: {tolerance}.")
         examples = dev_examples(question_id)
-        user = (f"Worked examples from the released dev set (for conventions):\n\n{examples}\n\n---\n"
+        head = (f"Worked examples from the released dev set (for conventions):\n\n{examples}\n\n---\n"
                 if examples else "") + f"Question: {question}\n" + " ".join(hints)
-        messages = [{"role": "user", "content": user}]
+        history: list[str] = []
         sql_log, errors = [], 0
-        for _ in range(MAX_TURNS):
-            resp = self._client.messages.create(
-                model=llm.MODEL, max_tokens=16000, system=system, tools=TOOLS, messages=messages,
-                output_config={"effort": "medium"},
-            )
-            messages.append({"role": "assistant", "content": resp.content})
-            calls = [b for b in resp.content if b.type == "tool_use"]
-            if not calls:
-                messages.append({"role": "user", "content": "Call final_answer with your answer."})
-                continue
-            results = []
-            for c in calls:
-                if c.name == "final_answer":
-                    return dict(c.input), sql_log
-                out, is_err = self._call_tool(c.name, c.input)
-                if c.name == "run_sql":
-                    sql_log.append(c.input.get("sql", ""))
-                    if is_err:
-                        errors += 1
-                        if errors >= MAX_SQL_ERRORS:
-                            out += "\nRepair budget used up: answer with what you have or refuse."
-                results.append({"type": "tool_result", "tool_use_id": c.id, "content": out, "is_error": is_err})
-            messages.append({"role": "user", "content": results})
+        for turn in range(MAX_TURNS):
+            prompt = head + "\n\n" + ("\n\n".join(history) if history else "(no actions yet)") + \
+                "\n\nReturn your next action as JSON." + \
+                ("\nThis is your last step: action must be final_answer." if turn == MAX_TURNS - 1 else "")
+            act = llm.complete_json(system, prompt, ACTION_SCHEMA)
+            name = act.get("action")
+            if name == "final_answer":
+                return act, sql_log
+            args = {k: v for k, v in act.items() if k not in ("action", "thought") and v not in (None, "", [])}
+            out, is_err = self._call_tool(name, args)
+            if name in ("run_sql", "certified_metric"):
+                sql_log.append(args.get("sql") or json.dumps(args))
+                if is_err:
+                    errors += 1
+                    if errors >= MAX_SQL_ERRORS:
+                        out += "\nRepair budget used up: give your final_answer with what you have."
+            history.append(f"### Step {turn + 1}: {name} {json.dumps(args, ensure_ascii=False)}\n"
+                           f"{'ERROR: ' if is_err else ''}{out[:12000]}")
         return None, sql_log
 
     def _call_tool(self, name: str, args: dict) -> tuple[str, bool]:
