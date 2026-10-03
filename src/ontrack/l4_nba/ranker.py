@@ -71,9 +71,30 @@ REASON_TEMPLATES = {
 }
 
 
+COUNTERFACTUAL_TEMPLATES = {
+    "dpd_current": "Would improve if DPD dropped below {threshold}",
+    "past_due_max": "Would improve if past-due amount fell below ${threshold:,.0f}",
+    "total_past_due": "Would improve if total past-due fell below ${threshold:,.0f}",
+    "past_due_ratio": "Would improve if past-due ratio dropped below {threshold:.0%}",
+    "days_since_last_payment": "Would change if a payment were made within {threshold} days",
+    "payments_90d": "Would improve with at least {threshold} payments in 90 days",
+    "payments_30d": "Would improve with at least {threshold} payment in 30 days",
+    "rpc_rate_30d": "Would improve if RPC rate exceeded {threshold:.0%}",
+    "contacts_30d": "Would change if contact frequency adjusted to {threshold}",
+    "bureau_score_current": "Would improve if bureau score rose above {threshold}",
+    "case_age_days": "Would change if resolved within {threshold} days",
+}
+
+COUNTERFACTUAL_THRESHOLDS = {
+    "dpd_current": 30, "past_due_max": 500, "total_past_due": 1000,
+    "past_due_ratio": 0.1, "days_since_last_payment": 30, "payments_90d": 2,
+    "payments_30d": 1, "rpc_rate_30d": 0.5, "contacts_30d": 3,
+    "bureau_score_current": 650, "case_age_days": 60,
+}
+
+
 def _format_reason(feature_name: str, feature_value: float, shap_value: float) -> str:
     """Turn a SHAP feature into a plain-English reason."""
-    direction = "increases" if shap_value > 0 else "decreases"
     template = REASON_TEMPLATES.get(feature_name)
     if template:
         try:
@@ -85,13 +106,26 @@ def _format_reason(feature_name: str, feature_value: float, shap_value: float) -
     return fact
 
 
+def _counterfactual(feature_name: str) -> str | None:
+    """Generate a 'would change if…' line for the top driver."""
+    tmpl = COUNTERFACTUAL_TEMPLATES.get(feature_name)
+    threshold = COUNTERFACTUAL_THRESHOLDS.get(feature_name)
+    if tmpl and threshold is not None:
+        try:
+            return tmpl.format(threshold=threshold)
+        except (ValueError, KeyError):
+            pass
+    return None
+
+
 def get_shap_reasons(
     model_dict: dict,
     features_row: np.ndarray,
     feature_values: dict[str, float],
     top_n: int = 3,
+    include_counterfactual: bool = True,
 ) -> list[str]:
-    """Get top-N SHAP-based reasons for a prediction."""
+    """Get top-N SHAP-based reasons for a prediction, with optional counterfactual."""
     booster = model_dict["booster"]
     feature_cols = model_dict["feature_cols"]
     explainer = shap.TreeExplainer(booster)
@@ -103,6 +137,13 @@ def get_shap_reasons(
         fname = feature_cols[idx]
         fval = feature_values.get(fname, features_row[idx])
         reasons.append(_format_reason(fname, fval, shap_values[idx]))
+
+    if include_counterfactual and len(indices) > 0:
+        top_fname = feature_cols[indices[0]]
+        cf = _counterfactual(top_fname)
+        if cf:
+            reasons.append(cf)
+
     return reasons
 
 
@@ -163,7 +204,8 @@ def recommend_for_case(
     best_score = ranked[0][1] if ranked else 0.0
 
     try:
-        reasons = get_shap_reasons(model_cure, cure_features, feature_values, top_n=3)
+        reasons = get_shap_reasons(model_cure, cure_features, feature_values,
+                                   top_n=3, include_counterfactual=True)
     except Exception:
         reasons = ["Model prediction based on case features",
                     "Contact and payment history considered",

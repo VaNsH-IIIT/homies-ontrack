@@ -36,7 +36,16 @@ def main(score_only: bool = False) -> None:
     from ontrack.l4_nba.ranker import build_recommendations
     n = build_recommendations(con, as_of_ts)
 
-    print(f"\nDone. {n:,d} recommendations written to gold.nba_recommendation")
+    print(f"\n{n:,d} recommendations written to gold.nba_recommendation")
+
+    print("\n" + "=" * 60)
+    print("Running hardship routing...")
+    print("=" * 60)
+
+    from ontrack.l4_nba.hardship import route_hardship_cases
+    route_hardship_cases(con, as_of_ts)
+
+    print("\nDone.")
     con.close()
 
 
