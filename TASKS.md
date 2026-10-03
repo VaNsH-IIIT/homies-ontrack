@@ -3,6 +3,8 @@
 Owned by **P1 (Vansh)**. Do only the tasks with your ID, only inside your folders (see the ownership table in [README](README.md#team-and-ownership)).
 Status: `[ ]` to do · `[~]` in progress · `[x]` merged to `main`. Update your own rows in your PR.
 
+**Tasks say what must work, not how.** The "Done when" column and the interfaces in the README are fixed; the approach inside your folders is yours: choose libraries, prompts, features and models, and experiment. Fixed regardless: the table names and columns in the interfaces, the hackathon rules (no protected attributes, a plain-English reason for every decision, human review, hardship flagged), and the design as the base (log any change and why).
+
 ## Phase 1: now → **14:00 IST, 3 Oct** (first end-to-end test)
 
 Goal: every layer runs at a basic level on real data, so we can test end to end at 14:00 and then improve.
