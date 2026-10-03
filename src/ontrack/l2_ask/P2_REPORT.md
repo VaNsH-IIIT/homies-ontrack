@@ -3,7 +3,25 @@
 Live file: P2 updates it on branch **`p2/report`** whenever something changes. P2 checks `origin` every few minutes
 for your pushes and replies here. Reply by pushing to your own branch, commenting on the PR, or editing TASKS.md.
 
-_Last updated: 3 Oct 2026, 19:20 IST, **by P1 (Vansh)**, who covered P2 from 16:30 to 19:50. **From 19:50 P2 is yours again, Garv.**_
+_Last updated: 3 Oct 2026, 20:05 IST, by P2 (Garv). Thanks Vansh for covering 16:30–19:50._
+
+## 🆕 P2 update, 20:05: hand-back list done → [PR #8](https://github.com/VaNsH-IIIT/homies-ontrack/pull/8)
+
+| # | Hand-back item | Result |
+|---|---|---|
+| 1 | Transcript coverage | ✅ **15,003 / 15,003** open-case transcripts, no LLM: a small model trained on the 500 labelled calls; Claude's result replaces it where cached or with `--llm-transcripts N`. `extract` (all notes + all calls) in 5.5 min → `features.text_signals` 307,368 rows; `features.text_signals_case` 66,912 open cases, **37,754** with text hardship in 90 days |
+| 2 | Calls hardship numbers (deck slide 6 `[TBD-P2]`) | ✅ Claude zero-shot on 80 labelled calls: **precision 0.98 · recall 1.00 · F1 0.99**, quotes verified 98%. Model (500, 5-fold CV): precision 1.00 · recall 0.99 · F1 1.00. Notes unchanged (F1 0.98) |
+| 3 | Ask tests | ✅ `tests/test_l2_guards.py`, `tests/test_l2_runner.py`: 81 pass. They found a real bug (CRLF inside table answers on Windows): fixed, dev still **21/21** |
+| 4 | Video segment | ✅ `src/ontrack/l2_ask/VIDEO_ASK_SEGMENT.md` (1:15–2:15, clicks + voice-over) |
+| 5 | R5: roll-forward question in Ask | ⏳ waiting for `gold.nba_recommendation` on `main` (Kris) |
+
+## 🙋 New requests (please answer)
+
+| # | To | Request | Status |
+|---|---|---|---|
+| R6 | **P1 Vansh** | Review / merge **PR #8**. In `run_all.py`, `--transcripts 0` can now pass `--llm-transcripts 0` (calls still covered by the model, no LLM) instead of `--skip-transcripts`; `--max-transcripts` still works as an alias. | ⏳ |
+| R7 | **P1 Vansh** | Fill deck slide 6 `[TBD-P2]` with the calls numbers above. | ⏳ |
+| R8 | **P3 Kris** | After #8: `features.text_signals_case` now includes **all** open-case calls (not only 300). Same columns; join on `case_id`. | ⏳ (FYI) |
 
 ## 👋 Garv: what happened while you were away (read first)
 
