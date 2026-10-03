@@ -8,7 +8,7 @@ Required by the brief: which AI tools we used and for what. Each teammate adds t
 |---|---|---|
 | Claude Code (Anthropic) | P1 Vansh | Design doc drafting and review; repo scaffold and team plan; Layer 1 code (bronze, silver, identity resolution incl. Splink, gold, data contract, DQ report); Streamlit shell and C360 page; architecture diagram; reviewing teammates' branches (found wrong column names, non-persisting decision buttons) |
 | Claude Code (Anthropic) | P2 Garv | Read the brief, design and dataset; benchmark analysis (BENCHMARK_NOTES.md); Layer 2 code: runner and dev scorer, sqlglot SQL guard, certified-metric SQL templates and "understood as" parser, scope guard rules and red-team set, Claude agent for NL-to-SQL and cited answers, BM25 cited search, Ask page; Layer 3 text code: notes and call models, Claude extraction with verified quotes, evaluation on the public labels; 21-question unseen rehearsal and hand-check of the 14 test answers; 81 pytest tests; PR descriptions and team status report. All code reviewed and tested against the dev gold answers and hand-written SQL |
-| Claude Code (Anthropic) | P3 Kris | _to add_ |
+| Claude Code (Anthropic) | P3 Kris | Layer 3 structured features (point-in-time `build_case_features`) and Layer 4: policy gate, LightGBM self-cure / payment models, label-leakage fix, capacity-aware ranker, SHAP-based business reasons, hardship routing, evaluation (back-test, fairness), Agent card page and tests; code reviewed and run on the full data |
 
 ## AI / ML inside the system
 
