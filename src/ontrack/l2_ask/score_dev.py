@@ -48,9 +48,9 @@ def norm_key(s: str) -> str:
 
 def parse_table(text: str) -> tuple[list[str], list[list[str]]] | None:
     text = (text or "").strip()
-    if not text or ("," not in text and ":" not in text):
-        return None
     lines = [ln for ln in text.splitlines() if ln.strip()]
+    if not text or ("," not in text and ":" not in text and len(lines) < 2):
+        return None
     if all(":" in ln and "," not in ln for ln in lines):            # key: value per line
         rows = [[p.strip() for p in ln.split(":", 1)] for ln in lines]
         return ["key", "value"], rows
