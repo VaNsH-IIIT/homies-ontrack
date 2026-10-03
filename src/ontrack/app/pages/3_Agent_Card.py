@@ -60,8 +60,15 @@ with st.expander("Queue overview for supervisors: what the book gets, and who go
                    "disputes, complaints and vulnerability need a person by policy.")
 
 # ---- Find a case ----
-q = st.text_input("Find a case by case_id or golden_id", value=DEMO_CASE,
-                  help=f"Demo case {DEMO_CASE}. Clear the box to browse the queue.").strip()
+# The demo case exists on the full data; on a smaller dataset (e.g. the 5% dev sample) open the top hardship case
+# that has the customer's own words instead of an empty card.
+start = DEMO_CASE
+if query("SELECT count(*) AS n FROM gold.nba_recommendation WHERE case_id = ?", [DEMO_CASE])["n"].iat[0] == 0:
+    alt = query("""SELECT case_id FROM gold.nba_recommendation
+                   ORDER BY (hardship_flag AND text_evidence IS NOT NULL) DESC, score DESC, case_id LIMIT 1""")
+    start = alt["case_id"].iat[0] if len(alt) else ""
+q = st.text_input("Find a case by case_id or golden_id", value=start,
+                  help=f"Demo case {DEMO_CASE} (full data). Clear the box to browse the queue.").strip()
 if q:
     cases = query("SELECT case_id FROM gold.nba_recommendation WHERE case_id = ? OR golden_id = ? ORDER BY score DESC",
                   [q, q])
