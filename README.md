@@ -158,18 +158,19 @@ data/                local only, git-ignored
 
 ## How to run
 
-_Filled in as the layers land. Target: one command per step._
+**Everything in one command:** `python scripts/run_all.py --with-bronze` (first run, about 25 min on full data; later runs drop `--with-bronze`). Add `--transcripts 0` to skip LLM calls. It prints a pass/fail summary per step.
 
 | Step | Command | Owner |
 |---|---|---|
 | Load raw data into bronze (once; ~10 min full data, ~30 s sample) | `python -m ontrack.l1_factory.bronze` | P1 |
-| Build silver + identity resolution (tiers 1–3, incl. Splink) + gold C360 + DQ report (~4 min) | `python -m ontrack.l1_factory.build` | P1 |
+| Build silver + identity resolution (tiers 1–3, incl. Splink) + gold C360 + DQ report (~10 min full data) | `python -m ontrack.l1_factory.build` | P1 |
 | Check the data contract rules (also run by `build`) | `python -m ontrack.l1_factory.contract_check` | P1 |
 | Make the 5% dev sample | `python scripts/make_sample.py --pct 5 --out D:/maple_sample` | P1 |
 | Answer benchmark questions | `python -m ontrack.l2_ask.run_benchmark --questions <csv> --out benchmark/answers.csv` | P2 |
-| Extract text signals | `python -m ontrack.l3_features.text.extract` | P2 |
+| Extract text signals (notes model; Claude on the most recent transcripts, cached) | `python -m ontrack.l3_features.text.extract --max-transcripts 300` (`--skip-transcripts` = no LLM) | P2 |
 | Build features, train, recommend | `python -m ontrack.l4_nba.run` | P3 |
-| Demo app (home, C360 and Match review live; Ask and Agent Card pages appear when P2/P3 add them) | `streamlit run src/ontrack/app/main.py` | P1 |
+| Demo app (home, C360, Match review, Ask; Agent card when P3 merges) | `streamlit run src/ontrack/app/main.py` | P1 |
+| Unit tests (no dataset needed) | `pytest tests/` | all |
 
 ---
 

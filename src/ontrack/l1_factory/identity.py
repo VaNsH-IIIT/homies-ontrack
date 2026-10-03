@@ -117,6 +117,37 @@ class UnionFind:
             self.parent[rb] = ra
 
 
+def resolve(nodes, edges, crm_dobs):
+    """Cluster source keys into people.
+
+    nodes: every key ('crm:…', 'card:…', 'loan:…', 'cif:…'); edges: (a, b, conf, method);
+    crm_dobs: {'crm:<id>': date of birth}. Returns (union-find, best (conf, method) per key, refused edges).
+    Conflict guard: never join two clusters whose CRM records share no date of birth (two different
+    people). CRM's own duplicate flag is the bank's explicit statement, so it is exempt.
+    """
+    uf = UnionFind()
+    for n in nodes:
+        uf.parent.setdefault(n, n)
+    dobs = {k: {d} for k, d in crm_dobs.items()}
+    best, refused = {}, []
+    # Strongest edges first, so each key's best evidence is recorded.
+    for a, b, conf, method in sorted(edges, key=lambda e: (-e[2], e[3])):
+        uf.parent.setdefault(a, a)
+        uf.parent.setdefault(b, b)
+        ra, rb = uf.find(a), uf.find(b)
+        if ra != rb:
+            da, db = dobs.get(ra, set()), dobs.get(rb, set())
+            if method != "crm_duplicate" and da and db and not (da & db):
+                refused.append((a, b, conf, method))
+                continue
+            uf.union(ra, rb)
+            dobs[uf.find(ra)] = da | db
+        for node in (a, b):
+            if node not in best or conf > best[node][0]:
+                best[node] = (conf, method)
+    return uf, best, refused
+
+
 def main() -> None:
     con = connect()
     con.execute("CREATE OR REPLACE TABLE silver.identity_edges (a VARCHAR, b VARCHAR, conf DOUBLE, method VARCHAR)")
@@ -134,32 +165,11 @@ def main() -> None:
     for m, n in con.execute("SELECT method, count(*) FROM silver.identity_edges GROUP BY 1 ORDER BY 2 DESC").fetchall():
         print(f"  edges {m:16s} {n:>10,d}", flush=True)
 
-    uf = UnionFind()
     nodes = [r[0] for r in con.execute(all_nodes_sql()).fetchall()]
-    for n in nodes:
-        uf.parent.setdefault(n, n)
-    # Conflict guard: never join two clusters whose CRM records share no date of birth
-    # (two different people). CRM's own duplicate flag is the bank's explicit statement, so it is exempt.
-    dobs = {f"crm:{cid}": {d} for cid, d in con.execute(
+    dobs = {f"crm:{cid}": d for cid, d in con.execute(
         "SELECT crm_customer_id, dob FROM silver.crm WHERE dob IS NOT NULL").fetchall()}
-    best, refused = {}, []
-    # Strongest edges first, so each key's best evidence is recorded.
-    for a, b, conf, method in con.execute(
-            "SELECT a, b, conf, method FROM silver.identity_edges ORDER BY conf DESC, method").fetchall():
-        uf.parent.setdefault(a, a)
-        uf.parent.setdefault(b, b)
-        ra, rb = uf.find(a), uf.find(b)
-        if ra != rb:
-            da, db = dobs.get(ra, set()), dobs.get(rb, set())
-            if method != "crm_duplicate" and da and db and not (da & db):
-                refused.append((a, b, conf, method))
-                continue
-            uf.union(ra, rb)
-            root = uf.find(ra)
-            dobs[root] = da | db
-        for node in (a, b):
-            if node not in best or conf > best[node][0]:
-                best[node] = (conf, method)
+    edges = con.execute("SELECT a, b, conf, method FROM silver.identity_edges").fetchall()
+    uf, best, refused = resolve(nodes, edges, dobs)
     con.execute("CREATE OR REPLACE TABLE silver.identity_refused (a VARCHAR, b VARCHAR, conf DOUBLE, method VARCHAR)")
     if refused:
         import pyarrow as pa
