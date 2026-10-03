@@ -5,15 +5,15 @@ Status: `[ ]` to do · `[~]` in progress · `[x]` merged to `main`. Update your 
 
 **Tasks say what must work, not how.** The "Done when" column and the interfaces in the README are fixed; the approach inside your folders is yours: choose libraries, prompts, features and models, and experiment. Fixed regardless: the table names and columns in the interfaces, the hackathon rules (no protected attributes, a plain-English reason for every decision, human review, hardship flagged), and the design as the base (log any change and why).
 
-## 📌 Review notes from P1 — read these first (updated 16:15 IST)
+## 📌 Review notes from P1 — read these first (updated 16:35 IST)
 
 | For | Issue | What to do |
 |---|---|---|
-| **P3 (Kris)** | [#3](https://github.com/VaNsH-IIIT/homies-ontrack/issues/3) | **Fix next:** label leakage (AUC 0.964 / 0.997). Train only on cases open and unresolved at `as_of`, with labels strictly after `as_of`. Then revert your edits to P1 files (README, TASKS, docs/) as asked in #3. |
-| **P3 (Kris)** | [#5](https://github.com/VaNsH-IIIT/homies-ontrack/issues/5) | Garv's questions: does the `features.text_signals` interface work for you, and do you want a per-case roll-up? Ping there when `gold.nba_recommendation` is on `main`. |
-| **P3 (Kris)** | `p3/working` | After #3: merge `main` in (`AI_TOOLS.md` conflict: keep both sets of rows), then open **one PR**. |
-| **P2 (Garv)** | [PR #4](https://github.com/VaNsH-IIIT/homies-ontrack/pull/4) | P1 opened it for T1–T4 and tested it on `main` (35/35 answered, dev 13/21, refusals 3/3, red-team 26/26). Review notes are in the PR: the model ID should be `claude-opus-5-5`, and the `claude -p` fallback isn't pushed yet. R1 (`promises_to_pay`) and R3 (who runs the final benchmark) are with P1. |
-| **P1 (Vansh)** | | ✅ #1, #2 closed (P3). Data steward review page for the match queue: in progress. |
+| **P2 (Garv)** | P2 work, 16:30–19:50 | **P1 covers P2 while Garv's Claude limit resets.** P1 opens the T5–T9 PR after #4 merges, runs text signals on full data (notes now; a capped batch of transcripts), tests Ask end to end, answers #5, and drafts Garv's deck slide. **When you're back at 19:50:** review what P1 did, finish the remaining transcripts, and fix anything the end-to-end test finds (notes will be in your PR). P1 changes no P2 code; any fix goes on a separate branch for you to review. |
+| **P2 (Garv)** | [PR #4](https://github.com/VaNsH-IIIT/homies-ontrack/pull/4) | ✅ All review points fixed on T9: dev 21/21, BQ-020 answered with citations, red-team 26/26. Waiting for the merge. |
+| **P3 (Kris)** | [#3](https://github.com/VaNsH-IIIT/homies-ontrack/issues/3) | **Blocker, fix first:** label leakage (AUC 0.964 / 0.997). Train only on cases open and unresolved at `as_of`, with labels strictly after `as_of`. Then revert your edits to P1 files (README, TASKS, docs/), as asked in #3. |
+| **P3 (Kris)** | [#5](https://github.com/VaNsH-IIIT/homies-ontrack/issues/5) | Garv's questions about `features.text_signals` (and the per-case `features.text_signals_case`). Reply in the issue. |
+| **P3 (Kris)** | `p3/working` | After #3: merge `main` in (`AI_TOOLS.md` conflict: keep both sets of rows), then open **one PR** with your post-fix numbers in the description. |
 
 To see issues assigned to you: `gh issue list --assignee @me --repo VaNsH-IIIT/homies-ontrack`
 
