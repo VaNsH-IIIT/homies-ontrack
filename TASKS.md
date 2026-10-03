@@ -37,11 +37,11 @@ The benchmark is **scored automatically** and counts towards the 30% technical s
 
 | ID | By | Task | Done when |
 |---|---|---|---|
-| P3-T1 | 11:00 | Study the release README, the dictionary for `collections_cases`, `contact_history`, `customers` (consent and hold flags), `hardship_programs` and the policy docs. Write `src/ontrack/l4_nba/DESIGN_NOTES.md`: action set, labels (self-cure in 30 days from `cure_flag`/`days_to_cure`; payment within 7 days of a contact; roll-forward from `dpd_at_day_30`), time-based train/validate/test split | notes committed |
-| P3-T2 | 12:00 | `src/ontrack/l4_nba/policy_gate.py`: for each open case, the allowed actions and the blocked actions, each with a plain-English rule reason (consent per channel, cease, do-not-call, insolvency/deceased/third-party holds, dispute, contact cap, permitted hours, stat holidays, hardship eligibility) | unit tests cover each rule; runs on all open cases |
-| P3-T3 | 13:00 | `src/ontrack/l3_features/structured/`: **one** function `build_case_features(con, as_of_date)` for both training and live scoring, point-in-time correct; writes `features.case_features`; outcome columns and `PROTECTED_COLUMNS` blocked | features built for a past date (training) and the snapshot date (scoring) with the same code |
-| P3-T4 | 13:45 | Models v0 (LightGBM): self-cure and payment-within-7-days (or roll-forward), time split; compare with the existing `model_scores` and `nba_recommendation_last` | metrics printed (AUC, calibration) |
-| P3-T5 | 14:00 | Ranker + explanations v0 → `gold.nba_recommendation` for open cases, with `reason_1..3` in plain English and `blocked_actions`; `l4.decision_log` table + `record_decision()` for accept/edit/reject | recommendations for all open cases; a sample of 5 printed with reasons |
+| ✅ P3-T1 | 11:00 | Study the release README, the dictionary for `collections_cases`, `contact_history`, `customers` (consent and hold flags), `hardship_programs` and the policy docs. Write `src/ontrack/l4_nba/DESIGN_NOTES.md`: action set, labels (self-cure in 30 days from `cure_flag`/`days_to_cure`; payment within 7 days of a contact; roll-forward from `dpd_at_day_30`), time-based train/validate/test split | notes committed |
+| ✅ P3-T2 | 12:00 | `src/ontrack/l4_nba/policy_gate.py`: for each open case, the allowed actions and the blocked actions, each with a plain-English rule reason (consent per channel, cease, do-not-call, insolvency/deceased/third-party holds, dispute, contact cap, permitted hours, stat holidays, hardship eligibility) | unit tests cover each rule; runs on all open cases |
+| ✅ P3-T3 | 13:00 | `src/ontrack/l3_features/structured/`: **one** function `build_case_features(con, as_of_date)` for both training and live scoring, point-in-time correct; writes `features.case_features`; outcome columns and `PROTECTED_COLUMNS` blocked | features built for a past date (training) and the snapshot date (scoring) with the same code |
+| ✅ P3-T4 | 13:45 | Models v0 (LightGBM): self-cure and payment-within-7-days (or roll-forward), time split; compare with the existing `model_scores` and `nba_recommendation_last` | metrics printed (AUC, calibration) |
+| ✅ P3-T5 | 14:00 | Ranker + explanations v0 → `gold.nba_recommendation` for open cases, with `reason_1..3` in plain English and `blocked_actions`; `l4.decision_log` table + `record_decision()` for accept/edit/reject | recommendations for all open cases; a sample of 5 printed with reasons |
 
 ## 16:30 → 17:30 · First end-to-end test (P1 runs it on the full data)
 
@@ -72,10 +72,10 @@ The benchmark is **scored automatically** and counts towards the 30% technical s
 ### P3 · Kris
 | ID | Task | Done when |
 |---|---|---|
-| P3-T6 | SHAP-based reasons: top 3 drivers per recommendation mapped to plain-English templates, plus a counterfactual line ("would change if …") | every recommendation has 3 readable reasons |
-| P3-T7 | Hardship routing: combine structured signals (payroll delay, EI deposits, payment failures, case `hardship_flag`) with `features.text_signals` from P2 (when available) → `hardship_flag`, `needs_human_review`; hardship / vulnerability / dispute / complaint cases go to a human-only queue | counts of routed cases printed; routing reason stored |
-| P3-T8 | Agent card page `src/ontrack/app/pages/3_Agent_Card.py`: pick a case → recommendation, reasons, blocked actions, hardship alert; accept / edit / reject with reason → `l4.decision_log` | an override recorded from the UI |
-| P3-T9 | Evaluation for the deck: back-test vs `nba_recommendation_last` and `model_scores`; fairness check offline (recommended-action rates by protected group, used only to test) | numbers in `src/ontrack/l4_nba/EVALUATION.md` |
+| ✅ P3-T6 | SHAP-based reasons: top 3 drivers per recommendation mapped to plain-English templates, plus a counterfactual line ("would change if …") | every recommendation has 3 readable reasons |
+| ✅ P3-T7 | Hardship routing: combine structured signals (payroll delay, EI deposits, payment failures, case `hardship_flag`) with `features.text_signals` from P2 (when available) → `hardship_flag`, `needs_human_review`; hardship / vulnerability / dispute / complaint cases go to a human-only queue | counts of routed cases printed; routing reason stored |
+| ✅ P3-T8 | Agent card page `src/ontrack/app/pages/3_Agent_Card.py`: pick a case → recommendation, reasons, blocked actions, hardship alert; accept / edit / reject with reason → `l4.decision_log` | an override recorded from the UI |
+| ✅ P3-T9 | Evaluation for the deck: back-test vs `nba_recommendation_last` and `model_scores`; fairness check offline (recommended-action rates by protected group, used only to test) | numbers in `src/ontrack/l4_nba/EVALUATION.md` |
 
 ## Phase 3 · 4 Oct (planned at the 17:30 review)
 
@@ -88,7 +88,7 @@ The benchmark is **scored automatically** and counts towards the 30% technical s
 | By (IST) | Milestone |
 |---|---|
 | ✅ 3 Oct, 11:15 | Layer 1 (bronze → gold, DQ report, dev sample) on `main` |
-| **3 Oct, 16:30** | **P2/P3 phase 1 done; first end-to-end test** |
+| ✅ **3 Oct, 16:30** | **P2/P3 phase 1 done; first end-to-end test** |
 | 3 Oct, 22:00 | Phase 2 core working on full data |
 | 4 Oct, 12:00 | Benchmark runner stable in one command; demo app runs end to end |
 | 4 Oct, 17:00 | Deliverables drafted: contract, DQ report, architecture, README, deck |

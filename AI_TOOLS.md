@@ -8,4 +8,5 @@ Required by the brief: which AI tools we used and for what.
 | Claude API (Anthropic) | System | Layer 2 NL-to-SQL and answer wording; Layer 3 text feature extraction; Layer 4 explanation wording |
 | LightGBM | P3 | Layer 4 self-cure and payment prediction models with monotone constraints |
 | SHAP | P3 | Layer 4 plain-English explanations: top-3 feature contributions per recommendation |
-| | | |
+| Splink | P1 | Probabilistic identity resolution for customer matching |
+| DuckDB | All | In-process analytical database for bronze/silver/gold/features data layers |
