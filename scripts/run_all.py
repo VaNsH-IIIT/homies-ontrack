@@ -3,7 +3,7 @@
     python scripts/run_all.py                    # Layer 1 build -> benchmark -> NBA -> checks
     python scripts/run_all.py --with-bronze      # also (re)load the raw data first (~10 min full data)
     python scripts/run_all.py --skip-l1          # reuse the existing gold tables
-    python scripts/run_all.py --transcripts 0    # no LLM calls: every note and call scored by the trained models
+    python scripts/run_all.py --transcripts 300  # also send the 300 most recent calls to Claude (cached ones are free)
 
 Steps whose module is not merged yet are reported as SKIPPED, so this works at every stage of the build.
 Each step runs in its own process (as a judge would run it) and the summary shows what passed.
@@ -28,8 +28,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Run OnTrack end to end")
     ap.add_argument("--with-bronze", action="store_true", help="reload raw data into bronze first")
     ap.add_argument("--skip-l1", action="store_true", help="skip the Layer 1 build (reuse gold)")
-    ap.add_argument("--transcripts", type=int, default=300,
-                    help="most recent calls also read by Claude (cached ones are free); every call is scored by the trained model either way; 0 = no LLM calls")
+    ap.add_argument("--transcripts", type=int, default=0,
+                    help="most recent calls also sent to Claude (default 0: no new LLM calls; cached Claude results are still used; every call is scored by the trained model either way)")
     args = ap.parse_args()
 
     questions = (config.DATA_DIR / "data" / "benchmark_questions.csv").as_posix()
