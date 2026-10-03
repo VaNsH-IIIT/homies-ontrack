@@ -29,14 +29,14 @@ Our submitted design is the base: [`docs/HOmiES_SystemDesign.pdf`](docs/HOmiES_S
 |---|---|
 | 1 · Customer 360 | 1,015,637 golden customers for 1,000,000 people; probabilistic matching precision 99.8%, recall 99.4% on 5,000 known links; 0 people merged across birthdates; contract 8/8; 19 data issue types handled |
 | 2 · Ask | Benchmark dev 21/21; 21 unseen questions 21/21; red-team 26/26 refused, 0 of 14 wrongly refused; SQL guard 10/10 |
-| 3 · Features | Hardship recall 0.98 in notes, 1.00 in calls; every note and call scored; 8,883 open cases with hardship the case flag missed |
+| 3 · Features | Hardship recall 0.97 in notes, 1.00 in calls; every note and call scored; 8,883 open cases with hardship the case flag missed |
 | 4 · Next best action | Self-cure AUC 0.83 on an unseen month, against 0.72 for the bank's model on the same cases; every action within policy rules and call capacity; hardship and vulnerable customers to a person |
-| Tests | `pytest tests/`: 190+ unit tests across all layers, no dataset needed |
+| Tests | `pytest tests/`: 200 unit tests across all layers, no dataset needed |
 
 **Run it in three steps** (details in [Setup](#setup)):
 ```bash
 pip install -r requirements.txt && pip install -e .                 # Python 3.10+, short path on Windows
-cp .env.example .env                                                # set MAPLE_DATA_DIR and ONTRACK_WORK_DIR
+cp .env.example .env                    # Windows cmd: copy .env.example .env; set MAPLE_DATA_DIR and ONTRACK_WORK_DIR
 python scripts/run_all.py --with-bronze --transcripts 0 && streamlit run src/ontrack/app/main.py
 ```
 `--transcripts 0` needs no LLM. Ask's document and call questions use Claude: `ANTHROPIC_API_KEY` in `.env`, or a logged-in Claude Code CLI.
@@ -231,7 +231,7 @@ _Required by the brief. Add a row for every change and why._
 | **LLM access: Anthropic API if a key is set, otherwise the logged-in Claude Code CLI** (`claude -p`, headless, no tools, JSON schema); one JSON "next action" loop for both | The team had no shared API key; the benchmark and the app run on any teammate's laptop. Answers cached on disk, so re-runs are repeatable and free | P2 |
 | **Documents go whole into a cached prompt, plus BM25 (DuckDB full-text) over policy sections and 733K notes**, instead of BM25 + bge-m3 embeddings in LanceDB | The corpus is 19 short documents (~2,300 words): full context with section citations is more accurate; BM25 needs no model download on judges' machines | P2 |
 | **Minimum group size (10) applies to person-level tables only** | It protects people; account-level aggregates (e.g. roll rate by product) don't single anyone out, and the benchmark needs those small groups | P2 |
-| **Text features: trained models for every note and call, Claude on a top slice** (instead of an LLM call per contact) | An LLM call per call would take ~19 h within our limits. Character n-gram models trained on the 500 public labels score 292K notes + 15K calls in ~5 min (hardship recall 0.98 notes / 0.99 calls); Claude zero-shot on calls: recall 1.00, quotes verified in their turn. The `model` column says which produced each row | P2 |
+| **Text features: trained models for every note and call, Claude on a top slice** (instead of an LLM call per contact) | An LLM call per call would take ~19 h within our limits. Character n-gram models trained on the 500 public labels score 292K notes + 15K calls in ~5 min (hardship recall 0.97 notes / 0.99 calls); Claude zero-shot on calls: recall 1.00, quotes verified in their turn. The `model` column says which produced each row | P2 |
 | **"Explain" answers** (one-sentence conclusion + supporting table + SQL) for why / does-X-beat-Y questions | Tables alone lost the conclusion (BQ-030 incident, BQ-014 direction of effect) | P2 |
 | **Training rows are point-in-time snapshots** (cases open at monthly `as_of` dates, labels after `as_of`) | The first version leaked (AUC 0.96 / 0.997). Now self-cure AUC 0.83, above the bank's own model (0.72) on the same cases. | P3 |
 | **Channel response measured from contact history, not uplift models** | The no-contact holdout still received contacts, so clean per-channel uplift can't be estimated. Measured response and unit costs are used, and likely self-cures are left alone. | P3 |
