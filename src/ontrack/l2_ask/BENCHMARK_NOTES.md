@@ -124,6 +124,16 @@ git add benchmark/answers.csv && git commit -m "Benchmark: final answers" && git
 ```
 
 * Needs an LLM: `ANTHROPIC_API_KEY` in `.env`, or a logged-in Claude Code CLI (`claude`). Cached answers are reused.
+* **Dry run (G2, 3 Oct night):** the 35 released + 15 mock extra questions (exact `benchmark_questions.csv` format,
+  new ids, blank `metric_id`), no cache, Claude Code CLI, `--workers 4`: **50 answers in 132 s, 0 errors**.
+* **If something fails (fallback, in this order):**
+  1. Errors in the summary line (`Wrote N answers … (k errors)`): re-run only those, keeping the rest:
+     `python -m ontrack.l2_ask.run_benchmark --questions <csv> --out benchmark/answers.csv --retry-failed --workers 2`
+  2. A Claude usage limit or network drop shows as many errors at once (on 3 Oct a run hit the limit: 13–16 of 35
+     failed). Wait for the reset, or switch account / set `ANTHROPIC_API_KEY`, then `--retry-failed` again.
+  3. Still failing: `--workers 1` (slower, gentlest on rate limits). Certified-metric questions and rule refusals
+     never need the LLM, so they are always answered.
+  4. Never edit `answers.csv` by hand; commit it exactly as generated.
 * Any column layout works as long as `question_id` and `question_text` exist; a failing question is retried once
   and still gets a row. Per-question trace: `$ONTRACK_WORK_DIR/benchmark_trace.jsonl`.
 * ~10 s per document question, ~20–60 s per non-certified data question, <1 s for certified metrics and rule refusals.
