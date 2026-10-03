@@ -32,6 +32,12 @@ def dob(expr: str, *formats: str) -> str:
 ALL_DOB_FORMATS = ("%Y-%m-%d", "%d-%m-%Y", "%Y/%m/%d", "%Y%m%d", "%d/%m/%Y", "%b %d %Y", "%m/%d/%Y")
 
 
+# Regex fragments kept outside f-string expressions (backslashes there need Python 3.12+).
+CARD_INITIAL_PREFIX = r"regexp_replace(cardholder_name_raw, '^[A-Za-z]\.\s*', '')"
+CARD_INITIAL = r"regexp_extract(cardholder_name_raw, '^([A-Za-z])\.', 1)"
+BUREAU_POSTAL = r"regexp_extract(subject_address_reported, '([A-Za-z][0-9][A-Za-z] ?[0-9][A-Za-z][0-9])\s*$', 1)"
+
+
 STEPS = {
     # ---------- CRM: current, non-deleted records (a person may have two CRM records) ----------
     "crm": f"""
@@ -63,9 +69,9 @@ STEPS = {
     "card_parties": f"""
         SELECT src_customer_ref AS source_key,
                CASE WHEN cardholder_name_raw LIKE '%/%' THEN {norm("split_part(cardholder_name_raw, '/', 1)")}
-                    ELSE {norm("regexp_replace(cardholder_name_raw, '^[A-Za-z]\\.\\s*', '')")} END AS surname_std,
+                    ELSE {norm(CARD_INITIAL_PREFIX)} END AS surname_std,
                CASE WHEN cardholder_name_raw LIKE '%/%' THEN {norm("split_part(split_part(cardholder_name_raw, '/', 2), ' ', 1)")}
-                    ELSE {norm("regexp_extract(cardholder_name_raw, '^([A-Za-z])\\.', 1)")} END AS given_std,
+                    ELSE {norm(CARD_INITIAL)} END AS given_std,
                {dob('cardholder_dob_raw', '%d-%m-%Y', *ALL_DOB_FORMATS)} AS dob,
                {phone10('cardholder_phone_raw')} AS phone10,
                {postal6('cardholder_postal_raw')} AS postal6
@@ -101,7 +107,7 @@ STEPS = {
                {norm("split_part(trim(split_part(subject_name_reported, ',', 2)), ' ', 1)")} AS given_std,
                {dob('CAST(subject_dob_reported AS VARCHAR)', *ALL_DOB_FORMATS)} AS dob,
                CAST(NULL AS VARCHAR) AS phone10,
-               {postal6("regexp_extract(subject_address_reported, '([A-Za-z][0-9][A-Za-z] ?[0-9][A-Za-z][0-9])\\s*$', 1)")} AS postal6
+               {postal6(BUREAU_POSTAL)} AS postal6
         FROM bronze.external
         QUALIFY row_number() OVER (PARTITION BY bank_subject_ref ORDER BY pull_date DESC) = 1
     """,

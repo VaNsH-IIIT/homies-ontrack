@@ -71,6 +71,8 @@ cd D:/maple_data && unzip maple_collections_release.zip
 ```
 Skip the voice zip: our design uses voice through transcripts only, with no acoustic features.
 
+**Low on disk or RAM?** Use the **dev sample** instead: a consistent 5% of people (all their accounts, cases, contacts and transcripts), about 350 MB, in exactly the same layout. Get `maple_sample.zip` from P1 (Drive link), unzip it anywhere and set `MAPLE_DATA_DIR` to that folder. Every command below works unchanged and runs in seconds.
+
 ### 5. Check it works
 ```bash
 python -c "from ontrack import config; print(config.DATA_DIR, config.DATA_DIR.exists())"
@@ -118,7 +120,12 @@ Everyone codes against these names, so the three parts connect without waiting f
 | `gold.nba_recommendation` | P3 | P2 (Ask can query it) | `case_id, golden_id, as_of_ts, action, channel, time_window, score, reason_1, reason_2, reason_3, blocked_actions, hardship_flag, needs_human_review, model_version` |
 | `l4.decision_log` | P3 | P1 (demo) | `decision_id, case_id, agent_id, recommended_action, agent_action ('accept'/'edit'/'reject'), final_action, reason_code, note, ts` |
 
-**Until `gold.*` exists,** work from the `bronze.*` views. Same column names, so switching over is a one-line change.
+**`gold.*` is ready on `main`:** run `python -m ontrack.l1_factory.bronze` once, then `python -m ontrack.l1_factory.build`. Read `gold.*` for customers, accounts, cases and contacts; read `bronze.*` for everything else (history tables, notes, transcripts, policies, benchmark).
+**Data quirks to know** (full list in [`docs/data_quality_report.md`](docs/data_quality_report.md)):
+- `call_transcripts.file_path` is relative to `$MAPLE_DATA_DIR/files/` (e.g. `transcripts/2022/11/10295.json` → `files/transcripts/2022/11/10295.json`).
+- `collections_cases.account_ids` comes in three shapes: JSON list, bare id, `;`-separated.
+- `contact_history.channel` may be empty where the upstream release moved it to `channel_v2`: use `gold.contact_timeline.channel` (already coalesced).
+- `NA` is a real outcome code, not null; IDs keep leading zeros (bronze keeps them as text).
 **Design rule:** `promises_to_pay` is out of scope in our design (30 tables in scope). If a benchmark question needs it, P2 raises it with P1, who decides.
 **Never** read a column in `config.PROTECTED_COLUMNS` in features or decisions.
 
@@ -152,8 +159,9 @@ _Filled in as the layers land. Target: one command per step._
 
 | Step | Command | Owner |
 |---|---|---|
-| Build bronze views | `python -m ontrack.l1_factory.bronze` | P1 |
-| Build silver + gold C360 | `python -m ontrack.l1_factory.build` | P1 |
+| Load raw data into bronze (once; ~10 min full data, ~30 s sample) | `python -m ontrack.l1_factory.bronze` | P1 |
+| Build silver + identity resolution + gold C360 + DQ report (~1 min) | `python -m ontrack.l1_factory.build` | P1 |
+| Make the 5% dev sample | `python scripts/make_sample.py --pct 5 --out D:/maple_sample` | P1 |
 | Answer benchmark questions | `python -m ontrack.l2_ask.run_benchmark --questions <csv> --out benchmark/answers.csv` | P2 |
 | Extract text signals | `python -m ontrack.l3_features.text.extract` | P2 |
 | Build features, train, recommend | `python -m ontrack.l4_nba.run` | P3 |
