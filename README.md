@@ -169,7 +169,7 @@ _Filled in as the layers land. Target: one command per step._
 | Answer benchmark questions | `python -m ontrack.l2_ask.run_benchmark --questions <csv> --out benchmark/answers.csv` | P2 |
 | Extract text signals | `python -m ontrack.l3_features.text.extract` | P2 |
 | Build features, train, recommend | `python -m ontrack.l4_nba.run` | P3 |
-| Demo app (home + C360 live; Ask and Agent Card pages appear when P2/P3 add them) | `streamlit run src/ontrack/app/main.py` | P1 |
+| Demo app (home, C360 and Match review live; Ask and Agent Card pages appear when P2/P3 add them) | `streamlit run src/ontrack/app/main.py` | P1 |
 
 ---
 
@@ -186,6 +186,7 @@ _Required by the brief. Add a row for every change and why._
 | **Data contract is executable:** ODCS YAML checked by our own runner (`contract_check`) on every build, instead of datacontract-cli | Same rules as the design (page 6) plus a freshness rule (Q8); runs inside the build with no extra service. | P1 |
 | **No tokenisation of direct PII in silver;** direct PII is instead **excluded from gold** (contract rule Q7) and never reaches the app, features or LLM calls | Same protection for every consumer of the data product with less code; tokenisation stays a production step. | P1 |
 | **Decision log in its own file** (`decisions.duckdb`, via `record_decision()`) instead of the `l4` schema of the main database | The app keeps the main database read-only (so pipelines can rebuild during a demo); DuckDB can't also write to it from the app. Edit/reject still requires a reason code, as designed. | P1 |
+| **Steward review is a working loop:** a Match review page shows each grey-zone match (Splink 0.80–0.95) with field-by-field evidence (masked); the steward approves or rejects with a reason, and the next build links approved pairs (`steward_approved`, confidence 0.97) and keeps rejected ones apart | The design had a review queue but no way to act on it. Now a person decides every uncertain merge, the decision is logged, and it changes the golden record. Masking keeps the gold no-PII rule. | P1 |
 | **Gold grain:** one current row per `golden_id`, rebuilt daily (no per-snapshot history yet) | Enough for decisions and Ask in the build; history is in bronze for training. | P1 |
 
 ## AI tools used

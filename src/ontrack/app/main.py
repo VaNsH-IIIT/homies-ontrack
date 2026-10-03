@@ -22,14 +22,14 @@ k = query("""
            (SELECT count(*) FROM gold.customer_xref) AS source_keys,
            (SELECT count(*) FROM gold.c360_account) AS accounts,
            (SELECT count(*) FROM gold.case_360 WHERE outcome IS NULL) AS open_cases,
-           (SELECT count(*) FROM gold.match_review_queue) AS review_queue
+           (SELECT count(*) FROM gold.match_review_queue WHERE steward_status = 'pending') AS review_queue
 """).iloc[0]
 c = st.columns(5)
 c[0].metric("Golden customers", f"{k.people:,}", help="One golden_id per person across 5 source systems")
 c[1].metric("Source keys linked", f"{k.source_keys:,}")
 c[2].metric("Accounts", f"{k.accounts:,}")
 c[3].metric("Open collections cases", f"{k.open_cases:,}")
-c[4].metric("Matches awaiting a steward", f"{k.review_queue:,}", help="Grey-zone matches (0.80–0.95), never auto-merged")
+c[4].metric("Matches awaiting a steward", f"{k.review_queue:,}", help="Grey-zone matches (0.80–0.95), never auto-merged: reviewed on the Match review page")
 
 st.divider()
 left, right = st.columns(2)

@@ -7,18 +7,22 @@ every CRM person, on surname (Jaro-Winkler), given-name initial, date of birth (
 day/month swaps), postal code and phone. Fellegi-Sunter weights are learnt without labels (EM).
 
 Decision:   match probability >= 0.95  -> link (method 'splink', confidence = probability)
-            0.80 <= p < 0.95           -> gold.match_review_queue for a data steward (not merged)
+            0.80 <= p < 0.95           -> gold.match_review_queue for a data steward (not merged until the
+                                          steward approves it on the Match review page; applied next build)
 Validation: 5,000 keys already linked by tier-1 case-to-account bridges are matched blind as well;
             precision and recall on them are written to silver.splink_validation (free ground truth).
 """
 import splink.comparison_library as cl
 from splink import DuckDBAPI, Linker, SettingsCreator, block_on
 
+from ontrack import config
 from ontrack.db import connect
 
 AUTO_LINK = 0.95
 REVIEW = 0.80
 HOLDOUT = 5000
+STEWARD_DB = config.WORK_DIR / "decisions.duckdb"  # written by the app (Match review page)
+STEWARD_CONF = 0.97  # a human-verified link counts like a deterministic tier-2 match
 
 PARTY = """
     SELECT 'card:' || source_key AS uid, * FROM silver.card_parties
@@ -40,6 +44,43 @@ def features(select_from: str) -> str:
                left(postal6, 3) AS fsa
         FROM ({select_from})
     """
+
+
+def mask(col: str) -> str:
+    """Initial plus one dot per remaining letter, e.g. VAUGHN -> V•••••."""
+    return f"CASE WHEN {col} IS NULL THEN NULL ELSE left({col}, 1) || repeat('•', length({col}) - 1) END"
+
+
+def apply_steward_decisions(con) -> None:
+    """Feed the data steward's decisions (Match review page) back in: the latest decision per pair wins.
+    Approved pairs become links (method 'steward_approved'); rejected pairs are never linked."""
+    if not STEWARD_DB.exists():
+        return
+    try:
+        con.execute(f"ATTACH '{STEWARD_DB.as_posix()}' AS dec (READ_ONLY)")
+    except Exception as e:  # the app may hold the file for a moment; decisions apply on the next build
+        print(f"  steward decisions not read ({e.__class__.__name__}); they apply on the next build", flush=True)
+        return
+    try:
+        if not con.execute("SELECT count(*) FROM information_schema.tables "
+                           "WHERE table_catalog = 'dec' AND table_name = 'steward_log'").fetchone()[0]:
+            return
+        con.execute("""
+            UPDATE gold.match_review_queue q SET steward_status = d.decision
+            FROM (SELECT * FROM dec.steward_log
+                  QUALIFY row_number() OVER (PARTITION BY source_system, source_key, candidate_crm_customer_id
+                                             ORDER BY ts DESC) = 1) d
+            WHERE q.source_system = d.source_system AND q.source_key = d.source_key
+              AND q.candidate_crm_customer_id = d.candidate_crm_customer_id""")
+        con.execute(f"""
+            INSERT INTO silver.splink_edges
+            SELECT 'crm:' || candidate_crm_customer_id, source_system || ':' || source_key, {STEWARD_CONF}, 'steward_approved'
+            FROM gold.match_review_queue WHERE steward_status = 'approved'""")
+        counts = dict(con.execute("SELECT steward_status, count(*) FROM gold.match_review_queue GROUP BY 1").fetchall())
+        print(f"  steward decisions applied: {counts.get('approved', 0):,d} approved (linked), "
+              f"{counts.get('rejected', 0):,d} rejected, {counts.get('pending', 0):,d} pending", flush=True)
+    finally:
+        con.execute("DETACH dec")
 
 
 def main() -> None:
@@ -135,15 +176,31 @@ def main() -> None:
         FROM splink.best b JOIN splink.unlinked u USING (uid)
         WHERE NOT u.is_holdout AND b.match_probability >= {AUTO_LINK}
     """)
+    # Evidence for the steward, per field. Values are masked (initial, birth year, postal FSA): gold holds no PII.
     con.execute(f"""
         CREATE OR REPLACE TABLE gold.match_review_queue AS
         SELECT split_part(b.uid, ':', 1) AS source_system, split_part(b.uid, ':', 2) AS source_key,
                split_part(b.crm_uid, ':', 2) AS candidate_crm_customer_id,
                round(b.match_probability, 4) AS match_probability, round(b.match_weight, 2) AS match_weight,
+               {mask('l.surname_key')} AS crm_surname_masked, {mask('r.surname_key')} AS source_surname_masked,
+               round(jaro_winkler_similarity(l.surname_key, r.surname_key), 3) AS surname_similarity,
+               l.given_initial = r.given_initial AS given_initial_match,
+               CASE WHEN l.dob IS NULL OR r.dob IS NULL THEN 'missing'
+                    WHEN l.dob = r.dob THEN 'exact'
+                    WHEN year(l.dob) = year(r.dob) AND month(l.dob) = day(r.dob) AND day(l.dob) = month(r.dob)
+                         THEN 'day/month swapped'
+                    WHEN year(l.dob) = year(r.dob) THEN 'same year only'
+                    ELSE 'differs' END AS dob_check,
+               levenshtein(l.postal6, r.postal6) AS postal_edit_distance,
+               l.fsa AS crm_postal_fsa, r.fsa AS source_postal_fsa,
+               l.phone10 = r.phone10 AS phone_match,
                'pending' AS steward_status
         FROM splink.best b JOIN splink.unlinked u USING (uid)
+        LEFT JOIN splink.left_crm l ON l.uid = b.crm_uid
+        LEFT JOIN splink.right_src r ON r.uid = b.uid
         WHERE NOT u.is_holdout AND b.match_probability >= {REVIEW} AND b.match_probability < {AUTO_LINK}
     """)
+    apply_steward_decisions(con)
     auto = con.execute("SELECT count(*) FROM silver.splink_edges").fetchone()[0]
     review = con.execute("SELECT count(*) FROM gold.match_review_queue").fetchone()[0]
     print(f"  splink: {auto:,d} keys auto-linked (>= {AUTO_LINK}), {review:,d} sent to the steward queue", flush=True)

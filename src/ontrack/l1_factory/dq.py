@@ -22,16 +22,19 @@ GOLD_CHECKS = [
      "Kept in the timeline; excluded from customer-level features"),
     ("Accounts linked only by tier-2 rules (name + DOB + postal/phone)",
      "SELECT count(*) FROM gold.customer_xref WHERE match_method LIKE 'name_dob_%'",
-     "Accepted at 0.97 confidence; sampled for steward review"),
+     "Accepted at 0.97 confidence (exact surname + date of birth + postal code or phone)"),
     ("Links refused by the conflict guard (would merge people with different dates of birth)",
      "SELECT count(*) FROM silver.identity_refused",
-     "Not merged; logged for steward review"),
+     "Not merged; kept in silver.identity_refused for audit"),
     ("Golden ids holding records with different dates of birth (possible wrong merges)",
      "SELECT count(*) FROM (SELECT x.golden_id FROM gold.customer_xref x JOIN silver.crm c ON x.source_system = 'crm' AND c.crm_customer_id = x.source_key GROUP BY 1 HAVING count(DISTINCT c.dob) > 1)",
-     "Only possible via CRM's own duplicate flag; sampled for steward review"),
+     "Only via CRM's own duplicate flag (CRM itself marked the records as one person); exempt from the guard"),
     ("Source keys left unlinked (singleton clusters)",
      "SELECT count(*) FROM gold.customer_xref x JOIN (SELECT golden_id FROM gold.customer_xref GROUP BY 1 HAVING count(*) = 1) s USING (golden_id)",
-     "Phase 2: probabilistic matching (Splink); until then treated as separate customers"),
+     "Left after tiers 1-3 (incl. Splink); treated as separate customers (a missed merge is safer than a wrong one)"),
+    ("Grey-zone matches (Splink 0.80-0.95) awaiting a data steward",
+     "SELECT count(*) FROM gold.match_review_queue WHERE steward_status = 'pending'",
+     "Never merged automatically; approved or rejected on the Match review page, applied on the next build"),
 ]
 
 
