@@ -301,6 +301,15 @@ def roll_forward_columns(p_cure: float, dpd) -> tuple[float | None, float | None
     return risk, None
 
 
+def risk_rank(raw_self_cure: np.ndarray, case_ids) -> np.ndarray:
+    """1 = most likely to stay unpaid. Uses the raw model score, which keeps the model's resolution (~84K distinct
+    values on the open book) where the calibrated probabilities tie in ~120 steps; ties go to case_id."""
+    order = sorted(range(len(case_ids)), key=lambda i: (round(float(raw_self_cure[i]), 9), str(case_ids[i])))
+    rank = np.empty(len(case_ids), dtype=np.int64)
+    rank[order] = np.arange(1, len(case_ids) + 1)
+    return rank
+
+
 def contact_values(overdue: float, p_cure: float, responsiveness: float, allowed: list[str], econ: dict) -> dict:
     """Expected net value (CAD) of each allowed contact action versus doing nothing."""
     return {a: overdue * (1 - p_cure) * econ[a]["rate"] * responsiveness - econ[a]["unit_cost"]
@@ -430,6 +439,8 @@ def build_recommendations(con, routed: pd.DataFrame, as_of: str = config.SNAPSHO
     m_cure, m_pay = load_model("self_cure_30d"), load_model("payment_7d")
     cols = m_cure["feature_cols"]
     df["p_cure"] = predict(m_cure, df)
+    raw_cure = m_cure["booster"].predict(np.round(df[cols].astype(float).to_numpy(), 6))
+    df["model_risk_rank"] = risk_rank(raw_cure, df["case_id"].tolist())
     df["p_payment"] = predict(m_pay, df)
     resp = (df["p_payment"] / max(df["p_payment"].mean(), 1e-6)).clip(0.5, 2.0).round(6)
     contrib = m_cure["booster"].predict(np.round(df[cols].astype(float).to_numpy(), 6), pred_contrib=True)[:, :-1]
@@ -498,6 +509,8 @@ def build_recommendations(con, routed: pd.DataFrame, as_of: str = config.SNAPSHO
             "current_dpd": r.get("current_dpd"),
             "p_roll_forward": roll_forward_columns(r["p_cure"], r.get("current_dpd"))[0],
             "p_charge_off_risk": roll_forward_columns(r["p_cure"], r.get("current_dpd"))[1],
+            # tie-break for both lists: the calibrated probabilities tie (24K cases at ~1.0), the raw score does not
+            "model_risk_rank": int(r["model_risk_rank"]),
             "overdue_now": round(float(r["overdue_now"] or 0), 2),
             "expected_value": round(float(r["values"].get(r["action"], 0.0)), 2),
             "action_values": action_values_text(r["values"]),

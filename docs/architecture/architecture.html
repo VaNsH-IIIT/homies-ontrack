@@ -83,7 +83,7 @@ CRM <code>customers</code> · cards <code>card_accounts</code> · lending <code>
     <div class="tools">one function <code>build_case_features(con, as_of_date)</code> for training and live scoring · Claude with JSON schema for text</div>
     <ul>
       <li><b>Structured:</b> delinquency and trend, payments, contact response, cash flow, bureau change; point-in-time</li>
-      <li><span class="ai">AI</span> <b>Text:</b> hardship signal + evidence quote, stated reason, stated payday, dispute. Trained text models score every note and call (<span class="num">307K</span>, no LLM needed); Claude reads recent calls, quote checked in its turn. Hardship recall <span class="num">0.98</span> notes, <span class="num">1.00</span> calls; <span class="num">8,883</span> open cases flagged by text only</li>
+      <li><span class="ai">AI</span> <b>Text:</b> hardship signal + evidence quote, stated reason, stated payday, dispute. Trained text models score every note and call (<span class="num">307K</span>, no LLM needed); Claude reads recent calls, quote checked in its turn. Hardship recall <span class="num">0.97</span> notes, <span class="num">1.00</span> calls; <span class="num">8,883</span> open cases flagged by text only</li>
       <li>Outcome columns and protected attributes blocked; voice via transcripts only</li>
       <li><span class="hu">HUMAN</span> each LLM feature signed off after its labelled test</li>
     </ul>
@@ -91,7 +91,7 @@ CRM <code>customers</code> · cards <code>card_accounts</code> · lending <code>
   <div class="lay" style="flex:1">
     <span class="owner">P3</span><div class="lname">LAYER 4 · NEXT BEST ACTION</div>
     <div><span class="tag">BATCH · daily</span> <span class="tag">EVENT · re-score</span></div>
-    <div class="tools">policy gate (rules, 38 unit tests) · LightGBM + SHAP · ranker · decision log · Streamlit agent card</div>
+    <div class="tools">policy gate (rules, 39 unit tests) · LightGBM + SHAP · ranker · decision log · Streamlit agent card</div>
     <ol style="margin:2px 0 0;padding-left:15px">
       <li><b>Policy gate</b> (not ML): consent, cease, holds, dispute, contact cap, hours, holidays</li>
       <li><span class="ai">AI</span> <b>Models:</b> self-cure 30d, payment within 7 days, roll-forward</li>
