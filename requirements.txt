@@ -1,0 +1,24 @@
+# core data
+duckdb>=1.1
+polars>=1.0
+pyarrow>=15
+pandas>=2.1
+pyyaml>=6
+python-dotenv>=1.0
+huggingface_hub>=0.25
+
+# Layer 1: matching and quality
+splink>=4.0
+rapidfuzz>=3.0
+
+# Layer 2: NL-to-SQL and search
+anthropic>=0.40
+sqlglot>=25
+
+# Layer 4: models and explanations
+scikit-learn>=1.4
+lightgbm>=4.3
+shap>=0.45
+
+# demo
+streamlit>=1.38

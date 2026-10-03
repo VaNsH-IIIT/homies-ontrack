@@ -1,0 +1,27 @@
+# data and local artefacts (never commit the dataset)
+data/
+maple_data/
+*.zip
+*.parquet
+*.duckdb
+*.duckdb.wal
+*.wav
+feature_repo/data/
+mlruns/
+
+# secrets
+.env
+
+# python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.pytest_cache/
+
+# editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
