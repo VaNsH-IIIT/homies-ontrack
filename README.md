@@ -87,6 +87,7 @@ Should print your release folder and `True`.
 |---|---|
 | **Your tasks** for today and their acceptance criteria | [`TASKS.md`](TASKS.md) |
 | How we work (branches, PRs, rules) | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| **Architecture diagram (build phase)** | [`docs/architecture/architecture.png`](docs/architecture/architecture.png) · [PDF](docs/architecture/architecture.pdf) · source `architecture.html` |
 | What we promised to build (our design, the base) | [`docs/HOmiES_SystemDesign.pdf`](docs/HOmiES_SystemDesign.pdf) |
 | Build-phase brief (deliverables, judging, rules) | [`docs/brief/build_phase_instructions.pdf`](docs/brief/build_phase_instructions.pdf) |
 | Design-phase brief | [`docs/brief/design_phase_problem_statement.pdf`](docs/brief/design_phase_problem_statement.pdf) |
@@ -118,7 +119,7 @@ Everyone codes against these names, so the three parts connect without waiting f
 | `features.text_signals` | P2 | P3 | `source_type ('note'/'transcript'), source_id, contact_id, case_id, crm_customer_id, event_ts, hardship_signal, hardship_confidence, evidence_quote, evidence_turn_index, stated_delay_reason, stated_payday, dispute_mentioned, model, prompt_version` |
 | `features.case_features` | P3 | P3 | `case_id, golden_id, as_of_date` + feature columns, built by **one** function used for both training and live scoring |
 | `gold.nba_recommendation` | P3 | P2 (Ask can query it) | `case_id, golden_id, as_of_ts, action, channel, time_window, score, reason_1, reason_2, reason_3, blocked_actions, hardship_flag, needs_human_review, model_version` |
-| `l4.decision_log` | P3 | P1 (demo) | `decision_id, case_id, agent_id, recommended_action, agent_action ('accept'/'edit'/'reject'), final_action, reason_code, note, ts` |
+| decision log (human review / override) | P3 calls it from the agent card | P1 (demo), audit | **Write with `ontrack.app.common.record_decision(...)`**, read with `decisions(case_id)`. Stored in `$ONTRACK_WORK_DIR/decisions.duckdb` (table `decision_log`: `decision_id, case_id, golden_id, agent_id, recommended_action, agent_action ('accept'/'edit'/'reject'), final_action, reason_code, note, model_version, ts`), separate from the main DB so the app can write while the main DB stays read-only. Edit/reject without a reason code is refused. |
 
 **`gold.*` is ready on `main`:** run `python -m ontrack.l1_factory.bronze` once, then `python -m ontrack.l1_factory.build`. Read `gold.*` for customers, accounts, cases and contacts; read `bronze.*` for everything else (history tables, notes, transcripts, policies, benchmark).
 **Data quirks to know** (full list in [`docs/data_quality_report.md`](docs/data_quality_report.md)):
@@ -128,6 +129,7 @@ Everyone codes against these names, so the three parts connect without waiting f
 - `NA` is a real outcome code, not null; IDs keep leading zeros (bronze keeps them as text).
 **Design rule:** `promises_to_pay` is out of scope in our design (30 tables in scope). If a benchmark question needs it, P2 raises it with P1, who decides.
 **Never** read a column in `config.PROTECTED_COLUMNS` in features or decisions.
+**App pages (P2, P3):** add your page as `src/ontrack/app/pages/2_Ask.py` / `3_Agent_Card.py`; it appears in the sidebar automatically. Start it with `from ontrack.app.common import header, query` then `header("Ask", "...")`; `query(sql, params)` returns a DataFrame from a shared read-only connection (see `1_C360.py` for an example).
 
 ---
 
@@ -160,12 +162,13 @@ _Filled in as the layers land. Target: one command per step._
 | Step | Command | Owner |
 |---|---|---|
 | Load raw data into bronze (once; ~10 min full data, ~30 s sample) | `python -m ontrack.l1_factory.bronze` | P1 |
-| Build silver + identity resolution + gold C360 + DQ report (~1 min) | `python -m ontrack.l1_factory.build` | P1 |
+| Build silver + identity resolution (tiers 1–3, incl. Splink) + gold C360 + DQ report (~4 min) | `python -m ontrack.l1_factory.build` | P1 |
+| Check the data contract rules (also run by `build`) | `python -m ontrack.l1_factory.contract_check` | P1 |
 | Make the 5% dev sample | `python scripts/make_sample.py --pct 5 --out D:/maple_sample` | P1 |
 | Answer benchmark questions | `python -m ontrack.l2_ask.run_benchmark --questions <csv> --out benchmark/answers.csv` | P2 |
 | Extract text signals | `python -m ontrack.l3_features.text.extract` | P2 |
 | Build features, train, recommend | `python -m ontrack.l4_nba.run` | P3 |
-| Demo app | `streamlit run src/ontrack/app/main.py` | P1 |
+| Demo app (home + C360 live; Ask and Agent Card pages appear when P2/P3 add them) | `streamlit run src/ontrack/app/main.py` | P1 |
 
 ---
 

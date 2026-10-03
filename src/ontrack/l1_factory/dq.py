@@ -23,6 +23,12 @@ GOLD_CHECKS = [
     ("Accounts linked only by tier-2 rules (name + DOB + postal/phone)",
      "SELECT count(*) FROM gold.customer_xref WHERE match_method LIKE 'name_dob_%'",
      "Accepted at 0.97 confidence; sampled for steward review"),
+    ("Links refused by the conflict guard (would merge people with different dates of birth)",
+     "SELECT count(*) FROM silver.identity_refused",
+     "Not merged; logged for steward review"),
+    ("Golden ids holding records with different dates of birth (possible wrong merges)",
+     "SELECT count(*) FROM (SELECT x.golden_id FROM gold.customer_xref x JOIN silver.crm c ON x.source_system = 'crm' AND c.crm_customer_id = x.source_key GROUP BY 1 HAVING count(DISTINCT c.dob) > 1)",
+     "Only possible via CRM's own duplicate flag; sampled for steward review"),
     ("Source keys left unlinked (singleton clusters)",
      "SELECT count(*) FROM gold.customer_xref x JOIN (SELECT golden_id FROM gold.customer_xref GROUP BY 1 HAVING count(*) = 1) s USING (golden_id)",
      "Phase 2: probabilistic matching (Splink); until then treated as separate customers"),
@@ -69,6 +75,18 @@ def main() -> None:
     lines += ["## 4. Golden record checks (gold)", ""]
     gold_rows = [(name, con.execute(sql).fetchone()[0], handling) for name, sql, handling in GOLD_CHECKS]
     lines += [md_table(["Check", "Records", "Rule / handling"], gold_rows), ""]
+
+    results = con.execute("SELECT rule_id, rule_name, observed, threshold, CASE WHEN passed THEN 'pass' ELSE 'FAIL' END, "
+                          "on_failure FROM gold._contract_results ORDER BY rule_id").fetchall()
+    lines += ["### Data contract quality rules (`contracts/c360_customer.yaml`)", "",
+              md_table(["Rule", "Check", "Observed", "Threshold", "Result", "On failure"], results), ""]
+
+    val = con.execute("SELECT holdout_keys, auto_linked, precision, recall FROM silver.splink_validation").fetchone()
+    queue = con.execute("SELECT count(*) FROM gold.match_review_queue").fetchone()[0]
+    lines += ["### Probabilistic matching (Splink, tier 3): accuracy on known links", "",
+              f"Matched blind: {val[0]:,} source keys whose owner is already known from tier-1 case-to-account bridges.", "",
+              md_table(["Holdout keys", "Auto-linked (p >= 0.95)", "Precision", "Recall"], [val]), "",
+              f"Grey-zone matches (0.80 <= p < 0.95) sent to the data-steward queue `gold.match_review_queue`: **{queue:,}** (not merged).", ""]
 
     xref = con.execute("""SELECT match_method, count(*), round(avg(match_confidence), 3)
                           FROM gold.customer_xref GROUP BY 1 ORDER BY 2 DESC""").fetchall()
