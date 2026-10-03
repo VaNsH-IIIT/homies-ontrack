@@ -87,3 +87,43 @@ It is one switch: `ontrack.l2_ask.sql_guard.BLOCKED_TABLES`. **P1 decides.**
 4. Rates exclude open / cancelled promises from the denominator; randomised comparisons use `assignment_method = 'random'`.
 5. Mixed date formats in `account_monthly_snapshot.month_end_date`.
 6. Protected columns and proxies (FSA, postal area) are refused, not answered with a caveat.
+
+## Dev error analysis (P2-T9)
+
+Score on our scorer (`python -m ontrack.l2_ask.score_dev`), full data:
+
+| Stage | Dev | Notes |
+|---|---:|---|
+| Placeholders (runner only) | 3/21 | refusals only |
+| + certified-metric templates (no LLM) | 13/21 | all 9 certified dev answers exact |
+| + Claude agent (documents, transcripts, other SQL) | **21/21** | refusals 3/3, false refusals 0/18 |
+
+Failures found and fixed on the way (general fixes, not per-question answers):
+
+1. **Wrong table for contact events** (BQ-006 counted case-level disputes): convention added — events raised
+   during contacts are counted from `contact_history` flags by `contact_ts_local`.
+2. **"Why" questions lost their explanation** (BQ-030 returned only a table): new `explain` answer kind =
+   one-sentence conclusion with cause / direction + the supporting table and SQL.
+3. **Policy question refused as "legal advice"** (BQ-020, test split; flagged by P1): rule added — what our
+   policies allow / require / do not cover is answered from the documents, never refused.
+4. **FAQ contradicts the current policy** (BQ-026 trap): "policy wins over FAQ / script" rule; superseded
+   versions labelled in the prompt and ranked last in search.
+5. **Age wording** ("customers over 90 days past due") was refused as age: rule fixed; red-team 0/14 false refusals.
+
+Caveats: our scorer approximates the organisers' (tables by key within tolerance; documents by cited doc + key
+facts). Dev worked examples are shown to the agent leave-one-out (never the question being answered), so the dev
+score is optimistic for the LLM path; certified-metric answers are deterministic and do not depend on examples.
+
+## Runbook: extra questions at 19:00 IST, 4 Oct
+
+```bash
+git pull && python -m ontrack.l2_ask.search --build          # once, if the search index is missing
+python -m ontrack.l2_ask.run_benchmark --questions <released + extra csv> --out benchmark/answers.csv --workers 6
+python -m ontrack.l2_ask.score_dev                            # dev still 21/21?
+git add benchmark/answers.csv && git commit -m "Benchmark: final answers" && git push
+```
+
+* Needs an LLM: `ANTHROPIC_API_KEY` in `.env`, or a logged-in Claude Code CLI (`claude`). Cached answers are reused.
+* Any column layout works as long as `question_id` and `question_text` exist; a failing question is retried once
+  and still gets a row. Per-question trace: `$ONTRACK_WORK_DIR/benchmark_trace.jsonl`.
+* ~10 s per document question, ~20–60 s per non-certified data question, <1 s for certified metrics and rule refusals.
