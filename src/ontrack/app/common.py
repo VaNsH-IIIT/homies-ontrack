@@ -41,6 +41,10 @@ def _decisions_con() -> duckdb.DuckDBPyConnection:
         decision_id VARCHAR, case_id VARCHAR, golden_id VARCHAR, agent_id VARCHAR,
         recommended_action VARCHAR, agent_action VARCHAR, final_action VARCHAR,
         reason_code VARCHAR, note VARCHAR, model_version VARCHAR, ts TIMESTAMP)""")
+    con.execute("""CREATE TABLE IF NOT EXISTS steward_log (
+        decision_id VARCHAR, source_system VARCHAR, source_key VARCHAR, candidate_crm_customer_id VARCHAR,
+        match_probability DOUBLE, decision VARCHAR, reason_code VARCHAR, note VARCHAR, steward_id VARCHAR,
+        ts TIMESTAMP)""")
     return con
 
 
@@ -67,6 +71,42 @@ def decisions(case_id: str | None = None):
     con = _decisions_con()
     sql = "SELECT * FROM decision_log" + (" WHERE case_id = ?" if case_id else "") + " ORDER BY ts DESC"
     df = con.execute(sql, [case_id] if case_id else []).df()
+    con.close()
+    return df
+
+
+STEWARD_REASONS = {
+    "approved": ["same_person_evidence", "known_name_change", "known_address_move", "other"],
+    "rejected": ["different_person", "related_party_not_same_person", "insufficient_evidence", "other"],
+}
+
+
+def record_steward_decision(source_system: str, source_key: str, candidate_crm_customer_id: str,
+                            match_probability: float, decision: str, reason_code: str, note: str = "",
+                            steward_id: str = "demo-steward") -> str:
+    """Log a data steward's approve / reject on a probable match. The next pipeline build links approved
+    pairs (method 'steward_approved') and keeps rejected pairs apart."""
+    if decision not in STEWARD_REASONS:
+        raise ValueError("decision must be approved or rejected")
+    if reason_code not in STEWARD_REASONS[decision]:
+        raise ValueError(f"reason code for {decision} must be one of {STEWARD_REASONS[decision]}")
+    import uuid
+    decision_id = str(uuid.uuid4())
+    con = _decisions_con()
+    con.execute("INSERT INTO steward_log VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, now())",
+                [decision_id, source_system, source_key, candidate_crm_customer_id, match_probability,
+                 decision, reason_code, note, steward_id])
+    con.close()
+    return decision_id
+
+
+def steward_decisions():
+    """Latest steward decision per pair, newest first."""
+    con = _decisions_con()
+    df = con.execute("""SELECT * FROM steward_log
+                        QUALIFY row_number() OVER (PARTITION BY source_system, source_key, candidate_crm_customer_id
+                                                   ORDER BY ts DESC) = 1
+                        ORDER BY ts DESC""").df()
     con.close()
     return df
 

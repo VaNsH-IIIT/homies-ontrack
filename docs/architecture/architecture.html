@@ -57,7 +57,7 @@ CRM <code>customers</code> · cards <code>card_accounts</code> · lending <code>
     <div class="harr">→</div>
     <div class="step"><b>Silver</b><br>Per-system name formats (3 card, 2 loan, 2 deposit), DOB in 4 formats, phones (masked digits), postal codes; current CRM rows. <span class="num">18 issue types</span> counted.</div>
     <div class="harr">→</div>
-    <div class="step"><b>Identity resolution</b> <span class="ai">AI</span> <span class="hu">HUMAN</span><br>Tier 1 bridges (case accounts, PAD, national id, CRM duplicates) → tier 2 exact rules → tier 3 Splink. Conflict guard: never merge different birthdates. <span class="num">Precision 99.78%, recall 99.38%</span> on 5,000 known links; grey zone → steward queue.</div>
+    <div class="step"><b>Identity resolution</b> <span class="ai">AI</span> <span class="hu">HUMAN</span><br>Tier 1 bridges (case accounts, PAD, national id, CRM duplicates) → tier 2 exact rules → tier 3 Splink. Conflict guard: never merge different birthdates. <span class="num">Precision 99.8%, recall 99.4%</span> on 5,000 known links. Grey zone (<span class="num">1,924</span>) → data steward approves / rejects; decisions feed the next build.</div>
     <div class="harr">→</div>
     <div class="step"><b>Gold data products</b><br><code>c360_customer</code> <span class="num">1,015,637</span> golden ids · <code>customer_xref</code> 3.07M keys · <code>c360_account</code> 1.84M · <code>case_360</code> · <code>contact_timeline</code>. Contract <span class="num">8/8 rules pass</span>; DQ report generated.</div>
   </div>
@@ -68,12 +68,12 @@ CRM <code>customers</code> · cards <code>card_accounts</code> · lending <code>
   <div class="lay" style="flex:1">
     <span class="owner">P2</span><div class="lname">LAYER 2 · INSIGHT &amp; NLP</div>
     <div><span class="tag">REAL-TIME · seconds</span></div>
-    <div class="tools">Claude (Anthropic API) · certified metrics from <code>metric_definitions</code> · sqlglot validator · read-only DuckDB · cited search over notes and policies · Streamlit</div>
+    <div class="tools">Claude (Anthropic API or Claude Code CLI) · certified metrics from <code>metric_definitions</code> · sqlglot validator · read-only DuckDB · cited search over notes and policies · Streamlit</div>
     <ul>
       <li><span class="ai">AI</span> Scope guard: data / document / both / <b>refuse</b></li>
       <li>Certified metrics as templated SQL; LLM writes the rest over gold</li>
       <li>Validator: SELECT-only, allow-list, protected columns blocked, minimum group size</li>
-      <li>Every answer shows its <b>SQL or sources</b>; one command answers the whole benchmark file</li>
+      <li>Every answer shows its <b>SQL or sources</b>; one command answers the whole benchmark file: <span class="num">dev 21/21</span>, red-team <span class="num">26/26 refused</span>, 0 false refusals</li>
       <li><span class="hu">HUMAN</span> user edits the understood question; refusals logged</li>
     </ul>
   </div>
@@ -83,7 +83,7 @@ CRM <code>customers</code> · cards <code>card_accounts</code> · lending <code>
     <div class="tools">one function <code>build_case_features(con, as_of_date)</code> for training and live scoring · Claude with JSON schema for text</div>
     <ul>
       <li><b>Structured:</b> delinquency and trend, payments, contact response, cash flow, bureau change; point-in-time</li>
-      <li><span class="ai">AI</span> <b>Text:</b> hardship signal + evidence quote, stated reason, stated payday, dispute; scored on 500 public labels</li>
+      <li><span class="ai">AI</span> <b>Text:</b> hardship signal + evidence quote, stated reason, stated payday, dispute. Notes: n-gram model, hardship <span class="num">F1 0.98</span> (recall 0.98) on 500 labels; calls: Claude, quote checked in its turn</li>
       <li>Outcome columns and protected attributes blocked; voice via transcripts only</li>
       <li><span class="hu">HUMAN</span> each LLM feature signed off after its labelled test</li>
     </ul>
@@ -105,7 +105,7 @@ CRM <code>customers</code> · cards <code>card_accounts</code> · lending <code>
 <div class="people">
   <div class="person"><b>Collections agent</b>agent card: action, reasons, hardship alert, override <span class="hu" style="background:#fff;color:#1F6F78">HUMAN</span></div>
   <div class="person"><b>Team lead · analyst</b>Ask in plain English, SQL shown</div>
-  <div class="person"><b>Data steward</b>match review queue, data quality report</div>
+  <div class="person"><b>Data steward</b>Match review page: approve / reject grey-zone matches with a reason; data quality report</div>
   <div class="person"><b>Strategy owner</b>champion vs hold-out, reminder batches</div>
   <div class="person"><b>Model risk · audit</b>decision log, contract results, fairness check</div>
 </div>

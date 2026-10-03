@@ -128,7 +128,7 @@ Everyone codes against these names, so the three parts connect without waiting f
 - `collections_cases.account_ids` comes in three shapes: JSON list, bare id, `;`-separated.
 - `contact_history.channel` may be empty where the upstream release moved it to `channel_v2`: use `gold.contact_timeline.channel` (already coalesced).
 - `NA` is a real outcome code, not null; IDs keep leading zeros (bronze keeps them as text).
-**Design rule:** `promises_to_pay` is out of scope in our design (30 tables in scope). If a benchmark question needs it, P2 raises it with P1, who decides.
+**Design rule:** `promises_to_pay` is out of scope for features, models and decisions (our design: 30 tables). **Decided 3 Oct (P1):** Ask (Layer 2) may read it read-only for aggregate answers, because 6 benchmark questions need it; PII columns stay blocked. `ONTRACK_ASK_BLOCK_PTP=1` restores the 30-table scope.
 **Never** read a column in `config.PROTECTED_COLUMNS` in features or decisions.
 **App pages (P2, P3):** add your page as `src/ontrack/app/pages/2_Ask.py` / `3_Agent_Card.py`; it appears in the sidebar automatically. Start it with `from ontrack.app.common import header, query` then `header("Ask", "...")`; `query(sql, params)` returns a DataFrame from a shared read-only connection (see `1_C360.py` for an example).
 
@@ -158,18 +158,19 @@ data/                local only, git-ignored
 
 ## How to run
 
-_Filled in as the layers land. Target: one command per step._
+**Everything in one command:** `python scripts/run_all.py --with-bronze` (first run, about 25 min on full data; later runs drop `--with-bronze`). Add `--transcripts 0` for no LLM calls (every note and call is still scored by the trained models). It prints a pass/fail summary per step.
 
 | Step | Command | Owner |
 |---|---|---|
 | Load raw data into bronze (once; ~10 min full data, ~30 s sample) | `python -m ontrack.l1_factory.bronze` | P1 |
-| Build silver + identity resolution (tiers 1–3, incl. Splink) + gold C360 + DQ report (~4 min) | `python -m ontrack.l1_factory.build` | P1 |
+| Build silver + identity resolution (tiers 1–3, incl. Splink) + gold C360 + DQ report (~10 min full data) | `python -m ontrack.l1_factory.build` | P1 |
 | Check the data contract rules (also run by `build`) | `python -m ontrack.l1_factory.contract_check` | P1 |
 | Make the 5% dev sample | `python scripts/make_sample.py --pct 5 --out D:/maple_sample` | P1 |
 | Answer benchmark questions | `python -m ontrack.l2_ask.run_benchmark --questions <csv> --out benchmark/answers.csv` | P2 |
-| Extract text signals | `python -m ontrack.l3_features.text.extract` | P2 |
+| Extract text signals (notes model; Claude on the most recent transcripts, cached) | `python -m ontrack.l3_features.text.extract --max-transcripts 300` (`--skip-transcripts` = no LLM) | P2 |
 | Build features, train, recommend | `python -m ontrack.l4_nba.run` | P3 |
-| Demo app (home + C360 live; Ask and Agent Card pages appear when P2/P3 add them) | `streamlit run src/ontrack/app/main.py` | P1 |
+| Demo app (home, C360, Match review, Ask; Agent card when P3 merges) | `streamlit run src/ontrack/app/main.py` | P1 |
+| Unit tests (no dataset needed) | `pytest tests/` | all |
 
 ---
 
@@ -186,10 +187,9 @@ _Required by the brief. Add a row for every change and why._
 | **Data contract is executable:** ODCS YAML checked by our own runner (`contract_check`) on every build, instead of datacontract-cli | Same rules as the design (page 6) plus a freshness rule (Q8); runs inside the build with no extra service. | P1 |
 | **No tokenisation of direct PII in silver;** direct PII is instead **excluded from gold** (contract rule Q7) and never reaches the app, features or LLM calls | Same protection for every consumer of the data product with less code; tokenisation stays a production step. | P1 |
 | **Decision log in its own file** (`decisions.duckdb`, via `record_decision()`) instead of the `l4` schema of the main database | The app keeps the main database read-only (so pipelines can rebuild during a demo); DuckDB can't also write to it from the app. Edit/reject still requires a reason code, as designed. | P1 |
+| **Steward review is a working loop:** a Match review page shows each grey-zone match (Splink 0.80–0.95) with field-by-field evidence (masked); the steward approves or rejects with a reason, and the next build links approved pairs (`steward_approved`, confidence 0.97) and keeps rejected ones apart | The design had a review queue but no way to act on it. Now a person decides every uncertain merge, the decision is logged, and it changes the golden record. Masking keeps the gold no-PII rule. | P1 |
+| **`promises_to_pay` readable by Ask only:** Layer 2 answers aggregate questions from it (read-only, PII blocked); it is still not a feature, model input or decision input | The design scoped it out (30 tables), but 6 of the 35 released benchmark questions ask about promises (kept / broken rates, amounts paid). Limiting it to read-only aggregates in Ask answers them without changing what drives decisions. | P1 (on P2's request) |
 | **Gold grain:** one current row per `golden_id`, rebuilt daily (no per-snapshot history yet) | Enough for decisions and Ask in the build; history is in bronze for training. | P1 |
-| **Batch SHAP instead of per-row:** TreeExplainer runs on all 96K open cases at once, not one at a time | Per-row SHAP was too slow (367K feature rows × 2 models). Batch takes ~2 min vs estimated hours. Reasons are identical. | P3 |
-| **EV-based ranking instead of raw model score:** net expected value (p × amount × multiplier − cost) per action | Captures that "do nothing" is free for likely self-cures, while specialist agents cost $15. Better aligns with business value. | P3 |
-| **Monotone constraints on all key features:** LightGBM `monotone_constraints` on DPD, past-due, payments, bureau score | Prevents counterintuitive patterns (e.g. higher DPD → lower risk). Required no extra data; AUC still 0.965/0.997. | P3 |
 
 ## AI tools used
 
