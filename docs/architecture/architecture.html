@@ -55,7 +55,7 @@ CRM <code>customers</code> · cards <code>card_accounts</code> · lending <code>
   <div class="steps">
     <div class="step"><b>Bronze</b><br>All 31 tables typed from <code>schema.json</code>; IDs keep leading zeros; <code>NA</code> outcome kept. Row counts <span class="num">31/31 match</span>; cast failures and schema drift logged.</div>
     <div class="harr">→</div>
-    <div class="step"><b>Silver</b><br>Per-system name formats (3 card, 2 loan, 2 deposit), DOB in 4 formats, phones (masked digits), postal codes; current CRM rows. <span class="num">18 issue types</span> counted.</div>
+    <div class="step"><b>Silver</b><br>Per-system name formats (3 card, 2 loan, 2 deposit), DOB in 4 formats, phones (masked digits), postal codes; current CRM rows. <span class="num">19 issue types</span> counted.</div>
     <div class="harr">→</div>
     <div class="step"><b>Identity resolution</b> <span class="ai">AI</span> <span class="hu">HUMAN</span><br>Tier 1 bridges (case accounts, PAD, national id, CRM duplicates) → tier 2 exact rules → tier 3 Splink. Conflict guard: never merge different birthdates. <span class="num">Precision 99.8%, recall 99.4%</span> on 5,000 known links. Grey zone (<span class="num">1,924</span>) → data steward approves / rejects; decisions feed the next build.</div>
     <div class="harr">→</div>
@@ -83,7 +83,7 @@ CRM <code>customers</code> · cards <code>card_accounts</code> · lending <code>
     <div class="tools">one function <code>build_case_features(con, as_of_date)</code> for training and live scoring · Claude with JSON schema for text</div>
     <ul>
       <li><b>Structured:</b> delinquency and trend, payments, contact response, cash flow, bureau change; point-in-time</li>
-      <li><span class="ai">AI</span> <b>Text:</b> hardship signal + evidence quote, stated reason, stated payday, dispute. Trained text models score every note and call (<span class="num">307K</span>, no LLM needed); Claude reads recent calls, quote checked in its turn. Hardship recall <span class="num">0.98</span> notes, <span class="num">1.00</span> calls; <span class="num">8,877</span> open cases flagged by text only</li>
+      <li><span class="ai">AI</span> <b>Text:</b> hardship signal + evidence quote, stated reason, stated payday, dispute. Trained text models score every note and call (<span class="num">307K</span>, no LLM needed); Claude reads recent calls, quote checked in its turn. Hardship recall <span class="num">0.98</span> notes, <span class="num">1.00</span> calls; <span class="num">8,883</span> open cases flagged by text only</li>
       <li>Outcome columns and protected attributes blocked; voice via transcripts only</li>
       <li><span class="hu">HUMAN</span> each LLM feature signed off after its labelled test</li>
     </ul>

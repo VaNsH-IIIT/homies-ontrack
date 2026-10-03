@@ -4,6 +4,7 @@ import datetime as dt
 import numpy as np
 
 from ontrack.l4_nba.ranker import (
+    action_values_text,
     SELF_CURE_THRESHOLD,
     _fact,
     _why,
@@ -11,6 +12,7 @@ from ontrack.l4_nba.ranker import (
     contact_values,
     counterfactual,
     driver_reasons,
+    roll_forward_columns,
     wants_call,
 )
 
@@ -108,3 +110,24 @@ class TestReasons:
         assert "2026-10-05" in counterfactual("do_nothing", [], 0.4, d)
         drivers = [("days_since_last_payment", "x", False)]
         assert "a payment arrives" in counterfactual("email", drivers, 0.1, d)
+
+
+class TestActionValues:
+    def test_best_first_with_waiting_as_zero(self):
+        assert action_values_text({"call": 10.0, "email": 41.2, "reminder_letter": -0.5}) ==             "email: $41.20; call: $10.00; reminder_letter: -$0.50; do_nothing: $0.00"
+
+    def test_nothing_allowed(self):
+        assert action_values_text({}) is None
+
+
+class TestRollForward:
+    def test_room_to_roll_forward(self):
+        assert roll_forward_columns(0.3, 150) == (0.7, None)   # 150 + 30 = 180: still a bucket, not charge-off
+
+    def test_past_180_within_30_days_is_charge_off_risk(self):
+        # P1 review on #14: cases at 180 DPD topped the roll-forward list but cannot roll to a worse bucket
+        assert roll_forward_columns(0.1, 151) == (None, 0.9)
+        assert roll_forward_columns(0.1, 180) == (None, 0.9)
+
+    def test_unknown_dpd_counts_as_roll_forward(self):
+        assert roll_forward_columns(0.2, None) == (0.8, None)

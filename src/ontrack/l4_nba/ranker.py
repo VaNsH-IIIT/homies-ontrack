@@ -69,7 +69,8 @@ def channel_economics(con, as_of: str = config.SNAPSHOT_DATE) -> dict:
             FROM gold.contact_timeline t JOIN bronze.contact_history h ON h.contact_id = t.contact_id
             WHERE t.case_id IS NOT NULL AND ({PAYMENT_FLAGS})
         )
-        SELECT c.channel, count(*) AS n, avg((p.ts IS NOT NULL AND p.ts < c.ts + INTERVAL 7 DAY)::INT) AS rate
+        SELECT c.channel, count(*) AS n,
+               round(avg((p.ts IS NOT NULL AND p.ts < c.ts + INTERVAL 7 DAY)::INT), 6) AS rate
         FROM c ASOF LEFT JOIN p ON c.case_id = p.case_id AND p.ts >= c.ts
         GROUP BY 1
     """).fetchdf().set_index("channel")
@@ -283,6 +284,23 @@ def counterfactual(action: str, drivers: list[tuple[str, str, bool]], p_cure: fl
 # ----------------------------------------------------------------------------------------------------
 # Ranking
 # ----------------------------------------------------------------------------------------------------
+CHARGE_OFF_DPD = 180   # every charged-off case in the release was charged off at 181 DPD; open cases top out at 180
+
+
+def roll_forward_columns(p_cure: float, dpd) -> tuple[float | None, float | None]:
+    """(p_roll_forward, p_charge_off_risk) for one case.
+
+    DPD rises by one a day until a case cures, so not curing within 30 days means rolling to the next 30-day
+    bucket, unless that takes the case past 180 DPD: then the next step is charge-off, not a worse bucket,
+    and the same chance of staying unpaid is its charge-off risk. (The source `current_bucket` label '180+' is
+    not used: most open cases carrying it are below 180 DPD.)
+    """
+    risk = round(1 - float(p_cure), 4)
+    if dpd is not None and not pd.isna(dpd) and float(dpd) + 30 > CHARGE_OFF_DPD:
+        return None, risk
+    return risk, None
+
+
 def contact_values(overdue: float, p_cure: float, responsiveness: float, allowed: list[str], econ: dict) -> dict:
     """Expected net value (CAD) of each allowed contact action versus doing nothing."""
     return {a: overdue * (1 - p_cure) * econ[a]["rate"] * responsiveness - econ[a]["unit_cost"]
@@ -309,6 +327,14 @@ def wants_call(row: dict, allowed: list[str], values: dict) -> bool:
         return False
     no_response = row["contacts_30d"] >= 2 and row["payments_30d"] == 0 and row["link_clicks_30d"] == 0
     return no_response or row["action"] == "call"
+
+
+def action_values_text(values: dict) -> str | None:
+    """Expected net value (CAD, vs doing nothing) of every allowed contact, best first, for the agent card."""
+    if not values:
+        return None
+    parts = [f"{a}: {'-' if v < 0 else ''}${abs(v):,.2f}" for a, v in sorted(values.items(), key=lambda x: (-x[1], x[0]))]
+    return "; ".join(parts + ["do_nothing: $0.00"])
 
 
 def _pct(p: float) -> str:
@@ -387,12 +413,15 @@ def build_recommendations(con, routed: pd.DataFrame, as_of: str = config.SNAPSHO
                coalesce(cu.insolvency_flag, false) OR coalesce(c.insolvency_hold_flag, false) AS insolvency_flag,
                coalesce(cu.deceased_flag, false) OR coalesce(c.deceased_hold_flag, false) AS deceased_flag,
                coalesce(cu.third_party_hold_flag, false) OR coalesce(c.third_party_rep_flag, false) AS third_party_hold_flag,
-               coalesce(c.dispute_flag, false) AS dispute_flag,
+               coalesce(c.dispute_flag, false) AS dispute_flag, c.current_bucket_derived AS current_bucket,
+               c.current_dpd,
+               coalesce(cu.vulnerability_flag, false) OR coalesce(c.vulnerable_customer_flag, false) AS vulnerability_flag,
                coalesce(c.contacts_last_7d, 0) AS contacts_last_7d, coalesce(c.contact_cap_7d, 7) AS contact_cap_7d
         FROM {TABLE} f
         JOIN gold.case_360 c ON c.case_id = f.case_id
         LEFT JOIN gold.c360_customer cu ON cu.golden_id = f.golden_id
         WHERE f.as_of_date = DATE '{as_of}'
+        ORDER BY f.case_id
     """).fetchdf()
     df = feats.merge(routed, on="case_id", how="left", validate="one_to_one")
     for col in ("hardship_flag", "needs_human_review"):
@@ -402,8 +431,8 @@ def build_recommendations(con, routed: pd.DataFrame, as_of: str = config.SNAPSHO
     cols = m_cure["feature_cols"]
     df["p_cure"] = predict(m_cure, df)
     df["p_payment"] = predict(m_pay, df)
-    resp = (df["p_payment"] / max(df["p_payment"].mean(), 1e-6)).clip(0.5, 2.0)
-    contrib = m_cure["booster"].predict(df[cols].astype(float).to_numpy(), pred_contrib=True)[:, :-1]
+    resp = (df["p_payment"] / max(df["p_payment"].mean(), 1e-6)).clip(0.5, 2.0).round(6)
+    contrib = m_cure["booster"].predict(np.round(df[cols].astype(float).to_numpy(), 6), pred_contrib=True)[:, :-1]
     econ = channel_economics(con, as_of)
 
     records = df.to_dict("records")
@@ -420,14 +449,14 @@ def build_recommendations(con, routed: pd.DataFrame, as_of: str = config.SNAPSHO
         values = contact_values(float(r["overdue_now"] or 0), float(r["p_cure"]), float(resp.iat[i]), allowed, econ)
         action, path = choose_action(r, allowed, values)
         r.update(action=action, path=path, allowed=allowed, blocked=blocked, values=values,
-                 expected_loss=float(r["overdue_now"] or 0) * (1 - float(r["p_cure"])))
+                 expected_loss=round(float(r["overdue_now"] or 0) * (1 - float(r["p_cure"])), 6))
         r["call_candidate"] = wants_call(r, allowed, values)
         r["shap_i"] = i
         rows.append(r)
 
     # Call capacity: the day's call slots go to the candidates with the most dollars at risk
     call_capacity = econ["call"]["capacity"]
-    cands = sorted((r for r in rows if r["call_candidate"]), key=lambda r: -r["expected_loss"])
+    cands = sorted((r for r in rows if r["call_candidate"]), key=lambda r: (-r["expected_loss"], r["case_id"]))
     for rank, r in enumerate(cands):
         if rank < call_capacity:
             r["call_reason"] = "best_channel" if r["action"] == "call" else "no_response"
@@ -464,11 +493,14 @@ def build_recommendations(con, routed: pd.DataFrame, as_of: str = config.SNAPSHO
             "routing_reasons": r.get("routing_reasons"),
             "text_evidence": r.get("text_evidence"), "text_source": r.get("text_source"),
             "p_cure_30d": round(float(r["p_cure"]), 4), "p_payment_7d": round(float(r["p_payment"]), 4),
-            # DPD rises by one a day until a case cures, so not curing within 30 days = rolling to the next
-            # 30-day bucket; the name matches what Layer 2's roll-forward question looks for (R5, #5)
-            "p_roll_forward": round(1 - float(r["p_cure"]), 4),
+            # the names match what Layer 2's roll-forward question looks for (R5, #5); see roll_forward_columns
+            "current_bucket": r.get("current_bucket"),
+            "current_dpd": r.get("current_dpd"),
+            "p_roll_forward": roll_forward_columns(r["p_cure"], r.get("current_dpd"))[0],
+            "p_charge_off_risk": roll_forward_columns(r["p_cure"], r.get("current_dpd"))[1],
             "overdue_now": round(float(r["overdue_now"] or 0), 2),
             "expected_value": round(float(r["values"].get(r["action"], 0.0)), 2),
+            "action_values": action_values_text(r["values"]),
             "decision_path": r["path"], "model_version": m_cure["meta"]["model_version"],
         })
     rec = pd.DataFrame(out)

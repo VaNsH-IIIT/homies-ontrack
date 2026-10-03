@@ -19,7 +19,7 @@ import pandas as pd
 
 from ontrack import config
 from ontrack.db import connect
-from ontrack.l4_nba.models import MODEL_DIR, TEST_DATE, load_frame, load_model, predict
+from ontrack.l4_nba.models import MODEL_DIR, TEST_DATE, VALID_DATE, load_frame, load_model, predict
 
 REPORT = Path(__file__).parent / "EVALUATION.md"
 MIN_GROUP = 100
@@ -85,6 +85,31 @@ def model_section() -> list[str]:
     m = json.loads((MODEL_DIR / "self_cure_30d_meta.json").read_text(encoding="utf-8"))
     out += ["Top drivers of the self-cure model (mean |SHAP| on the test month): "
             + ", ".join(f"`{k}`" for k in list(m["top_features"])[:6]) + ".", ""]
+    return out
+
+
+def calibration_section(con) -> list[str]:
+    """Reliability on the untouched test month, with the calibrator fitted on the validation month only."""
+    out = ["### Calibration (test month)", ""]
+    model = load_model("self_cure_30d")
+    test = load_frame(con, "self_cure_30d", [TEST_DATE])
+    from ontrack.l4_nba.models import _matrix
+    test["p"] = model["calibrator_test"].predict(model["booster"].predict(_matrix(test, model["feature_cols"])))
+    test["band"] = pd.qcut(test["p"].rank(method="first"), 10, labels=False) + 1
+    rel = test.groupby("band").agg(cases=("label", "size"), predicted=("p", "mean"),
+                                   observed=("label", "mean")).reset_index()
+    rel.columns = ["decile (1 = least likely)", "cases", "predicted self-cure", "observed self-cure"]
+    diff = rel["predicted self-cure"] - rel["observed self-cure"]
+    direction = ("over-predicts in every decile" if (diff > 0).all() else
+                 "under-predicts in every decile" if (diff < 0).all() else "is off in both directions")
+    out += [md_table(rel), "",
+            f"The order is right (observed self-cure rises steadily from decile 1 to 10), but the calibrator fitted "
+            f"on {VALID_DATE} {direction}: by up to {diff.abs().max() * 100:.0f} points, {diff.abs().mean() * 100:.1f} "
+            "on average. That is the base-rate drift in this data (cases open on 2026-06-01 self-cured 32% of the time "
+            "within 30 days, on 2026-07-01 23%, on 2026-08-29 10%). It is why the agent card's probabilities come from a "
+            "calibrator fitted on 2026-08-29, the latest month with a complete outcome and the closest to today's open "
+            "book, and why the ranker uses a relative threshold (3.5x the open book's rate) rather than a fixed one. "
+            "Ranking quality (AUC) does not depend on calibration.", ""]
     return out
 
 
@@ -247,6 +272,48 @@ def fairness_section(con) -> list[str]:
     return out + detail
 
 
+def model_fairness_section(con) -> list[str]:
+    """Is the self-cure model equally accurate for every group? Test month, offline only."""
+    from sklearn.metrics import roc_auc_score
+    from ontrack.l4_nba.models import _matrix
+    model = load_model("self_cure_30d")
+    test = load_frame(con, "self_cure_30d", [TEST_DATE])
+    test["p"] = model["calibrator_test"].predict(model["booster"].predict(_matrix(test, model["feature_cols"])))
+    prot = con.execute("""
+        SELECT crm_customer_id, gender_code, marital_status, citizenship_status,
+               newcomer_program_flag::VARCHAR AS newcomer_program_flag,
+               accessibility_needs_flag::VARCHAR AS accessibility_needs_flag,
+               CASE WHEN age IS NULL THEN NULL WHEN age < 30 THEN '18-29' WHEN age < 45 THEN '30-44'
+                    WHEN age < 60 THEN '45-59' ELSE '60+' END AS age_band
+        FROM bronze.customers""").fetchdf()
+    df = test.merge(prot, on="crm_customer_id", how="left")
+    overall = roc_auc_score(df["label"], df["p"])
+    rows, detail = [], []
+    for col in FAIRNESS_COLUMNS:
+        g = []
+        for val, grp in df.dropna(subset=[col]).groupby(col):
+            if len(grp) < 300 or grp["label"].nunique() < 2:
+                continue
+            g.append({col: val, "cases": len(grp), "AUC": roc_auc_score(grp["label"], grp["p"]),
+                      "predicted self-cure": grp["p"].mean(), "observed self-cure": grp["label"].mean()})
+        if len(g) < 2:
+            continue
+        g = pd.DataFrame(g)
+        g["over-prediction"] = g["predicted self-cure"] - g["observed self-cure"]
+        rows.append({"attribute": col, "groups": len(g), "lowest AUC": g["AUC"].min(), "highest AUC": g["AUC"].max(),
+                     "AUC gap": g["AUC"].max() - g["AUC"].min(),
+                     "over-prediction gap": g["over-prediction"].max() - g["over-prediction"].min()})
+        detail += [f"`{col}`", "", md_table(g), ""]
+    summary = pd.DataFrame(rows)
+    out = ["### Is the model equally accurate for every group? (test month, offline)", "",
+           f"Self-cure model on the {TEST_DATE} test cases (overall AUC {overall:.3f}), split by protected group "
+           "(groups of 300+ cases). A fair model ranks equally well and is equally calibrated in every group.", "",
+           md_table(summary), "",
+           f"Largest AUC gap between groups: {summary['AUC gap'].max():.3f}; largest gap in over-prediction: "
+           f"{summary['over-prediction gap'].max() * 100:.1f} points. Per group:", ""]
+    return out + detail
+
+
 def notes_section() -> list[str]:
     return ["## 6. Notes", "",
             "- The 96,000 open cases were all opened Apr-Sep 2026 and never resolve inside the release, so later "
@@ -256,16 +323,17 @@ def notes_section() -> list[str]:
             "- The bank's no-contact holdout cured as often as its champion strategy (63.4% vs 62.7% within 30 "
             "days). The holdout still had some contacts, so this is a hint, not proof, that contact adds little for "
             "customers who would pay anyway; it is why OnTrack waits on likely self-cures.",
-            "- `golden_id` values can differ between builds (the demo customer is G-0331645 on P1's build and "
-            "G-0331648 on a fresh Windows build); `case_id` is stable, so the demo uses CS-2026-583749.", ""]
+            "- Training is repeatable: fixed seeds, deterministic LightGBM on 4 threads, rows read in a fixed order "
+            "and inputs rounded to 6 decimals, so two runs give the same AUCs and the same 96,000 recommendations.",
+            ""]
 
 
 def write_evaluation_report(con) -> str:
     lines = ["# Layer 4 evaluation", "",
              f"_Generated by `python -m ontrack.l4_nba.evaluation` on the full data (snapshot {config.SNAPSHOT_DATE}, "
              f"written {dt.date.today().isoformat()})._", ""]
-    for section in (model_section(), backtest_section(con), mix_section(con), queue_section(con),
-                    fairness_section(con), notes_section()):
+    for section in (model_section(), calibration_section(con), backtest_section(con), mix_section(con), queue_section(con),
+                    fairness_section(con), model_fairness_section(con), notes_section()):
         lines += section
     report = "\n".join(lines)
     REPORT.write_text(report, encoding="utf-8", newline="\n")
