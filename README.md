@@ -128,6 +128,7 @@ Everyone codes against these names, so the three parts connect without waiting f
 - `NA` is a real outcome code, not null; IDs keep leading zeros (bronze keeps them as text).
 **Design rule:** `promises_to_pay` is out of scope in our design (30 tables in scope). If a benchmark question needs it, P2 raises it with P1, who decides.
 **Never** read a column in `config.PROTECTED_COLUMNS` in features or decisions.
+**App pages (P2, P3):** add your page as `src/ontrack/app/pages/2_Ask.py` / `3_Agent_Card.py`; it appears in the sidebar automatically. Start it with `from ontrack.app.common import header, query` then `header("Ask", "...")`; `query(sql, params)` returns a DataFrame from a shared read-only connection (see `1_C360.py` for an example).
 
 ---
 
@@ -166,7 +167,7 @@ _Filled in as the layers land. Target: one command per step._
 | Answer benchmark questions | `python -m ontrack.l2_ask.run_benchmark --questions <csv> --out benchmark/answers.csv` | P2 |
 | Extract text signals | `python -m ontrack.l3_features.text.extract` | P2 |
 | Build features, train, recommend | `python -m ontrack.l4_nba.run` | P3 |
-| Demo app | `streamlit run src/ontrack/app/main.py` | P1 |
+| Demo app (home + C360 live; Ask and Agent Card pages appear when P2/P3 add them) | `streamlit run src/ontrack/app/main.py` | P1 |
 
 ---
 
