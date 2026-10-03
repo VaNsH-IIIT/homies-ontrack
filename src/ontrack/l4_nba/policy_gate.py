@@ -78,8 +78,8 @@ def check_consent(row: dict[str, Any]) -> list[tuple[str, str]]:
     for action, consent_col in CONSENT_MAP.items():
         if not _get(row, consent_col, False):
             blocks.append((action, f"No {consent_col.replace('_', ' ')} from customer"))
-    if not _get(row, "consent_autodialer", False):
-        blocks.append(("call", "No consent for autodialer"))
+    # consent_autodialer only governs automated dialling: an agent's manual call needs consent_call alone.
+    # The note is added by service_notes() so the agent dials manually.
     return blocks
 
 
@@ -184,13 +184,19 @@ def check_hardship(row: dict[str, Any]) -> list[tuple[str, str]]:
     return blocks
 
 
-def check_language(row: dict[str, Any]) -> list[tuple[str, str]]:
-    """Flag language-of-service requirements."""
-    blocks = []
-    lang = _get(row, "preferred_language", "EN")
-    if lang and str(lang).upper() == "FR":
-        blocks.append(("call", "French-language service required — route to bilingual agent"))
-    return blocks
+def service_notes(row: dict[str, Any]) -> list[str]:
+    """How to serve the customer, without blocking anything.
+
+    Language of service routes the call to an agent who speaks it; blocking calls for French-speaking
+    customers (as v0 did) would treat them differently from everyone else.
+    """
+    notes = []
+    lang = str(_get(row, "preferred_language", "EN") or "EN").upper()
+    if lang.startswith("FR"):
+        notes.append("Serve in French: route to a French-speaking agent")
+    if not _get(row, "consent_autodialer", False):
+        notes.append("No autodialer consent: agent dials manually")
+    return notes
 
 
 ALL_RULES = [
@@ -203,7 +209,6 @@ ALL_RULES = [
     check_permitted_hours,
     check_stat_holidays,
     check_hardship,
-    check_language,
 ]
 
 RULES_NEEDING_TIMESTAMP = {check_permitted_hours, check_stat_holidays}
@@ -266,16 +271,23 @@ def get_allowed_actions(row: dict[str, Any], as_of_ts: dt.datetime | None = None
     return allowed, blocked, blocked_reasons
 
 
+HUMAN_REVIEW_RULES = (
+    ("hardship_flag", "Hardship flagged — requires human review before any action"),
+    ("vulnerability_flag", "Vulnerability flagged — requires human review"),
+    ("dispute_flag", "Open dispute — requires human review"),
+    ("complaint_flag", "Complaint case — requires human review"),
+    ("insolvency_flag", "Insolvency hold — requires human review"),
+    ("deceased_flag", "Deceased hold — requires human review"),
+    ("third_party_hold_flag", "Third-party representative — requires human review"),
+    ("cease_communication_flag", "Customer asked us to stop contacting them — requires human review"),
+)
+
+
 def needs_human_review(row: dict[str, Any]) -> tuple[bool, str | None]:
-    """Check if this case must go to the human-only queue."""
-    if _get(row, "hardship_flag", False):
-        return True, "Hardship flagged — requires human review before any action"
-    if _get(row, "vulnerability_flag", False):
-        return True, "Vulnerability flagged — requires human review"
-    if _get(row, "dispute_flag", False):
-        return True, "Open dispute — requires human review"
-    if _get(row, "complaint_flag", False):
-        return True, "Complaint case — requires human review"
+    """Check if this case must go to the human-only queue (first matching rule gives the reason)."""
+    for col, reason in HUMAN_REVIEW_RULES:
+        if _get(row, col, False):
+            return True, reason
     return False, None
 
 
@@ -307,11 +319,11 @@ def build_gate_for_cases(con, as_of_ts: dt.datetime | None = None) -> None:
             cs.complaint_flag,
             (SELECT count(*) FROM gold.contact_timeline ct
              WHERE ct.case_id = cs.case_id
-             AND ct.contact_ts_utc >= current_date - INTERVAL '7 days') AS contacts_last_7d
+             AND ct.contact_ts_utc >= DATE '{snap}' - INTERVAL '7 days') AS contacts_last_7d
         FROM gold.case_360 cs
         LEFT JOIN gold.c360_customer cu ON cu.golden_id = cs.golden_id
         WHERE cs.outcome IS NULL
-    """).fetchdf()
+    """.replace("{snap}", config.SNAPSHOT_DATE)).fetchdf()
 
     total_allowed = 0
     total_blocked = 0

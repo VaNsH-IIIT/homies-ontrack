@@ -12,12 +12,12 @@ from ontrack.l4_nba.policy_gate import (
     check_do_not_call,
     check_hardship,
     check_holds,
-    check_language,
     check_permitted_hours,
     check_stat_holidays,
     evaluate,
     get_allowed_actions,
     needs_human_review,
+    service_notes,
 )
 
 
@@ -70,10 +70,10 @@ class TestConsent:
         blocked_actions = [b[0] for b in blocks]
         assert action in blocked_actions
 
-    def test_no_autodialer_blocks_call(self):
+    def test_no_autodialer_does_not_block_manual_call(self):
         blocks = check_consent(base_row(consent_autodialer=False))
-        blocked_actions = [b[0] for b in blocks]
-        assert "call" in blocked_actions
+        assert "call" not in [b[0] for b in blocks]
+        assert any("manually" in n for n in service_notes(base_row(consent_autodialer=False)))
 
 
 # --- Cease communication ---
@@ -226,14 +226,13 @@ class TestHardship:
 # --- Language ---
 
 class TestLanguage:
-    def test_french_flags_bilingual(self):
-        blocks = check_language(base_row(preferred_language="FR"))
-        blocked_actions = [b[0] for b in blocks]
-        assert "call" in blocked_actions
+    def test_french_routes_to_french_agent_without_blocking(self):
+        row = base_row(preferred_language="FR")
+        assert any("French" in n for n in service_notes(row))
+        assert evaluate(row)["call"].allowed
 
-    def test_english_no_flag(self):
-        blocks = check_language(base_row(preferred_language="EN"))
-        assert blocks == []
+    def test_english_no_note(self):
+        assert service_notes(base_row(preferred_language="EN")) == []
 
 
 # --- Full evaluate ---
@@ -284,6 +283,11 @@ class TestNeedsHumanReview:
     def test_dispute_needs_review(self):
         flag, reason = needs_human_review(base_row(dispute_flag=True))
         assert flag is True
+
+    def test_holds_need_review(self):
+        for col in ("insolvency_flag", "deceased_flag", "third_party_hold_flag", "cease_communication_flag"):
+            flag, reason = needs_human_review(base_row(**{col: True}))
+            assert flag is True and reason
 
     def test_clean_case_no_review(self):
         flag, reason = needs_human_review(base_row())
