@@ -20,5 +20,5 @@ golden ids can differ between builds (G-0331645 on P1's, G-0331648 on a fresh bu
 | Time | On screen | Voice-over |
 |---|---|---|
 | 3:30 | EVALUATION section 4: queue split | "62% of the open book goes to a person first: 46,226 hardship cases, of which 8,874 were found only in notes and calls and 2,480 only in salary deposits, plus vulnerability, disputes, complaints and legal holds." |
-| 3:45 | EVALUATION section 2: back-test table | "We tested like with like: the same cases on 1 July, outcomes after that date. Our self-cure model scores 0.83 AUC against 0.72 for the bank's current model, and of the cases it says need action now, 99.6% really did not pay on their own." |
+| 3:45 | EVALUATION section 2: back-test table | "We tested like with like: the same cases on 1 July, outcomes after that date. Our self-cure model scores 0.83 AUC against 0.72 for the bank's current model, and of the cases it says need action now, 99.5% really did not pay on their own." |
 | 4:00 | EVALUATION section 5: fairness summary | "Fairness is tested offline across gender, age, citizenship, newcomer and accessibility groups: protected attributes are never inputs, and for the cases the model decides alone the gaps stay within a few points." |
