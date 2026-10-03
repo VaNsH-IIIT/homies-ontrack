@@ -14,11 +14,11 @@ Until P1's `gold.*` tables land (~13:30), P2 and P3 build on the `bronze.*` view
 
 | ID | By | Task | Done when |
 |---|---|---|---|
-| P1-T1 | 11:00 | `src/ontrack/db.py` (`connect()` to `$ONTRACK_WORK_DIR/ontrack.duckdb`) and `python -m ontrack.l1_factory.bronze`: one `bronze.<table>` view per dataset table, following the release README conventions (NA codes, nulls, IDs as strings to keep leading zeros). **Push to `main` at once: it unblocks P2 and P3.** | `SELECT count(*)` works on every bronze view; row counts printed |
+| ✅ P1-T1 | 11:00 | `src/ontrack/db.py` (`connect()` to `$ONTRACK_WORK_DIR/ontrack.duckdb`) and `python -m ontrack.l1_factory.bronze`: one `bronze.<table>` view per dataset table, following the release README conventions (NA codes, nulls, IDs as strings to keep leading zeros). **Push to `main` at once: it unblocks P2 and P3.** | `SELECT count(*)` works on every bronze view; row counts printed |
 | P1-T2 | 11:30 | `scripts/make_sample.py`: a consistent 5% customer sample across all tables, for teammates with weak laptops (shared by Drive link, never git) | sample builds and the bronze views run on it |
-| P1-T3 | 12:30 | Silver: standardise names, `*_dob_raw` → ISO dates, phones → E.164, postal → A1A 1A1; latest `snapshot_date` per account; current CRM rows only; `channel`/`channel_v2` drift; count every issue found as you go | silver tables built; issue counts recorded |
-| P1-T4 | 13:30 | Identity resolution v1 (tier-1 bridges): `national_id_hash`, `duplicate_of_crm_id`, `collections_cases.account_ids`, `loan_accounts.pad_source_account` → `gold.customer_xref` with `match_confidence`; then **gold v0** of every `gold.*` table in the README interfaces | `python -m ontrack.l1_factory.build` creates all gold tables with the interface columns |
-| P1-T5 | 14:00 | Data quality checks v1 → generated `docs/data_quality_report.md`: issue, records affected, how handled | report generated from code, not typed by hand |
+| ✅ P1-T3 | 12:30 | Silver: standardise names, `*_dob_raw` → ISO dates, phones → E.164, postal → A1A 1A1; latest `snapshot_date` per account; current CRM rows only; `channel`/`channel_v2` drift; count every issue found as you go | silver tables built; issue counts recorded |
+| ✅ P1-T4 | 13:30 | Identity resolution v1 (tier-1 bridges): `national_id_hash`, `duplicate_of_crm_id`, `collections_cases.account_ids`, `loan_accounts.pad_source_account` → `gold.customer_xref` with `match_confidence`; then **gold v0** of every `gold.*` table in the README interfaces | `python -m ontrack.l1_factory.build` creates all gold tables with the interface columns |
+| ✅ P1-T5 | 14:00 | Data quality checks v1 → generated `docs/data_quality_report.md`: issue, records affected, how handled | report generated from code, not typed by hand |
 
 ### P2 · Garv · Layer 2 (Insight and NLP) + benchmark
 
