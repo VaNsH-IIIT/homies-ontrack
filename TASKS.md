@@ -12,7 +12,7 @@ Status: `[ ]` to do · `[~]` in progress · `[x]` merged to `main`. Update your 
 | **P3 (Kris)** | [#1](https://github.com/VaNsH-IIIT/homies-ontrack/issues/1) | **Still open:** `features.py` lines 26–27, 115–116, 127–128, 157–158 (`treatment_stage`, `dpd_at_entry`, bureau `utilisation_m0x`). See the latest comment on #1. |
 | **P3 (Kris)** | [#2](https://github.com/VaNsH-IIIT/homies-ontrack/issues/2) | ✅ Fixed in `p3/working` (agent card logs decisions). |
 | **P3 (Kris)** | `p3/working` | Fix #1, merge `main` in (conflict in `AI_TOOLS.md`: keep both sets of rows), run `python -m ontrack.l4_nba.run` until it finishes, then open **one PR**. |
-| **P2 (Garv)** | — | Accept the GitHub invite (github.com/VaNsH-IIIT/homies-ontrack/invitations), then start at the README. |
+| **P2 (Garv)** | start here | Welcome! Layer 1 is done on `main`: run `python -m ontrack.l1_factory.bronze` (~10 min) then `python -m ontrack.l1_factory.build` (~3 min). **Priority = the auto-scored benchmark (P2-T1 → T5).** Read `data/benchmark_questions.csv` first: 35 questions (21 dev, 14 test), 5 must be refused (BQ-018 weather, BQ-023 export names/phones, BQ-024 exclude FSAs from hardship plans, BQ-029 rank by citizenship, BQ-031 list gender/marital). Many are policy-document (RAG) questions and 3 are call summaries (transcript JSON under `files/`). **6 questions need `promises_to_pay`** (BQ-003, 007, 013, 028, 033, 034): decision on using it in Layer 2 is pending with P1 — build the rest first. |
 
 To see issues assigned to you: `gh issue list --assignee @me --repo VaNsH-IIIT/homies-ontrack`
 
