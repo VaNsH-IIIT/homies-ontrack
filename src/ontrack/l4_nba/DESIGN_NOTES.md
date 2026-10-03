@@ -46,7 +46,15 @@ features.case_features (point-in-time, one row per case and as_of)
   contact (call, SMS / email link, app, IVR) in `[as_of, as_of + 7 days)`.
 - Train on as_of 2025-11-01 ... 2026-05-01 (65K rows), early stopping + isotonic calibration on 2026-06-01,
   test on 2026-07-01 (32K rows). Production calibration on 2026-08-29, the latest month with a complete outcome.
-- Results: self-cure AUC 0.83 on the test month (bank's `cure_30d` 0.72 on the same cases); payment AUC 0.57.
+- Results: self-cure AUC 0.83 on the test month (bank's `cure_30d` 0.72 on the same cases); payment AUC 0.58.
+- **Repeatable:** fixed seeds, deterministic LightGBM on 4 threads, rows read in a fixed order, inputs rounded to
+  6 decimals, deterministic tie-breaks; every training date is rebuilt each run. Two runs from scratch give the
+  same AUCs and the same 96,000 recommendations. (Machines with different inputs, e.g. P1's cached Claude results,
+  differ slightly: 0.828 vs 0.829.)
+- **Calibration drift:** the self-cure rate of cases open at each date falls month by month (32% on 2026-06-01,
+  23% on 2026-07-01, 10% on 2026-08-29: the open book never resolves inside the release). A calibrator fitted on
+  June over-predicts July by up to 8 points, so the card's probabilities use the 2026-08-29 calibrator and the
+  self-cure threshold is relative (3.5x the open book's rate).
 - `p_roll_forward` = 1 - `p_cure_30d`: DPD rises by one a day until a case cures, so not curing within 30 days
   means rolling to the next bucket (used by Layer 2's roll-forward question). Cases that would pass 180 DPD
   within 30 days (DPD 151-180; charge-off happens at 181 in this data) cannot roll to a worse bucket: their
@@ -59,6 +67,35 @@ response is measured from `contact_history` (payment within 7 days of an outboun
 SMS / email 12%, push 8%, call 3%, letter 2%), cost and capacity from `channel_capacity`, and responsiveness is
 the payment model's score relative to the open book (0.5x-2x). `score` = dollars at risk = overdue x
 (1 - p_cure), the queue priority.
+
+## Agent card (`app/pages/3_Agent_Card.py`)
+
+- Search by `case_id` or `golden_id` (demo case `CS-2026-583749`); clear it to browse the queue by action,
+  human-only / automated and routing reason, highest dollars at risk first.
+- Hardship banner with the customer's verbatim quote and its source; recommendation, channel, time window and
+  service notes (French-speaking agent, manual dial); 3 reasons and a counterfactual; blocked actions with the
+  rule behind each.
+- **Why this channel:** expected value of every allowed action (`action_values`), with the decision path
+  explained (hardship and human review: a person decides; calls are a deliberate policy for the most dollars at
+  risk where contact has not worked, even when a payment link scores higher, decided by P1 on #17).
+- **Supervisor view:** action mix with dollars at risk, and the human-only queue by first reason.
+- Accept / edit / reject through `common.record_decision` (reason code needed to edit or reject), with history.
+
+## Evaluation (`l4_nba/evaluation.py` -> `EVALUATION.md`)
+
+Models and the drop-top-feature sanity check; calibration by decile; a like-with-like back-test against the bank's
+`model_scores` (same cases on 2026-07-01, outcome after it; never cure rate by `nba_recommendation_last`, which
+is selection); action mix, decision paths, channel economics; the human-only queue by reason; fairness offline:
+recommendation rates by protected group (automated decisions within 5.5 points) and model accuracy by group
+(self-cure AUC 0.800-0.849 in every group).
+
+## How to check
+
+```bash
+python -m ontrack.l4_nba.run             # train + score, ~60 s
+python -m ontrack.l4_nba.evaluation      # regenerate EVALUATION.md
+pytest tests/test_policy_gate.py tests/test_hardship.py tests/test_ranker.py tests/test_l4_point_in_time.py
+```
 
 ## What changed from the design (for the README table)
 
