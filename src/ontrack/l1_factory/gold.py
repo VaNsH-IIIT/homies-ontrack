@@ -8,6 +8,11 @@ Protected attributes never enter gold (they stay in bronze for fairness testing 
 from ontrack import config
 from ontrack.db import connect
 
+BUCKET_SQL = ("CASE WHEN {d} IS NULL THEN NULL WHEN {d} <= 0 THEN 'current' WHEN {d} <= 30 THEN '1-30' WHEN {d} <= 60 THEN '31-60' "
+              "WHEN {d} <= 90 THEN '61-90' WHEN {d} <= 120 THEN '91-120' WHEN {d} <= 150 THEN '121-150' "
+              "WHEN {d} <= 180 THEN '151-180' ELSE '180+' END")
+CASE_BUCKET = BUCKET_SQL.format(d="c.current_dpd")
+
 STEPS = {
     "c360_account": """
         SELECT a.card_account_id AS account_id, x.golden_id, 'card' AS product_type,
@@ -26,16 +31,25 @@ STEPS = {
         FROM silver.deposit_accounts d
         JOIN gold.customer_xref x ON x.source_system = 'core_banking' AND x.source_key = d.src_customer_ref
     """,
-    "case_360": """
-        SELECT x.golden_id, c.coll_customer_ref AS crm_customer_id, c.*
+    "case_360": f"""
+        SELECT x.golden_id, c.coll_customer_ref AS crm_customer_id, c.*,
+               {CASE_BUCKET} AS current_bucket_derived,
+               (c.current_dpd IS NOT NULL AND c.current_bucket IS DISTINCT FROM {CASE_BUCKET}) AS bucket_conflict
         FROM bronze.collections_cases c
         LEFT JOIN gold.customer_xref x ON x.source_system = 'crm' AND x.source_key = c.coll_customer_ref
     """,
     "contact_timeline": """
-        SELECT x.golden_id, h.case_id, h.contact_id, h.crm_customer_id, h.account_id, h.contact_ts_utc,
+        SELECT x.golden_id,
+               -- mismatched ids: some case ids carry a stray 'X' suffix; strip it when that gives a real case
+               CASE WHEN k.case_id IS NOT NULL THEN k.case_id
+                    WHEN h.case_id IS NOT NULL AND c0.case_id IS NULL THEN NULL ELSE h.case_id END AS case_id,
+               h.case_id AS case_id_raw,
+               h.contact_id, h.crm_customer_id, h.account_id, h.contact_ts_utc,
                coalesce(h.channel, h.channel_v2) AS channel, h.direction, h.outcome_code, h.rpc_flag,
                h.payment_taken_flag, h.note_id, h.transcript_id
         FROM bronze.contact_history h
+        LEFT JOIN bronze.collections_cases c0 ON c0.case_id = h.case_id
+        LEFT JOIN bronze.collections_cases k ON h.case_id LIKE '%X' AND k.case_id = regexp_replace(h.case_id, 'X$', '')
         LEFT JOIN gold.customer_xref x ON x.source_system = 'crm' AND x.source_key = h.crm_customer_id
     """,
     "c360_customer": """
@@ -110,6 +124,13 @@ def main() -> None:
         con.execute(f"CREATE OR REPLACE TABLE gold.{name} AS {sql}")
         n = con.execute(f"SELECT count(*) FROM gold.{name}").fetchone()[0]
         print(f"gold.{name:18s} {n:>12,d} rows", flush=True)
+    # Derived bucket from dpd (source buckets contradict dpd on ~77K cards); the source value is kept.
+    card_bucket = BUCKET_SQL.format(d="dpd")
+    con.execute(f"""CREATE OR REPLACE TABLE gold.c360_account AS
+                    SELECT *, {card_bucket} AS dpd_bucket_derived,
+                           (dpd IS NULL AND dpd_bucket IS NOT NULL)
+                           OR (dpd IS NOT NULL AND dpd_bucket IS DISTINCT FROM {card_bucket}) AS bucket_conflict
+                    FROM gold.c360_account""")
     # Guard: no protected attribute may reach gold.
     leaked = con.execute(
         "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'gold' "
