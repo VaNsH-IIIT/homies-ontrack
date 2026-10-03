@@ -8,7 +8,7 @@ Every claim below is checked against the build with stable golden_ids (commit 1f
 
 | Time | On screen | Voice-over |
 |---|---|---|
-| 2:15 | Agent card opens on `CS-2026-583749`; metrics row (96,000 open cases, 59,940 human-only, 5,037 calls = capacity) | "Every open case gets a next best action. The policy gate removes anything the rules don't allow, the model ranks what's left, and the agent sees why." |
+| 2:15 | Agent card opens on `CS-2026-583749`; metrics row (96,000 open cases, about 60,000 human-only, 5,037 calls = capacity) | "Every open case gets a next best action. The policy gate removes anything the rules don't allow, the model ranks what's left, and the agent sees why." |
 | 2:30 | Red hardship banner and the quote *"I can't pay the whole thing. My pay got cut in Aug."* (from transcript 4510675) | "This customer told us on a call that their pay was cut. The bank had already flagged the case for reduced income, and the customer said it in their own words, so OnTrack routes them to a hardship specialist, not to pressure." |
 | 2:45 | Recommendation 🤝 Hardship referral; three reasons; counterfactual line | "Three reasons in plain English, with the numbers, and what would change the recommendation." |
 | 2:55 | Open "Blocked actions": each with its rule (hardship: no calls or texts; no push consent) | "Blocked actions show the rule behind each one. No model can override a rule." |
@@ -19,13 +19,15 @@ Every claim below is checked against the build with stable golden_ids (commit 1f
 
 | Time | On screen | Voice-over |
 |---|---|---|
-| 3:30 | EVALUATION section 4: queue split | "62% of the open book goes to a person first: 46,227 hardship cases, of which 8,875 were found only in notes and calls and 2,480 only in salary deposits, plus vulnerability, disputes, complaints and legal holds." |
+| 3:30 | EVALUATION section 4: queue split | "62% of the open book goes to a person first: about 46,000 hardship cases, nearly 9,000 of them found only in what customers said in notes and calls, and about 2,500 only in their salary deposits, plus vulnerability, disputes, complaints and legal holds." |
 | 3:45 | EVALUATION section 2: back-test table | "We tested like with like: the same cases on 1 July, outcomes after that date. Our self-cure model scores 0.83 AUC against 0.72 for the bank's current model, and of the cases it says need action now, 99.5% really did not pay on their own." |
 | 4:00 | EVALUATION section 5: fairness summary | "Fairness is tested offline across gender, age, citizenship, newcomer and accessibility groups: protected attributes are never inputs, and for the cases the model decides alone the gaps stay within a few points." |
 
 ## Fact check (K2): every claim and where it comes from
 
 Run on the full data, snapshot 2026-09-28, after `python -m ontrack.l4_nba.run` (repeatable: same numbers every run).
+Exact counts are from Kris's build; the submission is P1's build (hardship 46,235, text-only 8,883, human-only
+59,942), so the voice-over uses rounded numbers ("62%", "about 46,000", "nearly 9,000") that hold on both.
 
 | Claim on screen / in the voice-over | Value | Source (query) |
 |---|---|---|
