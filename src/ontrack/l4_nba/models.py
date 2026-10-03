@@ -70,7 +70,7 @@ LABEL_SQL_PAYMENT = """
       AND cs.outcome IS NOT NULL
 """
 
-EXCLUDE_COLS = {"case_id", "golden_id", "as_of_date", "label", "treatment_stage"}
+EXCLUDE_COLS = {"case_id", "golden_id", "as_of_date", "label", "treatment_path"}
 
 SPLIT_DATES = {
     "train_end": "2026-06-01",

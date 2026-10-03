@@ -124,19 +124,24 @@ def get_shap_reasons(
     feature_values: dict[str, float],
     top_n: int = 3,
     include_counterfactual: bool = True,
+    precomputed_shap: np.ndarray | None = None,
 ) -> list[str]:
     """Get top-N SHAP-based reasons for a prediction, with optional counterfactual."""
-    booster = model_dict["booster"]
     feature_cols = model_dict["feature_cols"]
-    explainer = shap.TreeExplainer(booster)
-    shap_values = explainer.shap_values(features_row.reshape(1, -1))[0]
 
-    indices = np.argsort(np.abs(shap_values))[::-1][:top_n]
+    if precomputed_shap is not None:
+        shap_vals = precomputed_shap
+    else:
+        booster = model_dict["booster"]
+        explainer = shap.TreeExplainer(booster)
+        shap_vals = explainer.shap_values(features_row.reshape(1, -1))[0]
+
+    indices = np.argsort(np.abs(shap_vals))[::-1][:top_n]
     reasons = []
     for idx in indices:
         fname = feature_cols[idx]
         fval = feature_values.get(fname, features_row[idx])
-        reasons.append(_format_reason(fname, fval, shap_values[idx]))
+        reasons.append(_format_reason(fname, fval, shap_vals[idx]))
 
     if include_counterfactual and len(indices) > 0:
         top_fname = feature_cols[indices[0]]
@@ -239,6 +244,7 @@ def build_recommendations(con, as_of_ts: dt.datetime | None = None) -> int:
     """Score all open cases and write gold.nba_recommendation."""
     from ontrack.l3_features.structured.features import build_case_features
     from ontrack.l4_nba.models import load_model
+    import pandas as pd
 
     build_case_features(con, config.SNAPSHOT_DATE)
 
@@ -267,31 +273,83 @@ def build_recommendations(con, as_of_ts: dt.datetime | None = None) -> int:
         WHERE cs.outcome IS NULL
     """).fetchdf()
 
-    feature_cols = model_cure["feature_cols"]
-    recommendations = []
-
-    for _, row in features_df.iterrows():
-        row_dict = row.to_dict()
-        feature_values = {c: float(row_dict.get(c, 0) or 0) for c in feature_cols}
-        features_array = np.array([feature_values.get(c, 0.0) for c in feature_cols], dtype=float)
-
-        rec = recommend_for_case(
-            case_row=row_dict,
-            features_row=features_array,
-            feature_values=feature_values,
-            model_cure=model_cure,
-            model_payment=model_payment,
-            as_of_ts=as_of_ts,
-        )
-        recommendations.append(rec)
-
-    if not recommendations:
+    if features_df.empty:
         print("No open cases to recommend for.")
         return 0
 
-    import pandas as pd
-    rec_df = pd.DataFrame(recommendations)
+    feature_cols = model_cure["feature_cols"]
+    X = features_df[feature_cols].fillna(0).values.astype(float)
+    np.nan_to_num(X, copy=False)
 
+    # Batch predictions
+    p_cure_all = model_cure["booster"].predict(X)
+    if model_payment:
+        pay_cols = model_payment["feature_cols"]
+        X_pay = features_df[pay_cols].fillna(0).values.astype(float)
+        np.nan_to_num(X_pay, copy=False)
+        p_payment_all = model_payment["booster"].predict(X_pay)
+    else:
+        p_payment_all = 1.0 - p_cure_all
+
+    # Batch SHAP values
+    print("Computing SHAP explanations (batch)...", flush=True)
+    explainer = shap.TreeExplainer(model_cure["booster"])
+    shap_all = explainer.shap_values(X)
+    print(f"SHAP done for {len(X):,d} cases.", flush=True)
+
+    recommendations = []
+    for i, (_, row) in enumerate(features_df.iterrows()):
+        row_dict = row.to_dict()
+        feature_values = {c: float(row_dict.get(c, 0) or 0) for c in feature_cols}
+        p_cure = p_cure_all[i]
+        p_payment = p_payment_all[i]
+
+        gate_results = evaluate(row_dict, as_of_ts)
+        allowed = [a for a, r in gate_results.items() if r.allowed]
+        blocked = [a for a, r in gate_results.items() if not r.allowed]
+
+        expected_amount = feature_values.get("total_past_due", feature_values.get("total_overdue", 1000.0))
+        ranked = rank_actions(row_dict, p_cure, p_payment, expected_amount, allowed)
+        best_action = ranked[0][0] if ranked else "do_nothing"
+        best_score = ranked[0][1] if ranked else 0.0
+
+        try:
+            reasons = get_shap_reasons(
+                model_cure, X[i], feature_values,
+                top_n=3, include_counterfactual=True,
+                precomputed_shap=shap_all[i],
+            )
+        except Exception:
+            reasons = ["Model prediction based on case features",
+                        "Contact and payment history considered",
+                        "Bureau and delinquency data analysed"]
+
+        human_review, _ = needs_human_review(row_dict)
+        time_window = "17:00-19:00 local" if best_action == "call" else "next business day"
+
+        recommendations.append({
+            "case_id": row_dict.get("case_id"),
+            "golden_id": row_dict.get("golden_id"),
+            "as_of_ts": as_of_ts or dt.datetime.now(),
+            "action": best_action,
+            "channel": best_action if best_action in ("call", "sms", "email") else None,
+            "time_window": time_window,
+            "score": round(float(best_score), 4),
+            "reason_1": reasons[0] if len(reasons) > 0 else None,
+            "reason_2": reasons[1] if len(reasons) > 1 else None,
+            "reason_3": reasons[2] if len(reasons) > 2 else None,
+            "blocked_actions": ", ".join(blocked) if blocked else None,
+            "hardship_flag": row_dict.get("hardship_flag", False),
+            "needs_human_review": human_review,
+            "model_version": MODEL_VERSION,
+            "p_cure_30d": round(float(p_cure), 4),
+            "p_payment_7d": round(float(p_payment), 4),
+        })
+
+        if (i + 1) % 50000 == 0:
+            print(f"  {i + 1:,d} / {len(features_df):,d} cases processed", flush=True)
+
+    rec_df = pd.DataFrame(recommendations)
     con.execute("CREATE OR REPLACE TABLE gold.nba_recommendation AS SELECT * FROM rec_df")
 
     n = con.execute("SELECT count(*) FROM gold.nba_recommendation").fetchone()[0]

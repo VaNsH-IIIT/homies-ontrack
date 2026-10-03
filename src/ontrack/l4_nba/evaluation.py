@@ -158,9 +158,11 @@ def write_evaluation_report(con) -> str:
 
     lines.append("## Back-test vs baseline\n")
     bt = backtest_vs_baseline(con)
-    lines.append(f"- Baseline recommendations: {bt.get('baseline_cases', 'N/A'):,}")
-    lines.append(f"- Our recommendations: {bt.get('our_cases', 'N/A'):,}")
-    lines.append(f"- Overlap cases: {bt.get('overlap_cases', 'N/A'):,}")
+    def _fmt(v):
+        return f"{v:,}" if isinstance(v, (int, float)) else str(v)
+    lines.append(f"- Baseline recommendations: {_fmt(bt.get('baseline_cases', 'N/A'))}")
+    lines.append(f"- Our recommendations: {_fmt(bt.get('our_cases', 'N/A'))}")
+    lines.append(f"- Overlap cases: {_fmt(bt.get('overlap_cases', 'N/A'))}")
     if "agreement_rate" in bt:
         lines.append(f"- Action agreement rate: {bt['agreement_rate']:.1%}")
     if "action_distribution" in bt:

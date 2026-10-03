@@ -23,8 +23,8 @@ WITH open_cases AS (
         cs.golden_id,
         cs.crm_customer_id,
         cs.case_open_date,
-        cs.treatment_stage,
-        cs.dpd_at_entry,
+        cs.treatment_path,
+        cs.entry_dpd,
         cs.assigned_agent_id
     FROM gold.case_360 cs
     WHERE cs.case_open_date <= '{as_of}'
@@ -112,8 +112,8 @@ case_feats AS (
         oc.case_id,
         oc.golden_id,
         (DATE '{as_of}' - oc.case_open_date::DATE)::INT AS case_age_days,
-        oc.treatment_stage,
-        coalesce(oc.dpd_at_entry, 0) AS dpd_at_entry
+        oc.treatment_path,
+        coalesce(oc.entry_dpd, 0) AS dpd_at_entry
     FROM open_cases oc
 ),
 
@@ -124,8 +124,8 @@ bureau AS (
         e.risk_score AS bureau_score_current,
         e.risk_score_delta_90d AS score_delta_90d,
         e.inquiries_hard_3m,
-        coalesce(e.utilisation_m01, 0) AS utilisation_current,
-        coalesce(e.utilisation_m01, 0) - coalesce(e.utilisation_m06, 0) AS utilisation_trend_6m
+        coalesce(e.revolving_utilisation, 0) AS utilisation_current,
+        coalesce(e.revolving_util_trend_6m, 0) AS utilisation_trend_6m
     FROM bronze.external e
     JOIN gold.customer_xref x ON x.source_system = 'core_banking' AND x.source_key = e.bank_subject_ref
     QUALIFY row_number() OVER (PARTITION BY x.golden_id ORDER BY e.pull_date DESC) = 1
@@ -154,7 +154,7 @@ SELECT
 
     -- Case-level
     cf.case_age_days,
-    cf.treatment_stage,
+    cf.treatment_path,
     cf.dpd_at_entry,
 
     -- Delinquency
