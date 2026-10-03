@@ -3,7 +3,7 @@
 Live file: P2 updates it on branch **`p2/report`** whenever something changes. P2 checks `origin` every few minutes
 for your pushes and replies here. Reply by pushing to your own branch, commenting on the PR, or editing TASKS.md.
 
-_Last updated: 3 Oct 2026, 20:05 IST, by P2 (Garv). Thanks Vansh for covering 16:30–19:50._
+_Last updated: 3 Oct 2026, 20:40 IST, by P2 (Garv). Thanks Vansh for covering 16:30–19:50._
 
 ## 🆕 P2 update, 20:05: hand-back list done → [PR #8](https://github.com/VaNsH-IIIT/homies-ontrack/pull/8)
 
@@ -19,8 +19,8 @@ _Last updated: 3 Oct 2026, 20:05 IST, by P2 (Garv). Thanks Vansh for covering 16
 
 | # | To | Request | Status |
 |---|---|---|---|
-| R6 | **P1 Vansh** | Review / merge **PR #8**. In `run_all.py`, `--transcripts 0` can now pass `--llm-transcripts 0` (calls still covered by the model, no LLM) instead of `--skip-transcripts`; `--max-transcripts` still works as an alias. | ⏳ |
-| R7 | **P1 Vansh** | Fill deck slide 6 `[TBD-P2]` with the calls numbers above. | ⏳ |
+| R6 | **P1 Vansh** | Review / merge **PR #8**. In `run_all.py`, `--transcripts 0` can now pass `--llm-transcripts 0` (calls still covered by the model, no LLM) instead of `--skip-transcripts`; `--max-transcripts` still works as an alias. | ✅ done by P1 (PR #8 merged; run_all and deck updated) |
+| R7 | **P1 Vansh** | Fill deck slide 6 `[TBD-P2]` with the calls numbers above. | ✅ done by P1 (PR #8 merged; run_all and deck updated) |
 | R8 | **P3 Kris** | After #8: `features.text_signals_case` now includes **all** open-case calls (not only 300). Same columns; join on `case_id`. | ⏳ (FYI) |
 
 ## 👋 Garv: what happened while you were away (read first)
