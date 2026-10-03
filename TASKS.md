@@ -25,6 +25,8 @@ Status: `[ ]` to do · `[~]` in progress · `[x]` merged to `main`. Update your 
 | ✅ V6 | **P1 (Claude)** | Sync deck, README, diagram and video script to P1's build after #16 (8,877 → 8,883, 59,939 → 59,942, 46,226 → 46,235) | No number differs from P1's build | 12:00 |
 | — | **All** | **19:00** final benchmark → **20:00** code freeze → final `run_all` + pytest → README links check → **submit by 20:30** (deadline 21:00) | Submitted | 20:30 |
 
+**`main` is protected (4 Oct, 01:10):** no force pushes, no deletion, no direct pushes. Every change goes in through a PR, and only Vansh (code owner) can approve and merge it. Peer reviews still help: post your checks on the PR. The peer-merge rule in 🌙 below no longer applies.
+
 **No new Claude calls before 19:00** (`--transcripts 0` stays the default). Post one line per finished task in #13.
 
 ## 📌 Final plan from P1 (3 Oct, 21:50 IST; done except the 4 Oct rows, now in ☀️ above)
