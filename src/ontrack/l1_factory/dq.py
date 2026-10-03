@@ -72,7 +72,21 @@ def main() -> None:
     issues = con.execute("SELECT issue, table_name, records_affected, handling FROM silver._dq_issues").fetchall()
     lines += [md_table(["Issue", "Table", "Records affected", "How handled"], issues), ""]
 
-    lines += ["## 4. Golden record checks (gold)", ""]
+    lines += ["## 4. Known incidents (`ops_events`) and how the pipeline treats them", ""]
+    handling = {
+        "app_outage": "Payments in the outage window treated as on time; late fees charged in error flagged, not read as delinquency",
+        "dialer_outage": "Contact-rate and RPC metrics for the window labelled outage-affected; not read as customer behaviour",
+        "platform_release": "channel read as coalesce(channel, channel_v2) (section 3)",
+        "policy_change": "Hardship offers compared before / after the change separately",
+        "data_feed_issue": "Checked: no bureau rows received on the affected date in this extract",
+        "external_economic": "Context for hardship signals (layoffs); never a decision input by region",
+    }
+    events = con.execute("SELECT event_id, event_type, start_ts, end_ts, affected_tables, description "
+                         "FROM bronze.ops_events ORDER BY start_ts").fetchall()
+    lines += [md_table(["Event", "Type", "Start", "End", "Tables", "What happened", "How handled"],
+                       [(e[0], e[1], e[2], e[3], e[4], e[5], handling.get(e[1], "")) for e in events]), ""]
+
+    lines += ["## 5. Golden record checks (gold)", ""]
     gold_rows = [(name, con.execute(sql).fetchone()[0], handling) for name, sql, handling in GOLD_CHECKS]
     lines += [md_table(["Check", "Records", "Rule / handling"], gold_rows), ""]
 

@@ -46,6 +46,7 @@ Shared files: `requirements.txt` (append only; say what you added in your PR) an
 - An **Anthropic API key** for the LLM parts (P2 and P3).
 
 ### 2. Clone and install
+> **Windows:** clone into a **short path** (e.g. `C:\dev\homies-ontrack`). Streamlit ships deeply nested files, and under a long folder path `pip install` fails with `OSError: [Errno 2] No such file or directory` (the 260-character path limit). Installing on a slow connection takes 15–20 minutes, so start early.
 ```bash
 git clone https://github.com/VaNsH-IIIT/homies-ontrack.git
 cd homies-ontrack
@@ -178,7 +179,14 @@ _Required by the brief. Add a row for every change and why._
 
 | Change | Why | Who |
 |---|---|---|
-| | | |
+| **Pipeline tooling:** plain DuckDB SQL in Python modules (`l1_factory/*.py`) instead of dbt + Dagster + Soda Core | Fewer moving parts for a 36-hour build; one command (`l1_factory.build`) runs in ~2.5 min on 1M customers. The SQL is portable to dbt later. | P1 |
+| **Bronze is typed, not raw text:** every CSV column cast to its declared type from `schema.json` with `TRY_CAST`; failures counted, schema drift logged | Faster queries for everyone downstream, while still recording every value that didn't fit (DQ report §2). IDs stay text, so leading zeros survive. | P1 |
+| **Identity resolution, added a conflict guard:** two clusters whose CRM records share no date of birth are never merged (refused links logged) | Our design said a wrong merge costs more than a missed one. The guard removed all 587 wrong merges found in testing. | P1 |
+| **Identity resolution, per-system name parsing:** 3 card, 2 loan and 2 deposit name formats; surnames compared on letters only | Found in the data: 259K card names are `GIVEN SURNAME`, all-caps loan names are `SURNAME GIVEN`. Cut unlinked keys from 310K to 119K before Splink. | P1 |
+| **Data contract is executable:** ODCS YAML checked by our own runner (`contract_check`) on every build, instead of datacontract-cli | Same rules as the design (page 6) plus a freshness rule (Q8); runs inside the build with no extra service. | P1 |
+| **No tokenisation of direct PII in silver;** direct PII is instead **excluded from gold** (contract rule Q7) and never reaches the app, features or LLM calls | Same protection for every consumer of the data product with less code; tokenisation stays a production step. | P1 |
+| **Decision log in its own file** (`decisions.duckdb`, via `record_decision()`) instead of the `l4` schema of the main database | The app keeps the main database read-only (so pipelines can rebuild during a demo); DuckDB can't also write to it from the app. Edit/reject still requires a reason code, as designed. | P1 |
+| **Gold grain:** one current row per `golden_id`, rebuilt daily (no per-snapshot history yet) | Enough for decisions and Ask in the build; history is in bronze for training. | P1 |
 
 ## AI tools used
 
