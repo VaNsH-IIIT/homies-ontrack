@@ -127,7 +127,7 @@ bureau AS (
         coalesce(e.utilisation_m01, 0) AS utilisation_current,
         coalesce(e.utilisation_m01, 0) - coalesce(e.utilisation_m06, 0) AS utilisation_trend_6m
     FROM bronze.external e
-    JOIN gold.customer_xref x ON x.source_system = 'bureau' AND x.source_key = e.bank_subject_ref
+    JOIN gold.customer_xref x ON x.source_system = 'core_banking' AND x.source_key = e.bank_subject_ref
     QUALIFY row_number() OVER (PARTITION BY x.golden_id ORDER BY e.pull_date DESC) = 1
 ),
 
