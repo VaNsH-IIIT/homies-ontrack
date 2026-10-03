@@ -29,13 +29,12 @@ PROTECTED_TERMS = {
                               r"country of origin"),
     "age": _w(r"age|aged|ages|older customers|younger customers|elderly|seniors?|old people|young people|"
               r"age groups?|age bands?|born (?:in|before|after)|years old|year-olds?|"
-              r"(?:customers|people|borrowers|clients) (?:over|under|above|below|aged) \d\d"),
+              r"(?:customers|people|borrowers|clients) (?:over|under|above|below|aged) \d\d"
+              r"(?!\s*(?:\+\s*)?(?:days|dpd|%|percent|cad|\$))"),
 }
 # Proxies for protected grounds (design: FSA, lat/lon, employer, fsa_income_index stay out of decisions).
 PROXY_RE = _w(r"fsas?|forward sortation|postal areas?|postal codes?|postcodes?|neighbou?rhoods?|lat(?:itude)?/lon|"
               r"employer names?|income index|fsa_income_index")
-PROXY_DECISION_RE = _w(r"stop|deny|denied|exclude|refuse|avoid|prioriti[sz]e|rank|target|call first|offer less|"
-                       r"should we|cut off|default more")
 PROTECTED_COLUMNS_RE = _w(r"gender_code|marital_status|citizenship_status|household_size|dependants_count|"
                           r"newcomer_program_flag|newcomer_arrival_date|accessibility_needs_flag|accessibility_type|"
                           r"vulnerability_type|ccb_deposit_flag|customer_accent_region")
@@ -96,7 +95,7 @@ def rule_check(question: str) -> Verdict | None:
         if re.search(pattern, q):
             return _refuse("protected", f"I can't use protected attributes ({label}) as a filter, grouping or driver.",
                            "I can break results down by product, province, DPD bucket or hardship signal instead.")
-    if re.search(PROXY_RE, q) and re.search(PROXY_DECISION_RE, q):
+    if re.search(PROXY_RE, q):           # any use of a proxy for protected grounds (design: proxies stay out)
         return _refuse("protected", "Postal area (FSA), location and employer are proxies for protected grounds "
                        "and income, so I can't use them to decide who gets help or contact.",
                        "I can show hardship-plan outcomes by programme, product or DPD bucket instead.")
