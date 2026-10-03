@@ -1,10 +1,11 @@
-"""R5 (prepared, not wired yet): Ask questions over P3's gold.nba_recommendation (owner: P2).
+"""R5: Ask questions over P3's gold.nba_recommendation (owner: P2).
 
 Design, Layer 2 example: "Which open cases are most likely to roll to a worse bucket in the next 30 days?"
 -> open cases in gold.case_360 joined to gold.nba_recommendation, ranked by risk, with the top reasons per case.
 
-Wire-up waits for P3's PR (columns may change): `python -m ontrack.l2_ask.nba_questions` reports whether the
-table and the interface columns exist and prints the answer it would give.
+Wired into ask.Engine.answer: roll-forward questions are answered from the same scores the agent sees
+(design: "Layer 2 answers it from the same numbers the agent sees"). `python -m ontrack.l2_ask.nba_questions`
+checks the table and prints the answer.
 """
 from __future__ import annotations
 
@@ -25,10 +26,14 @@ def status(con) -> tuple[bool, list[str], str | None]:
 
 
 def rollforward_sql(risk_col: str, limit: int = 20) -> str:
-    return (f"SELECT r.case_id, c.current_bucket, c.current_dpd, round(r.{risk_col}, 3) AS roll_forward_risk, "
+    return (f"SELECT r.case_id, c.current_bucket, c.current_dpd, round(r.{risk_col}, 4) AS roll_forward_risk, "
             f"r.action, r.reason_1, r.reason_2, r.reason_3, r.needs_human_review "
             f"FROM gold.nba_recommendation r JOIN gold.case_360 c ON c.case_id = r.case_id "
-            f"WHERE c.outcome IS NULL ORDER BY r.{risk_col} DESC LIMIT {int(limit)}")
+            f"WHERE c.outcome IS NULL ORDER BY r.{risk_col} DESC, c.current_dpd DESC, r.case_id LIMIT {int(limit)}")
+
+
+ROLL_FORWARD_RE = (r"(most likely|highest (?:risk|chance|probability)|at (?:most |highest )?risk|riskiest).{0,60}"
+                   r"roll|roll(?:ing)?[- ]forward (?:risk|probability)|likely to roll|roll to a worse bucket")
 
 
 def main() -> int:

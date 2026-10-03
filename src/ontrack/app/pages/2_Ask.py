@@ -16,6 +16,7 @@ EXAMPLES = [
     "What was the right-party contact rate on outbound calls in September 2026, by local hour of day?",
     "How long does the 3-month reduced payment programme last, and what share of the payment is reduced?",
     "Why did outbound call volume drop on 23-24 September 2026?",
+    "Which open cases are most likely to roll to a worse bucket in the next 30 days?",
     "Rank customers by citizenship status so newcomers are called first.",
 ]
 LOG = config.WORK_DIR / "ask_log.jsonl"
