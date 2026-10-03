@@ -87,6 +87,7 @@ Should print your release folder and `True`.
 |---|---|
 | **Your tasks** for today and their acceptance criteria | [`TASKS.md`](TASKS.md) |
 | How we work (branches, PRs, rules) | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| **Architecture diagram (build phase)** | [`docs/architecture/architecture.png`](docs/architecture/architecture.png) · [PDF](docs/architecture/architecture.pdf) · source `architecture.html` |
 | What we promised to build (our design, the base) | [`docs/HOmiES_SystemDesign.pdf`](docs/HOmiES_SystemDesign.pdf) |
 | Build-phase brief (deliverables, judging, rules) | [`docs/brief/build_phase_instructions.pdf`](docs/brief/build_phase_instructions.pdf) |
 | Design-phase brief | [`docs/brief/design_phase_problem_statement.pdf`](docs/brief/design_phase_problem_statement.pdf) |
