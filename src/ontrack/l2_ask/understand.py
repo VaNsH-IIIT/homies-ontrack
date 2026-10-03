@@ -58,6 +58,15 @@ METRIC_ALIASES = [
 ]
 
 
+MULTI_PART_RE = (r"\b(?:compare[ds]?|comparison|versus|vs\.?|change[ds]? (?:between|from)|difference between|"
+                 r"which \w+(?: \w+)? (?:has|had|have|is|was) the (?:highest|lowest|most|least|best|worst)|"
+                 r"highest|lowest|top \d+|bottom \d+|rank(?:ed|ing)?)\b")
+# Always the agent, even with a grouping: superlatives, period-to-period change, a second question in the same ask.
+MULTI_PART_ALWAYS_RE = (r"\bwhich \w+(?: \w+)? (?:has|had|have|is|was) the (?:highest|lowest|most|least|best|worst)\b|"
+                        r"\bchange[ds]? (?:between|from)\b|, and (?:what|how|why|who|which)\b|"
+                        r"\band (?:what|how) (?:must|should|does|do|can)\b")
+
+
 @dataclass
 class Understood:
     metric: str | None = None
@@ -147,6 +156,11 @@ def understand(question: str, metric_id: str | None = None, as_of_date: str = co
                 break
     if not u.metric:
         return u
+    # A template answers one metric over one window, optionally grouped. Comparisons the grouping can't express,
+    # rankings and multi-part questions need the agent ("change between July and August", "which queue has the
+    # highest", "…, and what must agents do"); "compare the champion with challenger_A" stays a grouped template.
+    comparative = bool(re.search(MULTI_PART_RE, ql))
+    multi_part = bool(re.search(MULTI_PART_ALWAYS_RE, ql))
     try:
         u.start, u.end = parse_window(question, snapshot)
     except ValueError:                                   # impossible date ("31 February"): leave it to the agent
@@ -160,6 +174,8 @@ def understand(question: str, metric_id: str | None = None, as_of_date: str = co
     u.group_by, rest = parse_group(question, set(m.dims))
     if rest:
         u.unresolved.append(f"grouping '{rest}'")
+    if multi_part or (comparative and not u.group_by):
+        u.unresolved.append("comparison, ranking or multi-part question")
     if re.search(r"\brandomi[sz]ed\b", ql):
         u.filters.append("c.assignment_method = 'random'" if "c." in m.source or u.metric.startswith(("promise", "broken"))
                          else "assignment_method = 'random'")

@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from ontrack import config
 from ontrack.l2_ask import llm, metrics, scope, sql_guard, understand
 
-PROMPT_VERSION = "ask-v8"
+PROMPT_VERSION = "ask-v9"
 MAX_TURNS = 14
 MAX_SQL_ERRORS = 6          # repair budget across the whole question (design: up to two per query)
 RESULT_PREVIEW_ROWS = 40
@@ -169,6 +169,12 @@ How to answer:
   formats; use it only when a question is about CRM records themselves.
 - Group by attributes of the matched records with inner joins; do not add 'unknown' / 'other' groups for rows whose
   key is missing unless the question asks for them.
+- A "customer" is a person: count golden customers in gold.c360_customer (one row per person; products_held,
+  total_exposure, open_case_count, consent flags). bronze.customers holds CRM records (1.02M, with duplicates).
+- Answer every part of the question. A question with a number AND a rule ("how many …, and what must agents do")
+  is kind "explain": the number from SQL plus the rule from the documents, both cited. A change or comparison
+  between periods returns one row per period (and the difference in answer_text). "Which X has the highest …"
+  returns all X ranked, with the top one named in answer_text (kind "explain").
 - Label periods and groups in the question's own words (e.g. '15-22 Sep', '7-14 Sep'), not ISO ranges.
 - Document questions: answer in one or two plain sentences with the key facts (numbers, durations, conditions),
   from CURRENT documents only; where an FAQ or script disagrees with a policy or programme terms, the policy wins. sources = list like ["POL-COLL-001 §5.2", "FAQ-COLL-001 Q2", "qa_checklist item 7"].
@@ -447,7 +453,9 @@ class Engine:
             except Exception as e:  # noqa: BLE001
                 return Answer(f"Could not run the final query: {e}", sql, False, "error", understood)
             src = safe if not sources else safe + "\n-- sources: " + json.dumps(sources, ensure_ascii=False)
-            if final.get("kind") == "explain" and text:
+            cites_docs = any(re.match(r"(POL|PRC|FAQ|HPT|REG|IR|SCR|DC|REL)-|qa_checklist|ops_events", str(s))
+                             for s in sources)
+            if text and (final.get("kind") == "explain" or cites_docs):   # keep the rule a data answer cites
                 return Answer(text + "\n\n" + format_table(df), src, False, "explain", understood, table=df,
                               sql=safe)
             return Answer(format_table(df), src, False, "data", understood, table=df, sql=safe)
