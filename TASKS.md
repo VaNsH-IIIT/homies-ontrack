@@ -5,6 +5,17 @@ Status: `[ ]` to do · `[~]` in progress · `[x]` merged to `main`. Update your 
 
 **Tasks say what must work, not how.** The "Done when" column and the interfaces in the README are fixed; the approach inside your folders is yours: choose libraries, prompts, features and models, and experiment. Fixed regardless: the table names and columns in the interfaces, the hackathon rules (no protected attributes, a plain-English reason for every decision, human review, hardship flagged), and the design as the base (log any change and why).
 
+## 📌 Review notes from P1 — read these first (updated 14:25 IST)
+
+| For | Issue | What to do |
+|---|---|---|
+| **P3 (Kris)** | [#1](https://github.com/VaNsH-IIIT/homies-ontrack/issues/1) | `features.py` uses 8 column names that don't exist in the real data, so `run.py` fails. The issue lists each fix. |
+| **P3 (Kris)** | [#2](https://github.com/VaNsH-IIIT/homies-ontrack/issues/2) | Agent card buttons must really log decisions: call `record_decision()` from `ontrack.app.common` (already on `main`). |
+| **P3 (Kris)** | both | Put T1–T4 + the agent card on **one branch**, fix #1 and #2, test with `python -m ontrack.l4_nba.run` on real data or the dev sample, then open **one PR**. Comment on the issues when done. |
+| **P2 (Garv)** | — | Accept the GitHub invite (github.com/VaNsH-IIIT/homies-ontrack/invitations), then start at the README. |
+
+To see issues assigned to you: `gh issue list --assignee @me --repo VaNsH-IIIT/homies-ontrack`
+
 ## Phase 1 → **16:30 IST, 3 Oct** for P2 and P3 (first end-to-end test 16:30–17:30)
 
 Goal: every layer runs at a basic level on real data, then we improve.
