@@ -25,6 +25,23 @@ Training rows: cases **open and unresolved** at each monthly as_of 2025-11-01, 2
 
 Top drivers of the self-cure model (mean |SHAP| on the test month): `bureau_delinquent_trades`, `inbound_30d`, `bureau_inquiries_6m`, `case_age_days`, `salary_drop_pct`, `hardship_mentioned_any`.
 
+### Calibration (test month)
+
+| decile (1 = least likely) | cases | predicted self-cure | observed self-cure |
+|---|---|---|---|
+| 1 | 3,231 | 0.002 | 0.001 |
+| 2 | 3,230 | 0.028 | 0.010 |
+| 3 | 3,230 | 0.073 | 0.027 |
+| 4 | 3,230 | 0.121 | 0.059 |
+| 5 | 3,231 | 0.188 | 0.133 |
+| 6 | 3,230 | 0.288 | 0.247 |
+| 7 | 3,230 | 0.385 | 0.354 |
+| 8 | 3,230 | 0.455 | 0.408 |
+| 9 | 3,230 | 0.521 | 0.443 |
+| 10 | 3,231 | 0.689 | 0.618 |
+
+The order is right (observed self-cure rises steadily from decile 1 to 10), but the calibrator fitted on 2026-06-01 over-predicts in every decile: by up to 8 points, 4.5 on average. That is the base-rate drift in this data (cases open on 2026-06-01 self-cured 32% of the time within 30 days, on 2026-07-01 23%, on 2026-08-29 10%). It is why the agent card's probabilities come from a calibrator fitted on 2026-08-29, the latest month with a complete outcome and the closest to today's open book, and why the ranker uses a relative threshold (3.5x the open book's rate) rather than a fixed one. Ranking quality (AUC) does not depend on calibration.
+
 ## 2. Back-test against the bank's models, like with like
 
 Same cases, same date: every case open and unresolved on 2026-07-01, outcome after it. Our self-cure model vs the bank's `model_scores` (latest score on or before that date, `cure_30d`, `self_cure` and `roll_forward_30d` reversed). We do **not** compare cure rates by `nba_recommendation_last`: that column is tied to how cases ended (selection, not effect).

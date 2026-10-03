@@ -145,8 +145,9 @@ WHERE f.as_of_date = DATE '{as_of}'
 
 TEXT_COLS = ("t.text_hardship_90d, t.text_hardship_evidence, t.text_hardship_source, "
              "t.text_hardship_confidence, t.text_dispute_any")
-NO_TEXT_COLS = ("NULL AS text_hardship_90d, NULL AS text_hardship_evidence, NULL AS text_hardship_source, "
-                "NULL AS text_hardship_confidence, NULL AS text_dispute_any")
+NO_TEXT_COLS = ("NULL::BOOLEAN AS text_hardship_90d, NULL::VARCHAR AS text_hardship_evidence, "
+                "NULL::VARCHAR AS text_hardship_source, NULL::DOUBLE AS text_hardship_confidence, "
+                "NULL::BOOLEAN AS text_dispute_any")
 
 
 def has_text_signals(con) -> bool:
@@ -164,8 +165,9 @@ def route_cases(con, as_of: str = config.SNAPSHOT_DATE) -> pd.DataFrame:
     df = con.execute(sql).fetchdf()
     routed = pd.DataFrame([assess_hardship(r) for r in df.to_dict("records")], index=df.index)
     out = pd.concat([df[["case_id"]], routed], axis=1)
-    out["text_evidence"] = df["text_hardship_evidence"].where(df["text_hardship_90d"].fillna(False).astype(bool))
-    out["text_source"] = df["text_hardship_source"].where(df["text_hardship_90d"].fillna(False).astype(bool))
+    has_text = df["text_hardship_90d"].astype("boolean").fillna(False).astype(bool)
+    out["text_evidence"] = df["text_hardship_evidence"].where(has_text)
+    out["text_source"] = df["text_hardship_source"].where(has_text)
     if not text:
         print("  (features.text_signals_case not found: routing without text signals)")
     return out

@@ -89,15 +89,13 @@ ROUND_DECIMALS = 6   # parallel float sums can differ in the last bits between r
 
 
 def ensure_features(con, dates: list[str]) -> None:
-    """Build the feature rows for any of ``dates`` not yet in features.case_features."""
-    have = set()
-    try:
-        have = {str(r[0]) for r in con.execute(f"SELECT DISTINCT as_of_date FROM {TABLE}").fetchall()}
-    except Exception:
-        pass
+    """(Re)build the feature rows for every date in ``dates``.
+
+    Always rebuilt (about 3 s per date), never reused: rows left over from an older feature definition or an
+    older Layer 1 build would silently train the model on different inputs than the ones it scores.
+    """
     for d in dates:
-        if d not in have:
-            build_case_features(con, d)
+        build_case_features(con, d)
 
 
 def load_frame(con, model_name: str, dates: list[str]) -> pd.DataFrame:
@@ -233,6 +231,9 @@ def predict(model: dict, df: pd.DataFrame) -> np.ndarray:
 
 def train_all(con) -> dict[str, dict]:
     ensure_features(con, TRAIN_DATES + [VALID_DATE, TEST_DATE, LIVE_CALIBRATION_DATE])
+    con.execute(f"DELETE FROM {TABLE} WHERE as_of_date NOT IN "
+                f"({', '.join(repr(d) for d in TRAIN_DATES + [VALID_DATE, TEST_DATE, LIVE_CALIBRATION_DATE])}, "
+                f"DATE '{config.SNAPSHOT_DATE}')")
     return {name: train_model(con, name) for name in LABEL_SQL}
 
 

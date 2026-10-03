@@ -389,6 +389,7 @@ def build_recommendations(con, routed: pd.DataFrame, as_of: str = config.SNAPSHO
                coalesce(cu.deceased_flag, false) OR coalesce(c.deceased_hold_flag, false) AS deceased_flag,
                coalesce(cu.third_party_hold_flag, false) OR coalesce(c.third_party_rep_flag, false) AS third_party_hold_flag,
                coalesce(c.dispute_flag, false) AS dispute_flag,
+               coalesce(cu.vulnerability_flag, false) OR coalesce(c.vulnerable_customer_flag, false) AS vulnerability_flag,
                coalesce(c.contacts_last_7d, 0) AS contacts_last_7d, coalesce(c.contact_cap_7d, 7) AS contact_cap_7d
         FROM {TABLE} f
         JOIN gold.case_360 c ON c.case_id = f.case_id
