@@ -33,13 +33,15 @@ Our submitted design is the base: [`docs/HOmiES_SystemDesign.pdf`](docs/HOmiES_S
 | 4 · Next best action | Self-cure AUC 0.83 on an unseen month, against 0.72 for the bank's model on the same cases; every action within policy rules and call capacity; hardship and vulnerable customers to a person; about +$163K more expected payments per round of contacts than the bank's current recommendations (conservative: median payment, automated cases only); automated decisions within 5.5 points across protected groups |
 | Tests | `pytest tests/`: 200 unit tests across all layers, no dataset needed |
 
-**Run it in three steps** (details in [Setup](#setup)):
+**Run it in four steps** (details in [Setup](#setup)):
 ```bash
+# 0. Get the data (2.3 GB zip, ~12 GB unzipped), outside the repo: see Setup §4 (hf download, then tar -xf on Windows)
 pip install -r requirements.txt && pip install -e .                 # Python 3.10+, short path on Windows
 cp .env.example .env                    # Windows cmd: copy .env.example .env; set MAPLE_DATA_DIR and ONTRACK_WORK_DIR
 python scripts/run_all.py --with-bronze --transcripts 0 && streamlit run src/ontrack/app/main.py
 ```
-`--transcripts 0` needs no LLM. Ask's document and call questions use Claude: `ANTHROPIC_API_KEY` in `.env`, or a logged-in Claude Code CLI.
+**Everything runs without an API key.** Only Ask's document, call and "explain" answers (16 of the 35 benchmark questions) need Claude: `ANTHROPIC_API_KEY` in `.env`, or a logged-in Claude Code CLI. `--transcripts 0` sends nothing to Claude.
+**Your run never overwrites the submitted files:** it writes its benchmark answers and data quality report to `$ONTRACK_WORK_DIR/outputs/`. The committed [`benchmark/answers.csv`](benchmark/answers.csv) and [`docs/data_quality_report.md`](docs/data_quality_report.md) come from the full data (`run_all.py --update-deliverables`, and `run_benchmark --out benchmark/answers.csv`).
 
 ---
 
@@ -77,7 +79,7 @@ Shared files: `requirements.txt` (append only; say what you added in your PR) an
 - **Python 3.10+** and **git**.
 - **About 12 GB free disk** for the dataset, on any drive, **outside the repo**. Example: `D:\maple_data`.
 - 8 GB+ RAM. With less, use the **dev sample** (see [`TASKS.md`](TASKS.md), task P1-T2).
-- An **Anthropic API key** for the LLM parts (P2 and P3).
+- Optional: an **Anthropic API key** or a logged-in Claude Code CLI, only for Ask's document, call and explain answers. Everything else runs without it.
 
 ### 2. Clone and install
 > **Windows:** clone into a **short path** (e.g. `C:\dev\homies-ontrack`). Streamlit ships deeply nested files, and under a long folder path `pip install` fails with `OSError: [Errno 2] No such file or directory` (the 260-character path limit). Installing on a slow connection takes 15–20 minutes, so start early.
@@ -102,11 +104,11 @@ ANTHROPIC_API_KEY=sk-ant-...
 ```bash
 pip install -U huggingface_hub
 hf download nuxsh/maple-collections-hackathon maple_collections_release.zip --repo-type dataset --local-dir D:/maple_data
-cd D:/maple_data && unzip maple_collections_release.zip
+cd D:/maple_data && tar -xf maple_collections_release.zip     # Windows 10/11 and macOS/Linux; or unzip / Expand-Archive
 ```
 Skip the voice zip: our design uses voice through transcripts only, with no acoustic features.
 
-**Low on disk or RAM?** Use the **dev sample** instead: a consistent 5% of people (all their accounts, cases, contacts and transcripts), about 350 MB, in exactly the same layout. Get `maple_sample.zip` from P1 (Drive link), unzip it anywhere and set `MAPLE_DATA_DIR` to that folder. Every command below works unchanged and runs in seconds.
+**Low on disk or RAM?** Use the **dev sample** instead: a consistent 5% of people (all their accounts, cases, contacts and transcripts), about 350 MB, in exactly the same layout. Build it from the release in about 15 s: `python scripts/make_sample.py --pct 5 --out D:/maple_sample`, then set `MAPLE_DATA_DIR=D:/maple_sample`. Every command below works unchanged, and the whole `run_all.py --with-bronze` takes about 80 s. On the sample, the Agent card opens on the top hardship case, because the demo case `CS-2026-583749` exists only in the full data.
 
 ### 5. Check it works
 ```bash

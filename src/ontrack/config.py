@@ -11,6 +11,20 @@ DATA_DIR = Path(os.environ.get("MAPLE_DATA_DIR", REPO_ROOT / "data" / "maple_col
 WORK_DIR = (REPO_ROOT / os.environ.get("ONTRACK_WORK_DIR", "data")).resolve()
 WORK_DIR.mkdir(parents=True, exist_ok=True)
 
+# Committed deliverables (benchmark/answers.csv, docs/data_quality_report.md) are only rewritten on purpose:
+# ONTRACK_WRITE_DELIVERABLES=1 (run_all --update-deliverables). Otherwise outputs go to WORK_DIR/outputs, so a
+# run on a sample or without an LLM never overwrites the submitted files in a clone.
+WRITE_DELIVERABLES = os.environ.get("ONTRACK_WRITE_DELIVERABLES") == "1"
+
+
+def deliverable_path(repo_relative: str) -> Path:
+    """Where a committed deliverable is written: the repo copy only when WRITE_DELIVERABLES is set."""
+    if WRITE_DELIVERABLES:
+        return REPO_ROOT / repo_relative
+    out = WORK_DIR / "outputs" / Path(repo_relative).name
+    out.parent.mkdir(parents=True, exist_ok=True)
+    return out
+
 SNAPSHOT_DATE = "2026-09-28"
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
