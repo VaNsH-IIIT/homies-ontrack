@@ -5,10 +5,11 @@ Status: `[ ]` to do · `[~]` in progress · `[x]` merged to `main`. Update your 
 
 **Tasks say what must work, not how.** The "Done when" column and the interfaces in the README are fixed; the approach inside your folders is yours: choose libraries, prompts, features and models, and experiment. Fixed regardless: the table names and columns in the interfaces, the hackathon rules (no protected attributes, a plain-English reason for every decision, human review, hardship flagged), and the design as the base (log any change and why).
 
-## Phase 1: now → **14:00 IST, 3 Oct** (first end-to-end test)
+## Phase 1 → **16:30 IST, 3 Oct** for P2 and P3 (first end-to-end test 16:30–17:30)
 
-Goal: every layer runs at a basic level on real data, so we can test end to end at 14:00 and then improve.
-Until P1's `gold.*` tables land (~13:30), P2 and P3 build on the `bronze.*` views (available ~11:00; until then read the raw files with DuckDB directly).
+Goal: every layer runs at a basic level on real data, then we improve.
+**P1's Layer 1 is done and on `main`:** run `python -m ontrack.l1_factory.bronze` once (~10 min) and `python -m ontrack.l1_factory.build` (~1 min) to get every `bronze.*` and `gold.*` table in your local DuckDB. Times in the "By" column below were set for a 9:30 start: shift yours by your start time, but aim to finish phase 1 by 16:30.
+**When your phase-1 tasks are done, continue straight into your phase-2 tasks below; don't wait.**
 
 ### P1 · Vansh · Layer 1 (Data Product Factory) + integration
 
@@ -42,28 +43,52 @@ The benchmark is **scored automatically** and counts towards the 30% technical s
 | P3-T4 | 13:45 | Models v0 (LightGBM): self-cure and payment-within-7-days (or roll-forward), time split; compare with the existing `model_scores` and `nba_recommendation_last` | metrics printed (AUC, calibration) |
 | P3-T5 | 14:00 | Ranker + explanations v0 → `gold.nba_recommendation` for open cases, with `reason_1..3` in plain English and `blocked_actions`; `l4.decision_log` table + `record_decision()` for accept/edit/reject | recommendations for all open cases; a sample of 5 printed with reasons |
 
-## 14:00 → 15:00 · First end-to-end test (P1 runs it on the full data)
+## 16:30 → 17:30 · First end-to-end test (P1 runs it on the full data)
 
 1. `l1_factory.build` → gold tables exist with interface columns.
-2. `l2_ask.run_benchmark` on the dev split → dev score.
+2. `l2_ask.run_benchmark` on the released questions → dev score.
 3. `l4_nba.run` → recommendations with reasons for open cases.
-4. Each owner fixes what broke in their own part. P1 updates this board with phase 2.
+4. Each owner fixes what broke in their own part.
 
-## Phase 2: after 15:00 (to be confirmed at the checkpoint)
+## Phase 2 · after your phase 1 → 22:00 IST, 3 Oct (start each as soon as you finish phase 1)
+
+### P1 · Vansh
+| ID | Task | Done when |
+|---|---|---|
+| ✅ P1-T2 | 5% dev sample (`scripts/make_sample.py`) | sample zip shared by Drive |
+| P1-T6 | Probabilistic matching (Splink) for keys left unlinked by tiers 1–2; precision/recall measured on held-out tier-1 case-to-account links | fewer singletons; precision/recall in the DQ report |
+| P1-T7 | Data contract YAML for `gold.c360_customer`, from `files/docs/data_contracts/` (DC-COLL-001) | `contracts/c360_customer.yaml` with owner, schema, quality rules, allowed uses, refresh |
+| P1-T8 | Streamlit shell `src/ontrack/app/main.py` + page `1_C360.py` (customer lookup: golden record, linked keys with match confidence, accounts, timeline) | `streamlit run src/ontrack/app/main.py` shows pages 1–3 (2 and 3 load when P2/P3 add them) |
+| P1-T9 | Final architecture diagram (PNG/PDF) in `docs/` | file in repo |
+
+### P2 · Garv
+| ID | Task | Done when |
+|---|---|---|
+| P2-T6 | Text signals with Claude: `hardship_signal`, `stated_delay_reason`, `stated_payday`, `dispute_mentioned`, each with a confidence and the exact evidence quote (+ `turn_index`). Score on `labels/agent_notes_labels_public_500.csv` and `labels/call_transcripts_labels_public_500.csv`; then run on notes/transcripts of open cases (batched, cached) → `features.text_signals` | precision/recall per signal printed; table written with the interface columns |
+| P2-T7 | Cited search (RAG) over `reference_documents` (`files/docs/`) and agent notes, for document-type benchmark questions; answers cite `doc_id` / section or `note_id` | document questions in the dev set answered with citations |
+| P2-T8 | Ask page `src/ontrack/app/pages/2_Ask.py`: question box, editable "understood as" tokens, answer table, **SQL shown**, clear refusal message | page works in the app |
+| P2-T9 | Benchmark hardening: full released set (dev + test) → `benchmark/answers.csv` in one command; error analysis on dev; ready for the 19:00 extra questions on 4 Oct | answers file for all questions; dev score in PR |
+
+### P3 · Kris
+| ID | Task | Done when |
+|---|---|---|
+| P3-T6 | SHAP-based reasons: top 3 drivers per recommendation mapped to plain-English templates, plus a counterfactual line ("would change if …") | every recommendation has 3 readable reasons |
+| P3-T7 | Hardship routing: combine structured signals (payroll delay, EI deposits, payment failures, case `hardship_flag`) with `features.text_signals` from P2 (when available) → `hardship_flag`, `needs_human_review`; hardship / vulnerability / dispute / complaint cases go to a human-only queue | counts of routed cases printed; routing reason stored |
+| P3-T8 | Agent card page `src/ontrack/app/pages/3_Agent_Card.py`: pick a case → recommendation, reasons, blocked actions, hardship alert; accept / edit / reject with reason → `l4.decision_log` | an override recorded from the UI |
+| P3-T9 | Evaluation for the deck: back-test vs `nba_recommendation_last` and `model_scores`; fairness check offline (recommended-action rates by protected group, used only to test) | numbers in `src/ontrack/l4_nba/EVALUATION.md` |
+
+## Phase 3 · 4 Oct (planned at the 17:30 review)
 
 | Owner | Planned |
 |---|---|
-| P1 | Splink probabilistic matching + held-out precision/recall; data contract YAML from DC-COLL-001; architecture diagram (PNG/PDF); data quality report final; Streamlit shell; README "how to run" |
-| P2 | Text signals (`hardship_signal`, `stated_delay_reason`, `stated_payday`, `dispute_mentioned`) scored on the 500 public labels → `features.text_signals`; cited search (RAG) over notes and policies; Ask page in the app |
-| P3 | SHAP reasons, hardship routing to the human-only queue, agent card page with accept/edit/reject, fairness and proxy check, offline evaluation vs baselines |
-| All | Demo video (≤ 5 min), pitch deck (≤ 10 slides), final benchmark run at 19:00 on 4 Oct |
+| All | Polish, bug fixes on full data, README "how to run", deck (≤ 10 slides), 5-minute demo video, final benchmark run at 19:00 |
 
 ## Milestones
 
 | By (IST) | Milestone |
 |---|---|
-| 3 Oct, 11:00 | Bronze views on `main`; everyone has data loaded |
-| **3 Oct, 14:00** | **Phase 1 done; first end-to-end test** |
+| ✅ 3 Oct, 11:15 | Layer 1 (bronze → gold, DQ report, dev sample) on `main` |
+| **3 Oct, 16:30** | **P2/P3 phase 1 done; first end-to-end test** |
 | 3 Oct, 22:00 | Phase 2 core working on full data |
 | 4 Oct, 12:00 | Benchmark runner stable in one command; demo app runs end to end |
 | 4 Oct, 17:00 | Deliverables drafted: contract, DQ report, architecture, README, deck |
