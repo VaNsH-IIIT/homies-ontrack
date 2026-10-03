@@ -5,14 +5,15 @@ Status: `[ ]` to do · `[~]` in progress · `[x]` merged to `main`. Update your 
 
 **Tasks say what must work, not how.** The "Done when" column and the interfaces in the README are fixed; the approach inside your folders is yours: choose libraries, prompts, features and models, and experiment. Fixed regardless: the table names and columns in the interfaces, the hackathon rules (no protected attributes, a plain-English reason for every decision, human review, hardship flagged), and the design as the base (log any change and why).
 
-## 📌 Review notes from P1 — read these first (updated 15:45 IST)
+## 📌 Review notes from P1 — read these first (updated 16:15 IST)
 
 | For | Issue | What to do |
 |---|---|---|
-| **P3 (Kris)** | [#1](https://github.com/VaNsH-IIIT/homies-ontrack/issues/1) | ✅ Column names fixed: `p3/working` now runs end to end on full data, 55/55 tests pass. |
-| **P3 (Kris)** | [#3](https://github.com/VaNsH-IIIT/homies-ontrack/issues/3) | **Fix next:** label leakage (AUC 0.964 / 0.997). Train only on cases open and unresolved at `as_of`, labels strictly after `as_of`. Details in the issue. |
+| **P3 (Kris)** | [#3](https://github.com/VaNsH-IIIT/homies-ontrack/issues/3) | **Fix next:** label leakage (AUC 0.964 / 0.997). Train only on cases open and unresolved at `as_of`, with labels strictly after `as_of`. Then revert your edits to P1 files (README, TASKS, docs/) as asked in #3. |
+| **P3 (Kris)** | [#5](https://github.com/VaNsH-IIIT/homies-ontrack/issues/5) | Garv's questions: does the `features.text_signals` interface work for you, and do you want a per-case roll-up? Ping there when `gold.nba_recommendation` is on `main`. |
 | **P3 (Kris)** | `p3/working` | After #3: merge `main` in (`AI_TOOLS.md` conflict: keep both sets of rows), then open **one PR**. |
-| **P2 (Garv)** | runner | Benchmark notes and runner look good (all files in your folders). Open a PR when the dev score is in; decision on `promises_to_pay` for Layer 2 is with P1. |
+| **P2 (Garv)** | [PR #4](https://github.com/VaNsH-IIIT/homies-ontrack/pull/4) | P1 opened it for T1–T4 and tested it on `main` (35/35 answered, dev 13/21, refusals 3/3, red-team 26/26). Review notes are in the PR: the model ID should be `claude-opus-5-5`, and the `claude -p` fallback isn't pushed yet. R1 (`promises_to_pay`) and R3 (who runs the final benchmark) are with P1. |
+| **P1 (Vansh)** | | ✅ #1, #2 closed (P3). Data steward review page for the match queue: in progress. |
 
 To see issues assigned to you: `gh issue list --assignee @me --repo VaNsH-IIIT/homies-ontrack`
 
