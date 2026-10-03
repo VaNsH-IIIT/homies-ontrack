@@ -55,7 +55,7 @@ CRM <code>customers</code> · cards <code>card_accounts</code> · lending <code>
   <div class="steps">
     <div class="step"><b>Bronze</b><br>All 31 tables typed from <code>schema.json</code>; IDs keep leading zeros; <code>NA</code> outcome kept. Row counts <span class="num">31/31 match</span>; cast failures and schema drift logged.</div>
     <div class="harr">→</div>
-    <div class="step"><b>Silver</b><br>Per-system name formats (3 card, 2 loan, 2 deposit), DOB in 4 formats, phones (masked digits), postal codes; current CRM rows. <span class="num">18 issue types</span> counted.</div>
+    <div class="step"><b>Silver</b><br>Per-system name formats (3 card, 2 loan, 2 deposit), DOB in 4 formats, phones (masked digits), postal codes; current CRM rows. <span class="num">19 issue types</span> counted.</div>
     <div class="harr">→</div>
     <div class="step"><b>Identity resolution</b> <span class="ai">AI</span> <span class="hu">HUMAN</span><br>Tier 1 bridges (case accounts, PAD, national id, CRM duplicates) → tier 2 exact rules → tier 3 Splink. Conflict guard: never merge different birthdates. <span class="num">Precision 99.8%, recall 99.4%</span> on 5,000 known links. Grey zone (<span class="num">1,924</span>) → data steward approves / rejects; decisions feed the next build.</div>
     <div class="harr">→</div>

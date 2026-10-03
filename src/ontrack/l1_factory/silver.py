@@ -1,6 +1,6 @@
 """Silver: cleaned, standardised, current records (owner: P1).
 
-    python -m ontrack.l1_factory.silver
+    python -m ontrack.l1_factory.silver            (python -m ontrack.l1_factory.silver --dq-only: only recount data issues)
 
 Each source system stores identity fields in its own format; silver brings them to one shape
 so Layer 1 matching can compare like with like:
@@ -184,24 +184,34 @@ DQ_CHECKS = [
     ("Postal codes with inconsistent spacing or case", "all party sources",
      "SELECT count(*) FROM bronze.customers WHERE postal_code_raw IS NOT NULL AND postal_code_raw <> postal_code",
      "Normalised to A1A1A1 (postal6) and FSA"),
+    ("Agent notes with accented letters lost as U+FFFD (encoding damage in the source, mostly French)", "agent_notes",
+     "SELECT count(*) FROM bronze.agent_notes WHERE contains(note_text, chr(65533))",
+     "Words restored where exactly one known spelling fits (l3_features/text/accents.py, P2): 4,622 of 4,636; "
+     "used for text signals, search and quotes shown to agents"),
 ]
 
 
-def main() -> None:
-    con = connect()
-    for name, sql in STEPS.items():
-        con.execute(f"CREATE OR REPLACE TABLE silver.{name} AS {sql}")
-        n = con.execute(f"SELECT count(*) FROM silver.{name}").fetchone()[0]
-        print(f"silver.{name:18s} {n:>12,d} rows", flush=True)
-
+def run_dq_checks(con) -> None:
+    """Count every known data issue into silver._dq_issues (read by the DQ report and the home page)."""
     con.execute("CREATE OR REPLACE TABLE silver._dq_issues (issue VARCHAR, table_name VARCHAR, "
                 "records_affected BIGINT, handling VARCHAR)")
     for issue, table, sql, handling in DQ_CHECKS:
         n = con.execute(sql).fetchone()[0]
         con.execute("INSERT INTO silver._dq_issues VALUES (?, ?, ?, ?)", [issue, table, n, handling])
         print(f"  DQ {n:>10,d}  {issue}", flush=True)
+
+
+def main(dq_only: bool = False) -> None:
+    con = connect()
+    if not dq_only:
+        for name, sql in STEPS.items():
+            con.execute(f"CREATE OR REPLACE TABLE silver.{name} AS {sql}")
+            n = con.execute(f"SELECT count(*) FROM silver.{name}").fetchone()[0]
+            print(f"silver.{name:18s} {n:>12,d} rows", flush=True)
+    run_dq_checks(con)
     con.close()
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    main(dq_only="--dq-only" in sys.argv)
