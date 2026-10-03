@@ -43,6 +43,7 @@ def main() -> int:
         ("L3 text signals (all notes and calls; Claude on the most recent calls)", "ontrack.l3_features.text.extract",
          ["--llm-transcripts", str(args.transcripts), "--workers", "4"]),
         ("L4 features, models, recommendations", "ontrack.l4_nba.run", []),
+        ("Feedback loop: decisions + outcomes -> labels for retraining", "ontrack.feedback", []),
         ("L2 benchmark answers", "ontrack.l2_ask.run_benchmark",
          ["--questions", questions, "--out", (config.REPO_ROOT / "benchmark" / "answers.csv").as_posix(), "--workers", "4"]),
     ]
