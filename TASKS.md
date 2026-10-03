@@ -44,6 +44,24 @@ Each one is done only when its "done when" holds on the full data. Post the resu
 | V5 | **Vansh (P1)** | Clear test decisions; record P1 segments; stitch the video (≤ 5:00); deck → PDF | Video uploaded unlisted, linked in the README |
 
 
+### 🌙 P1 is offline for ~3 hours (Claude limit): work plan and merge rules until P1 is back
+
+**Merge rule while P1 is away:** open a PR as usual. The *other* teammate reviews it and merges it (merge commit, never squash) only if **all** of these hold on their own machine:
+1. `pytest tests/` passes in full;
+2. `python scripts/run_all.py --skip-l1` ends all OK (no new LLM calls by default);
+3. the PR touches only the author's folders;
+4. `benchmark/answers.csv`, `README.md`, `TASKS.md` and `docs/` are untouched (P1 files).
+
+Post the check results as a PR comment. Anything that needs P1 goes in issue #13; P1 reads it on return.
+**Save Claude limits for tomorrow 19:00:** don't run `--transcripts N` or anything else that sends new calls to Claude.
+
+**Garv, in order (~3 h):** G1 answer stability → G2 dry run of the 19:00 run → G3 Ask page bad inputs → **G5** R5 polish: leave bucket `180+` out of "roll forward", or call it charge-off risk (agree the wording with Kris on #13) → **review Kris's PRs** → G4 record your segment if your app is ready.
+
+**Kris, in order (~3 h):** K1 repeatable training (seeds + `deterministic=True`) and regenerate `EVALUATION.md` → K2 check the video facts (incl. "salary deposits stopped") → K3 agent card on edge cases → **K5** `p_roll_forward` for `180+` cases (agree with Garv on G5) → **review Garv's PRs** → K4 record your segment.
+
+**Done when** is in the ✨ table above. Post one line per finished task in #13: task id, result, PR link.
+
+
 Rules unchanged: stay in your folders, PRs to `main`, never commit data / `.duckdb` / `.env`, no hand edits to `answers.csv`.
 
 To see issues assigned to you: `gh issue list --assignee @me --repo VaNsH-IIIT/homies-ontrack`
