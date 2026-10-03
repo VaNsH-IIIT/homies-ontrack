@@ -13,8 +13,8 @@ Status: `[ ]` to do · `[~]` in progress · `[x]` merged to `main`. Update your 
 | ID | Who | Task | Done when | By |
 |---|---|---|---|---|
 | G6 | **Garv** | Open a PR for `p2/P2-G-polish` (G2 `--retry-failed`, G3 Ask hardening) and post the **G1** result (3 fresh runs) in #13 | PR open, the peer-merge checks in the description, G1 diff posted | 10:00 |
-| K5 | **Kris** | #16: P1 approves the design (`p_roll_forward` NULL for `180+`, new `p_charge_off_risk`, `current_bucket`). Rebase on `main`, mark it ready, add full-data counts | 180+ count and top-5 of each list in the PR; pytest and `run_all --skip-l1` OK | 10:00 |
-| G5 | **Garv** | After #16 merges: R5 roll-forward uses `NULLS LAST` (no `180+` in the answer); add the example "which open cases are closest to charge-off?" on `p_charge_off_risk` | Both questions answer with SQL on the Ask page; dev still 21/21 | 12:00 |
+| ✅ K5 | **Kris** | #16 (merged 01:00, keyed on DPD 151–180 → `p_charge_off_risk`, 4,000 cases; 92,000 keep `p_roll_forward`): P1 approved the design (`p_roll_forward` NULL for `180+`, new `p_charge_off_risk`, `current_bucket`). Rebase on `main`, mark it ready, add full-data counts | 180+ count and top-5 of each list in the PR; pytest and `run_all --skip-l1` OK | 10:00 |
+| G5 | **Garv** | #16 is merged. R5 roll-forward: order by the probability `DESC NULLS LAST`, then `overdue_now DESC`, then `case_id` (24,458 cases tie at ≈1.0, so the tie-break decides the top 10); add the example "which open cases are closest to charge-off?" on `p_charge_off_risk` | Both questions answer with SQL on the Ask page; dev still 21/21 | 12:00 |
 | — | **Garv ↔ Kris** | Review each other's PRs (#16, G6) with the 🌙 peer-merge checks; P1 merges | Check results posted on the PR | 12:00 |
 | G4 | **Garv** | Record the Ask segment (1:15–2:15), 1080p, ≤ 60 s; `warm_demo` first. Drive link to P1 | File received by P1 | **14:00** |
 | K4 | **Kris** | Record the Agent card + evaluation segment (2:15–4:15), 1080p, ≤ 2:00. The checked script in `VIDEO_AGENT_CARD_SEGMENT.md`; can show "Why this channel" | File received by P1 | **14:00** |
@@ -22,7 +22,7 @@ Status: `[ ]` to do · `[~]` in progress · `[x]` merged to `main`. Update your 
 | K6 | **Kris** | Online 19:45–20:30: after the final `run_all` on P1's machine, P1 regenerates `EVALUATION.md` there (`python -m ontrack.l4_nba.evaluation`) and you OK the diff, so it matches the submission build | Your OK in #13 | 20:15 |
 | V3 | **Vansh** | Demo run #2 feedback; decide the call policy (#17: keep calls as policy, or let the economics decide) and whether Anuj goes on the deck cover | Decisions posted in #13 | 11:00 |
 | V5 | **Vansh** | Clear test decisions; record P1 segments (0:00–1:15, 4:15–5:00); stitch to ≤ 5:00, upload unlisted; deck → PDF; README links | Video link and deck PDF in the README | 18:30 |
-| V6 | **P1 (Claude)** | Sync deck, README, diagram and video script to P1's build after #16 (8,877 → 8,883, 59,939 → 59,942, 46,226 → 46,235) | No number differs from P1's build | 12:00 |
+| ✅ V6 | **P1 (Claude)** | Sync deck, README, diagram and video script to P1's build after #16 (8,877 → 8,883, 59,939 → 59,942, 46,226 → 46,235) | No number differs from P1's build | 12:00 |
 | — | **All** | **19:00** final benchmark → **20:00** code freeze → final `run_all` + pytest → README links check → **submit by 20:30** (deadline 21:00) | Submitted | 20:30 |
 
 **No new Claude calls before 19:00** (`--transcripts 0` stays the default). Post one line per finished task in #13.

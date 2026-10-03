@@ -29,7 +29,7 @@ Our submitted design is the base: [`docs/HOmiES_SystemDesign.pdf`](docs/HOmiES_S
 |---|---|
 | 1 · Customer 360 | 1,015,637 golden customers for 1,000,000 people; probabilistic matching precision 99.8%, recall 99.4% on 5,000 known links; 0 people merged across birthdates; contract 8/8; 19 data issue types handled |
 | 2 · Ask | Benchmark dev 21/21; 21 unseen questions 21/21; red-team 26/26 refused, 0 of 14 wrongly refused; SQL guard 10/10 |
-| 3 · Features | Hardship recall 0.98 in notes, 1.00 in calls; every note and call scored; 8,877 open cases with hardship the case flag missed |
+| 3 · Features | Hardship recall 0.98 in notes, 1.00 in calls; every note and call scored; 8,883 open cases with hardship the case flag missed |
 | 4 · Next best action | Self-cure AUC 0.83 on an unseen month, against 0.72 for the bank's model on the same cases; every action within policy rules and call capacity; hardship and vulnerable customers to a person |
 | Tests | `pytest tests/`: 190+ unit tests across all layers, no dataset needed |
 
