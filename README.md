@@ -46,6 +46,7 @@ Shared files: `requirements.txt` (append only; say what you added in your PR) an
 - An **Anthropic API key** for the LLM parts (P2 and P3).
 
 ### 2. Clone and install
+> **Windows:** clone into a **short path** (e.g. `C:\dev\homies-ontrack`). Streamlit ships deeply nested files, and under a long folder path `pip install` fails with `OSError: [Errno 2] No such file or directory` (the 260-character path limit). Installing on a slow connection takes 15–20 minutes, so start early.
 ```bash
 git clone https://github.com/VaNsH-IIIT/homies-ontrack.git
 cd homies-ontrack
