@@ -186,38 +186,72 @@ _WHY = {
                                lambda v: v < 1, lambda v: v >= 1),
     "prior_cases_12m": ("no history of arrears", "repeat arrears", lambda v: v < 1, lambda v: v >= 1),
     "bureau_score": ("good credit standing", "weak credit standing", lambda v: v >= 680, lambda v: v < 620),
+    "entry_overdue": ("small enough to clear on its own", "larger arrears rarely clear without help",
+                      lambda v: v < 300, lambda v: v >= 300),
+    "overdue_growth_pct": ("not getting worse", "getting worse", lambda v: v <= 0.005, lambda v: v > 0.05),
+    "bureau_utilisation": ("room to pay", "stretched for credit", lambda v: v < 0.5, lambda v: v >= 0.7),
+    "acct_utilisation": ("room to pay", "close to the limit", lambda v: v < 0.5, lambda v: v >= 0.8),
+    "payments_total": ("already paying", "no payment yet", lambda v: v >= 1, lambda v: v < 1),
+    "payments_30d": ("already paying", "no recent payment", lambda v: v >= 1, lambda v: v < 1),
+    "payment_amount_90d": ("already paying", "nothing paid recently", lambda v: v > 0, lambda v: v <= 0),
+    "rpc_rate_30d": ("reachable", "hard to reach", lambda v: v >= 0.5, lambda v: v < 0.2),
+    "days_since_last_rpc": ("in touch recently", "hard to reach", lambda v: v <= 14, lambda v: v >= 60),
+    "contacts_total": ("", "repeated contact has not cleared it", lambda v: False, lambda v: v >= 3),
+    "contacts_30d": ("", "repeated contact has not cleared it", lambda v: False, lambda v: v >= 3),
+    "other_open_cases": ("", "behind on more than one case", lambda v: False, lambda v: v >= 1),
+    "acct_max_dpd": ("", "already behind before this case", lambda v: False, lambda v: v >= 30),
 }
 
 
-def _why(f: str, up: bool, v: float | None = None) -> str:
-    """Why the fact matters, given the direction it pushes the self-cure chance."""
+def _why(f: str, up: bool, v: float | None = None) -> str | None:
+    """Why the fact matters, or None when the direction would read counter-intuitively to an agent
+    (e.g. 'income up 132%' lowering the self-cure chance): such drivers are not shown with a why."""
     if f in _WHY and v is not None:
         up_txt, down_txt, up_ok, down_ok = _WHY[f]
-        if up and up_ok(v):
+        if up and up_txt and up_ok(v):
             return up_txt
         if not up and down_ok(v):
             return down_txt
-    return "points to paying on its own" if up else "points away from paying on its own"
+    return None
 
 
 # Model inputs that mean nothing to an agent: used by the model, never shown as a reason.
 HIDDEN_DRIVERS = {"bureau_age_days"}
 
 
+# Facts that are fine to show as plain context (no direction claimed) when a case has too few intuitive drivers
+CONTEXT_FACTS = ["overdue_now", "case_age_days", "contacts_30d", "days_since_last_payment", "bureau_score"]
+
+
 def driver_reasons(shap_row: np.ndarray, values: dict, cols: list[str], k: int = 2) -> list[tuple[str, str, bool]]:
-    """Top-k drivers as (feature, sentence, raises_cure_chance)."""
-    out = []
+    """Top-k drivers as (feature, sentence, raises_cure_chance).
+
+    Only drivers whose why reads naturally for their value are shown, strongest first; if fewer than k, the
+    reasons are filled with plain context facts (no why), so every recommendation still has three reasons.
+    """
+    out, used = [], set()
     for i in np.argsort(-np.abs(shap_row)):
         f = cols[i]
-        if f in HIDDEN_DRIVERS:
+        if f in HIDDEN_DRIVERS or abs(shap_row[i]) < 1e-6:
             continue
         fact = _fact(f, values.get(f))
-        if fact is None or abs(shap_row[i]) < 1e-6:
+        if fact is None:
             continue
         up = bool(shap_row[i] > 0)
-        out.append((f, f"{fact}: {_why(f, up, float(values.get(f)))}", up))
+        why = _why(f, up, float(values.get(f)))
+        if why is None:
+            continue
+        out.append((f, f"{fact}: {why}", up))
+        used.add(f)
+        if len(out) == k:
+            return out
+    for f in CONTEXT_FACTS:
         if len(out) == k:
             break
+        fact = _fact(f, values.get(f)) if f not in used and f in cols else None
+        if fact:
+            i = cols.index(f)
+            out.append((f, fact, bool(shap_row[i] > 0)))
     return out
 
 
