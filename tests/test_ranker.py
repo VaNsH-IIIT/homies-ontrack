@@ -80,8 +80,22 @@ class TestReasons:
 
     def test_why_never_contradicts_the_value(self):
         # v1 said "Income up 16%: less money coming in"
-        assert _why("salary_drop_pct", up=False, v=0.16) == "points away from paying on its own"
+        assert _why("salary_drop_pct", up=False, v=0.16) is None
         assert _why("salary_drop_pct", up=False, v=-0.4) == "less money coming in"
+
+    def test_counter_intuitive_drivers_are_hidden(self):
+        # P1 review on #11: "In collections for 97 days: points to paying on its own"
+        assert _why("case_age_days", up=True, v=97) is None
+        cols = ["case_age_days", "salary_drop_pct", "bureau_delinquent_trades", "overdue_now"]
+        vals = {"case_age_days": 97, "salary_drop_pct": 1.32, "bureau_delinquent_trades": 2, "overdue_now": 900.0}
+        out = driver_reasons(np.array([3.0, -2.0, -1.0, -0.5]), vals, cols)
+        assert [f for f, _, _ in out] == ["bureau_delinquent_trades", "overdue_now"]
+        assert all("points" not in s for _, s, _ in out)
+
+    def test_fills_with_plain_context_when_needed(self):
+        cols = ["case_age_days", "overdue_now"]
+        out = driver_reasons(np.array([3.0, 0.1]), {"case_age_days": 97, "overdue_now": 100.0}, cols)
+        assert [s for _, s, _ in out] == ["$100 overdue now: small enough to clear on its own", "In collections for 97 days"]
 
     def test_driver_reasons_skip_hidden_and_missing(self):
         cols = ["bureau_age_days", "bureau_score", "overdue_now"]
