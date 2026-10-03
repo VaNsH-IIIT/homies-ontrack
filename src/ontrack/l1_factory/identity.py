@@ -127,6 +127,10 @@ def main() -> None:
             if prefix == "cif_bureau" and field == "phone10":
                 continue
             con.execute(f"INSERT INTO silver.identity_edges SELECT a, b, conf, '{method}' FROM ({tier2_sql(prefix, table, field, method)})")
+    # Tier 3 (probabilistic, Splink) edges, when the probabilistic step has run.
+    if con.execute("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'silver' "
+                   "AND table_name = 'splink_edges'").fetchone()[0]:
+        con.execute("INSERT INTO silver.identity_edges SELECT a, b, conf, method FROM silver.splink_edges")
     for m, n in con.execute("SELECT method, count(*) FROM silver.identity_edges GROUP BY 1 ORDER BY 2 DESC").fetchall():
         print(f"  edges {m:16s} {n:>10,d}", flush=True)
 

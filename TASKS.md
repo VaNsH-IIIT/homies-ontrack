@@ -56,7 +56,7 @@ The benchmark is **scored automatically** and counts towards the 30% technical s
 | ID | Task | Done when |
 |---|---|---|
 | ✅ P1-T2 | 5% dev sample (`scripts/make_sample.py`) | sample zip shared by Drive |
-| P1-T6 | Probabilistic matching (Splink) for keys left unlinked by tiers 1–2; precision/recall measured on held-out tier-1 case-to-account links | fewer singletons; precision/recall in the DQ report |
+| ✅ P1-T6 | Probabilistic matching (Splink) for keys left unlinked by tiers 1–2; precision/recall measured on held-out tier-1 case-to-account links | fewer singletons; precision/recall in the DQ report |
 | P1-T7 | Data contract YAML for `gold.c360_customer`, from `files/docs/data_contracts/` (DC-COLL-001) | `contracts/c360_customer.yaml` with owner, schema, quality rules, allowed uses, refresh |
 | P1-T8 | Streamlit shell `src/ontrack/app/main.py` + page `1_C360.py` (customer lookup: golden record, linked keys with match confidence, accounts, timeline) | `streamlit run src/ontrack/app/main.py` shows pages 1–3 (2 and 3 load when P2/P3 add them) |
 | P1-T9 | Final architecture diagram (PNG/PDF) in `docs/` | file in repo |

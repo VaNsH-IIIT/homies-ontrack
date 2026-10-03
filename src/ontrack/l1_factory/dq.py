@@ -76,6 +76,13 @@ def main() -> None:
     gold_rows = [(name, con.execute(sql).fetchone()[0], handling) for name, sql, handling in GOLD_CHECKS]
     lines += [md_table(["Check", "Records", "Rule / handling"], gold_rows), ""]
 
+    val = con.execute("SELECT holdout_keys, auto_linked, precision, recall FROM silver.splink_validation").fetchone()
+    queue = con.execute("SELECT count(*) FROM gold.match_review_queue").fetchone()[0]
+    lines += ["### Probabilistic matching (Splink, tier 3): accuracy on known links", "",
+              f"Matched blind: {val[0]:,} source keys whose owner is already known from tier-1 case-to-account bridges.", "",
+              md_table(["Holdout keys", "Auto-linked (p >= 0.95)", "Precision", "Recall"], [val]), "",
+              f"Grey-zone matches (0.80 <= p < 0.95) sent to the data-steward queue `gold.match_review_queue`: **{queue:,}** (not merged).", ""]
+
     xref = con.execute("""SELECT match_method, count(*), round(avg(match_confidence), 3)
                           FROM gold.customer_xref GROUP BY 1 ORDER BY 2 DESC""").fetchall()
     lines += ["### Identity resolution: how each source key was linked", "",
