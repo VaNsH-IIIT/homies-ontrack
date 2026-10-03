@@ -128,7 +128,7 @@ Everyone codes against these names, so the three parts connect without waiting f
 - `collections_cases.account_ids` comes in three shapes: JSON list, bare id, `;`-separated.
 - `contact_history.channel` may be empty where the upstream release moved it to `channel_v2`: use `gold.contact_timeline.channel` (already coalesced).
 - `NA` is a real outcome code, not null; IDs keep leading zeros (bronze keeps them as text).
-**Design rule:** `promises_to_pay` is out of scope in our design (30 tables in scope). If a benchmark question needs it, P2 raises it with P1, who decides.
+**Design rule:** `promises_to_pay` is out of scope for features, models and decisions (our design: 30 tables). **Decided 3 Oct (P1):** Ask (Layer 2) may read it read-only for aggregate answers, because 6 benchmark questions need it; PII columns stay blocked. `ONTRACK_ASK_BLOCK_PTP=1` restores the 30-table scope.
 **Never** read a column in `config.PROTECTED_COLUMNS` in features or decisions.
 **App pages (P2, P3):** add your page as `src/ontrack/app/pages/2_Ask.py` / `3_Agent_Card.py`; it appears in the sidebar automatically. Start it with `from ontrack.app.common import header, query` then `header("Ask", "...")`; `query(sql, params)` returns a DataFrame from a shared read-only connection (see `1_C360.py` for an example).
 
@@ -187,6 +187,7 @@ _Required by the brief. Add a row for every change and why._
 | **No tokenisation of direct PII in silver;** direct PII is instead **excluded from gold** (contract rule Q7) and never reaches the app, features or LLM calls | Same protection for every consumer of the data product with less code; tokenisation stays a production step. | P1 |
 | **Decision log in its own file** (`decisions.duckdb`, via `record_decision()`) instead of the `l4` schema of the main database | The app keeps the main database read-only (so pipelines can rebuild during a demo); DuckDB can't also write to it from the app. Edit/reject still requires a reason code, as designed. | P1 |
 | **Steward review is a working loop:** a Match review page shows each grey-zone match (Splink 0.80–0.95) with field-by-field evidence (masked); the steward approves or rejects with a reason, and the next build links approved pairs (`steward_approved`, confidence 0.97) and keeps rejected ones apart | The design had a review queue but no way to act on it. Now a person decides every uncertain merge, the decision is logged, and it changes the golden record. Masking keeps the gold no-PII rule. | P1 |
+| **`promises_to_pay` readable by Ask only:** Layer 2 answers aggregate questions from it (read-only, PII blocked); it is still not a feature, model input or decision input | The design scoped it out (30 tables), but 6 of the 35 released benchmark questions ask about promises (kept / broken rates, amounts paid). Limiting it to read-only aggregates in Ask answers them without changing what drives decisions. | P1 (on P2's request) |
 | **Gold grain:** one current row per `golden_id`, rebuilt daily (no per-snapshot history yet) | Enough for decisions and Ask in the build; history is in bronze for training. | P1 |
 
 ## AI tools used
