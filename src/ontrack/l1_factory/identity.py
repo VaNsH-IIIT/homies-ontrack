@@ -16,7 +16,8 @@ Edges (each with a match method and confidence):
 Joint holders and co-borrowers are never edges (related parties, not the same person).
 Probabilistic matching (Splink) for the remaining records is phase 2.
 
-Connected components (union-find) give the golden_id; match_confidence is the confidence of the
+Connected components (union-find) give the golden_id, with a conflict guard: two clusters whose CRM
+records share no date of birth are never joined (refused links logged in silver.identity_refused); match_confidence is the confidence of the
 edge that attached the key (1.0 for the anchor key of the cluster).
 """
 from ontrack.db import connect
@@ -71,11 +72,11 @@ def tier2_sql(prefix: str, table: str, field: str, method: str) -> str:
     node_prefix = "cif" if prefix.startswith("cif") else prefix
     return f"""
         WITH crm AS (
-            SELECT crm_customer_id, surname_std, given_std, dob, {field} AS v FROM silver.crm
+            SELECT crm_customer_id, regexp_replace(surname_std, '[^A-Z]', '', 'g') AS surname_std, given_std, dob, {field} AS v FROM silver.crm
             WHERE surname_std IS NOT NULL AND dob IS NOT NULL AND {field} IS NOT NULL
         ),
         src AS (
-            SELECT source_key, surname_std, given_std, dob, {field} AS v FROM {table}
+            SELECT source_key, regexp_replace(surname_std, '[^A-Z]', '', 'g') AS surname_std, given_std, dob, {field} AS v FROM {table}
             WHERE surname_std IS NOT NULL AND dob IS NOT NULL AND {field} IS NOT NULL AND {field} NOT LIKE '%x%'
         ),
         common AS (SELECT v FROM crm GROUP BY v HAVING count(DISTINCT surname_std || dob) <= {SHARED_VALUE_LIMIT})
@@ -133,16 +134,36 @@ def main() -> None:
     nodes = [r[0] for r in con.execute(all_nodes_sql()).fetchall()]
     for n in nodes:
         uf.parent.setdefault(n, n)
+    # Conflict guard: never join two clusters whose CRM records share no date of birth
+    # (two different people). CRM's own duplicate flag is the bank's explicit statement, so it is exempt.
+    dobs = {f"crm:{cid}": {d} for cid, d in con.execute(
+        "SELECT crm_customer_id, dob FROM silver.crm WHERE dob IS NOT NULL").fetchall()}
+    best, refused = {}, []
     # Strongest edges first, so each key's best evidence is recorded.
-    best = {}
     for a, b, conf, method in con.execute(
-            "SELECT a, b, conf, method FROM silver.identity_edges ORDER BY conf DESC").fetchall():
+            "SELECT a, b, conf, method FROM silver.identity_edges ORDER BY conf DESC, method").fetchall():
         uf.parent.setdefault(a, a)
         uf.parent.setdefault(b, b)
-        uf.union(a, b)
+        ra, rb = uf.find(a), uf.find(b)
+        if ra != rb:
+            da, db = dobs.get(ra, set()), dobs.get(rb, set())
+            if method != "crm_duplicate" and da and db and not (da & db):
+                refused.append((a, b, conf, method))
+                continue
+            uf.union(ra, rb)
+            root = uf.find(ra)
+            dobs[root] = da | db
         for node in (a, b):
             if node not in best or conf > best[node][0]:
                 best[node] = (conf, method)
+    con.execute("CREATE OR REPLACE TABLE silver.identity_refused (a VARCHAR, b VARCHAR, conf DOUBLE, method VARCHAR)")
+    if refused:
+        import pyarrow as pa
+        cols = list(zip(*refused))
+        con.register("refused_arrow", pa.table({"a": cols[0], "b": cols[1], "conf": cols[2], "method": cols[3]}))
+        con.execute("INSERT INTO silver.identity_refused SELECT * FROM refused_arrow")
+        con.unregister("refused_arrow")
+    print(f"  conflict guard refused {len(refused):,d} links between clusters with different dates of birth", flush=True)
 
     # golden_id per component, numbered by the component's smallest key for stability.
     roots = {}

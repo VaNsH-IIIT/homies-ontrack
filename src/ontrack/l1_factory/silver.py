@@ -35,6 +35,10 @@ ALL_DOB_FORMATS = ("%Y-%m-%d", "%d-%m-%Y", "%Y/%m/%d", "%Y%m%d", "%d/%m/%Y", "%b
 # Regex fragments kept outside f-string expressions (backslashes there need Python 3.12+).
 CARD_INITIAL_PREFIX = r"regexp_replace(cardholder_name_raw, '^[A-Za-z]\.\s*', '')"
 CARD_INITIAL = r"regexp_extract(cardholder_name_raw, '^([A-Za-z])\.', 1)"
+CARD_REST_AFTER_FIRST = r"regexp_replace(trim(cardholder_name_raw), '^\S+\s+', '')"
+LOAN_REST_AFTER_FIRST = r"regexp_replace(trim(borrower_name_raw), '^\S+\s+', '')"
+DEPOSIT_SURNAME = r"coalesce(nullif(regexp_extract(trim(holder_name_raw), '^(.*?)\s+[A-Za-z](\s|$)', 1), ''), split_part(trim(holder_name_raw), ' ', 1))"
+DEPOSIT_INITIAL = r"regexp_extract(trim(holder_name_raw), '\s([A-Za-z])(\s|$)', 1)"
 BUREAU_POSTAL = r"regexp_extract(subject_address_reported, '([A-Za-z][0-9][A-Za-z] ?[0-9][A-Za-z][0-9])\s*$', 1)"
 
 
@@ -65,35 +69,39 @@ STEPS = {
         QUALIFY row_number() OVER (PARTITION BY deposit_account_id ORDER BY snapshot_date DESC) = 1
     """,
     # ---------- Party records per source system key (identity fields standardised) ----------
-    # Cards: 'M. DESJARDINS' (initial + surname) or 'MARTIN/MELISSA' (surname/given); DOB DD-MM-YYYY
+    # Cards: 'M. DESJARDINS' (initial surname), 'DAVE MOLINA' (given surname) or 'MARTIN/MELISSA' (surname/given); DOB DD-MM-YYYY
     "card_parties": f"""
         SELECT src_customer_ref AS source_key,
                CASE WHEN cardholder_name_raw LIKE '%/%' THEN {norm("split_part(cardholder_name_raw, '/', 1)")}
-                    ELSE {norm(CARD_INITIAL_PREFIX)} END AS surname_std,
-               CASE WHEN cardholder_name_raw LIKE '%/%' THEN {norm("split_part(split_part(cardholder_name_raw, '/', 2), ' ', 1)")}
-                    ELSE {norm(CARD_INITIAL)} END AS given_std,
+                    WHEN regexp_matches(cardholder_name_raw, '^[A-Za-z][.]') THEN {norm(CARD_INITIAL_PREFIX)}
+                    ELSE {norm(CARD_REST_AFTER_FIRST)} END AS surname_std,
+               CASE WHEN cardholder_name_raw LIKE '%/%' THEN {norm("split_part(trim(split_part(cardholder_name_raw, '/', 2)), ' ', 1)")}
+                    WHEN regexp_matches(cardholder_name_raw, '^[A-Za-z][.]') THEN {norm(CARD_INITIAL)}
+                    ELSE {norm("split_part(trim(cardholder_name_raw), ' ', 1)")} END AS given_std,
                {dob('cardholder_dob_raw', '%d-%m-%Y', *ALL_DOB_FORMATS)} AS dob,
                {phone10('cardholder_phone_raw')} AS phone10,
                {postal6('cardholder_postal_raw')} AS postal6
         FROM silver.card_accounts
         QUALIFY row_number() OVER (PARTITION BY src_customer_ref ORDER BY snapshot_date DESC) = 1
     """,
-    # Loans: 'Hélène Fournier' (given surname); DOB YYYY/MM/DD
+    # Loans: 'Hélène Fournier' (given surname) or 'VILLANUEVA MARY GRACE' (all caps: surname given); DOB YYYY/MM/DD
     "loan_parties": f"""
         SELECT src_customer_ref AS source_key,
-               {norm("regexp_extract(trim(borrower_name_raw), '([^ ]+)$', 1)")} AS surname_std,
-               {norm("split_part(trim(borrower_name_raw), ' ', 1)")} AS given_std,
+               CASE WHEN borrower_name_raw = upper(borrower_name_raw) THEN {norm("split_part(trim(borrower_name_raw), ' ', 1)")}
+                    ELSE {norm(LOAN_REST_AFTER_FIRST)} END AS surname_std,
+               CASE WHEN borrower_name_raw = upper(borrower_name_raw) THEN {norm("split_part(trim(borrower_name_raw), ' ', 2)")}
+                    ELSE {norm("split_part(trim(borrower_name_raw), ' ', 1)")} END AS given_std,
                {dob('borrower_dob_raw', '%Y/%m/%d', *ALL_DOB_FORMATS)} AS dob,
                {phone10('borrower_phone_raw')} AS phone10,
                {postal6('borrower_postal_raw')} AS postal6
         FROM silver.loan_accounts
         QUALIFY row_number() OVER (PARTITION BY src_customer_ref ORDER BY snapshot_date DESC) = 1
     """,
-    # Deposits: 'DESJARDINS M F' (surname + initials); DOB YYYYMMDD; key = 10-digit CIF
+    # Deposits: 'DESJARDINS M F' or 'DE LEON M L' (surname + initials); DOB YYYYMMDD; key = 10-digit CIF
     "deposit_parties": f"""
         SELECT src_customer_ref AS source_key,
-               {norm("split_part(trim(holder_name_raw), ' ', 1)")} AS surname_std,
-               {norm("split_part(trim(holder_name_raw), ' ', 2)")} AS given_std,
+               {norm(DEPOSIT_SURNAME)} AS surname_std,
+               {norm(DEPOSIT_INITIAL)} AS given_std,
                {dob('holder_dob_raw', '%Y%m%d', *ALL_DOB_FORMATS)} AS dob,
                {phone10('holder_phone_raw')} AS phone10,
                {postal6('holder_postal_raw')} AS postal6
