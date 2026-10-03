@@ -10,20 +10,37 @@ Training rows: cases **open and unresolved** at each monthly as_of 2025-11-01, 2
 
 | train rows | test rows | test positive rate | AUC valid | AUC test | AUC test, cases resolved by 28 Sep | Brier test | AUC without top feature (bureau_delinquent_trades) |
 |---|---|---|---|---|---|---|---|
-| 65,114 | 32,303 | 0.230 | 0.800 | 0.829 | 0.586 | 0.135 | 0.830 |
+| 65,114 | 32,303 | 0.230 | 0.802 | 0.829 | 0.585 | 0.136 | 0.829 |
 
 **payment_7d**
 
 | train rows | test rows | test positive rate | AUC valid | AUC test | AUC test, cases resolved by 28 Sep | Brier test | AUC without top feature (contacts_total) |
 |---|---|---|---|---|---|---|---|
-| 65,114 | 32,303 | 0.031 | 0.612 | 0.581 | 0.581 | 0.030 | 0.580 |
+| 65,114 | 32,303 | 0.031 | 0.606 | 0.583 | 0.597 | 0.030 | 0.580 |
 
 - The old numbers (AUC 0.964 / 0.997) were leakage: rows included cases already cured at as_of, the payment label sat before the feature date, and features read 28-Sep values (current DPD, latest bureau pull, `accounts_in_case_count`, which is above 1 only for cases still open today).
 - Sanity check: dropping the strongest feature does not collapse the AUC, so no single column carries the label.
 - 'Cases resolved by 28 Sep' removes the cases still open today: on those the self-cure model is much weaker (about 0.58). Much of its skill is spotting cases that get stuck, which is what the ranker needs (who will not pay on their own), but it is not a precise clock for when a case cures.
 - `payment_7d` is weak (payments are rare, 3%); it is only used as a 0.5x-2x responsiveness multiplier.
 
-Top drivers of the self-cure model (mean |SHAP| on the test month): `bureau_delinquent_trades`, `bureau_inquiries_6m`, `inbound_30d`, `case_age_days`, `salary_drop_pct`, `hardship_mentioned_any`.
+Top drivers of the self-cure model (mean |SHAP| on the test month): `bureau_delinquent_trades`, `inbound_30d`, `bureau_inquiries_6m`, `case_age_days`, `salary_drop_pct`, `hardship_mentioned_any`.
+
+### Calibration (test month)
+
+| decile (1 = least likely) | cases | predicted self-cure | observed self-cure |
+|---|---|---|---|
+| 1 | 3,231 | 0.002 | 0.001 |
+| 2 | 3,230 | 0.028 | 0.010 |
+| 3 | 3,230 | 0.073 | 0.027 |
+| 4 | 3,230 | 0.121 | 0.059 |
+| 5 | 3,231 | 0.188 | 0.133 |
+| 6 | 3,230 | 0.288 | 0.247 |
+| 7 | 3,230 | 0.385 | 0.354 |
+| 8 | 3,230 | 0.455 | 0.408 |
+| 9 | 3,230 | 0.521 | 0.443 |
+| 10 | 3,231 | 0.689 | 0.618 |
+
+The order is right (observed self-cure rises steadily from decile 1 to 10), but the calibrator fitted on 2026-06-01 over-predicts in every decile: by up to 8 points, 4.5 on average. That is the base-rate drift in this data (cases open on 2026-06-01 self-cured 32% of the time within 30 days, on 2026-07-01 23%, on 2026-08-29 10%). It is why the agent card's probabilities come from a calibrator fitted on 2026-08-29, the latest month with a complete outcome and the closest to today's open book, and why the ranker uses a relative threshold (3.5x the open book's rate) rather than a fixed one. Ranking quality (AUC) does not depend on calibration.
 
 ## 2. Back-test against the bank's models, like with like
 
@@ -31,9 +48,9 @@ Same cases, same date: every case open and unresolved on 2026-07-01, outcome aft
 
 | bank model | cases | cure rate | AUC bank | AUC ours | leave-alone 20%, cured: bank | leave-alone 20%, cured: ours | act-now 20%, not cured: bank | act-now 20%, not cured: ours |
 |---|---|---|---|---|---|---|---|---|
-| cure_30d | 29,680 | 0.227 | 0.717 | 0.831 | 0.452 | 0.529 | 0.924 | 0.995 |
-| roll_forward_30d | 29,668 | 0.226 | 0.736 | 0.830 | 0.475 | 0.526 | 0.939 | 0.995 |
-| self_cure | 16,582 | 0.271 | 0.695 | 0.798 | 0.491 | 0.556 | 0.893 | 0.982 |
+| cure_30d | 29,680 | 0.227 | 0.717 | 0.830 | 0.452 | 0.529 | 0.924 | 0.995 |
+| roll_forward_30d | 29,668 | 0.226 | 0.736 | 0.830 | 0.475 | 0.527 | 0.939 | 0.996 |
+| self_cure | 16,582 | 0.271 | 0.695 | 0.802 | 0.491 | 0.562 | 0.893 | 0.983 |
 
 Reading it: if the 20% of cases each model is most confident will self-cure were left alone, the 'cured' columns show how many actually did; the 'act now' columns show how many of each model's bottom 20% really needed action. Higher is better in both.
 
@@ -41,30 +58,30 @@ Reading it: if the 20% of cases each model is most confident will self-cure were
 
 | action | cases | share | avg_self_cure | avg_overdue | human_review |
 |---|---|---|---|---|---|
-| hardship_referral | 46,226 | 0.482 | 0.048 | 711 | 1.000 |
-| email | 20,797 | 0.217 | 0.073 | 358 | 0.000 |
-| specialist_agent | 9,683 | 0.101 | 0.082 | 562 | 1.000 |
-| do_nothing | 7,130 | 0.074 | 0.129 | 699 | 0.565 |
-| call | 5,037 | 0.052 | 0.061 | 1,164 | 0.000 |
-| sms | 4,058 | 0.042 | 0.070 | 332 | 0.000 |
-| push_notification | 1,609 | 0.017 | 0.070 | 371 | 0.000 |
-| reminder_letter | 1,460 | 0.015 | 0.066 | 444 | 0.000 |
+| hardship_referral | 46,227 | 0.482 | 0.046 | 710 | 1.000 |
+| email | 20,870 | 0.217 | 0.069 | 359 | 0.000 |
+| specialist_agent | 9,683 | 0.101 | 0.078 | 562 | 1.000 |
+| do_nothing | 7,024 | 0.073 | 0.121 | 698 | 0.574 |
+| call | 5,037 | 0.052 | 0.059 | 1,170 | 0.000 |
+| sms | 4,086 | 0.043 | 0.067 | 333 | 0.000 |
+| push_notification | 1,613 | 0.017 | 0.065 | 370 | 0.000 |
+| reminder_letter | 1,460 | 0.015 | 0.062 | 445 | 0.000 |
 
 How each was decided (`decision_path`):
 
 | decision_path | action | cases |
 |---|---|---|
-| call_queue_full | reminder_letter | 445 |
-| hardship | hardship_referral | 46,226 |
+| call_queue_full | reminder_letter | 437 |
+| hardship | hardship_referral | 46,227 |
 | human | specialist_agent | 9,683 |
 | human | do_nothing | 4,030 |
-| not_worth_contact | do_nothing | 1,634 |
-| self_cure | do_nothing | 1,466 |
-| value | email | 20,797 |
+| not_worth_contact | do_nothing | 1,638 |
+| self_cure | do_nothing | 1,356 |
+| value | email | 20,870 |
 | value | call | 5,037 |
-| value | sms | 4,058 |
-| value | push_notification | 1,609 |
-| value | reminder_letter | 1,015 |
+| value | sms | 4,086 |
+| value | push_notification | 1,613 |
+| value | reminder_letter | 1,023 |
 
 - `hardship_referral` only for hardship cases (v0: 92% of all cases, 41K without hardship).
 - Calls are capped at the day's call capacity from `channel_capacity` and go to the cases with the most dollars at risk where contact has not worked; everyone else with a balance worth chasing gets the best digital channel they allow.
@@ -81,19 +98,19 @@ Channel economics used (measured: payment within 7 days of an outbound contact, 
 | reminder_letter | 223,275 | 0.019 | 1.100 | 3,000 |
 | specialist_agent | 527,730 | 0.028 | 7.200 | 0 |
 
-Agreement with the bank's last recommendation on the same open cases: 8,512 of 76,696 (11%) where the bank had one. Largest combinations:
+Agreement with the bank's last recommendation on the same open cases: 8,527 of 76,696 (11%) where the bank had one. Largest combinations:
 
 | bank_last | ours | cases |
 |---|---|---|
-| call_evening | hardship_referral | 13,234 |
-| sms_payment_link | email | 10,728 |
-| sms_payment_link | hardship_referral | 7,718 |
+| call_evening | hardship_referral | 13,233 |
+| sms_payment_link | email | 10,757 |
+| sms_payment_link | hardship_referral | 7,720 |
 | call_daytime | hardship_referral | 7,345 |
 | offer_hardship_plan | hardship_referral | 4,322 |
 | send_letter | hardship_referral | 4,301 |
 | sms_payment_link | specialist_agent | 3,123 |
-| call_evening | email | 2,776 |
-| sms_payment_link | sms | 2,102 |
+| call_evening | email | 2,793 |
+| sms_payment_link | sms | 2,110 |
 | call_evening | specialist_agent | 2,047 |
 
 Disagreement is expected: the bank's engine sends an SMS link to almost everyone, including customers in hardship; OnTrack sends hardship to a person first.
@@ -104,29 +121,29 @@ First (highest-priority) reason per case:
 
 | first_reason | cases | share_of_book |
 |---|---|---|
-| (automated) | 36,061 | 0.376 |
+| (automated) | 36,060 | 0.376 |
 | hardship_case_flag | 34,872 | 0.363 |
-| hardship_text | 8,874 | 0.092 |
+| hardship_text | 8,875 | 0.092 |
 | hold | 6,104 | 0.064 |
-| vulnerability | 4,519 | 0.047 |
+| vulnerability | 4,518 | 0.047 |
 | hardship_income | 2,480 | 0.026 |
 | dispute | 1,385 | 0.014 |
 | cease | 1,021 | 0.011 |
-| complaint | 684 | 0.007 |
+| complaint | 685 | 0.007 |
 
 Every signal, counted wherever it appears:
 
 | signal (any, cases can have several) | cases |
 |---|---|
 | case_hardship_flag | 34,872 |
-| text_hardship_90d | 37,746 |
+| text_hardship_90d | 37,753 |
 | income_shock | 7,338 |
 | vulnerability | 14,441 |
 | dispute | 5,264 |
 | complaint | 3,900 |
 | holds | 15,070 |
 | cease | 2,755 |
-| text_only_hardship | 8,874 |
+| text_only_hardship | 8,875 |
 
 Hardship comes first (`hardship_case_flag` > `hardship_text` > `hardship_income`); text-only hardship is what notes and calls add on top of the case flag. Holds (insolvency, deceased, third-party), cease requests, disputes, complaints and vulnerability need a person by policy, without hardship.
 
@@ -138,12 +155,12 @@ Largest gap between groups (as fractions; 0.01 = 1 percentage point). The 'autom
 
 | attribute | groups | gap hardship_referral | gap human_review | automated cases: gap call | automated cases: gap digital | automated cases: gap do_nothing |
 |---|---|---|---|---|---|---|
-| gender_code | 4 | 0.027 | 0.020 | 0.046 | 0.056 | 0.021 |
-| marital_status | 7 | 0.147 | 0.148 | 0.014 | 0.057 | 0.034 |
-| citizenship_status | 4 | 0.007 | 0.018 | 0.017 | 0.015 | 0.013 |
-| newcomer_program_flag | 2 | 0.004 | 0.009 | 0.016 | 0.007 | 0.021 |
-| accessibility_needs_flag | 2 | 0.005 | 0.009 | 0.012 | 0.001 | 0.019 |
-| age_band | 4 | 0.024 | 0.009 | 0.012 | 0.017 | 0.007 |
+| gender_code | 4 | 0.027 | 0.020 | 0.046 | 0.051 | 0.008 |
+| marital_status | 7 | 0.147 | 0.148 | 0.018 | 0.055 | 0.032 |
+| citizenship_status | 4 | 0.007 | 0.018 | 0.018 | 0.015 | 0.016 |
+| newcomer_program_flag | 2 | 0.004 | 0.009 | 0.018 | 0.008 | 0.022 |
+| accessibility_needs_flag | 2 | 0.005 | 0.009 | 0.014 | 0.005 | 0.018 |
+| age_band | 4 | 0.024 | 0.009 | 0.015 | 0.019 | 0.006 |
 
 Automated-case gaps for `gender_code` come from the U and X groups (340 and 370 automated cases): at that size a 4-5 point gap is within noise.
 
@@ -153,57 +170,57 @@ The one large gap is `marital_status = separated` (more hardship referrals and h
 
 | gender_code | cases | hardship_referral | call | digital | do_nothing | human_review | avg_self_cure |
 |---|---|---|---|---|---|---|---|
-| F | 44,923 | 0.479 | 0.053 | 0.277 | 0.075 | 0.623 | 0.065 |
-| M | 45,618 | 0.485 | 0.052 | 0.274 | 0.073 | 0.626 | 0.065 |
-| U | 902 | 0.477 | 0.042 | 0.286 | 0.079 | 0.623 | 0.072 |
-| X | 941 | 0.458 | 0.037 | 0.310 | 0.074 | 0.607 | 0.067 |
+| F | 44,923 | 0.479 | 0.053 | 0.278 | 0.073 | 0.623 | 0.062 |
+| M | 45,618 | 0.485 | 0.052 | 0.275 | 0.072 | 0.626 | 0.062 |
+| U | 902 | 0.477 | 0.047 | 0.288 | 0.071 | 0.623 | 0.067 |
+| X | 941 | 0.458 | 0.037 | 0.309 | 0.075 | 0.607 | 0.064 |
 
 **marital_status**
 
 | marital_status | cases | hardship_referral | call | digital | do_nothing | human_review | avg_self_cure |
 |---|---|---|---|---|---|---|---|
-| common_law | 11,291 | 0.469 | 0.056 | 0.287 | 0.077 | 0.609 | 0.064 |
-| divorced | 5,499 | 0.462 | 0.056 | 0.290 | 0.076 | 0.607 | 0.069 |
-| married | 28,997 | 0.468 | 0.054 | 0.285 | 0.079 | 0.612 | 0.066 |
-| separated | 8,644 | 0.609 | 0.033 | 0.186 | 0.048 | 0.754 | 0.054 |
-| single | 24,784 | 0.465 | 0.054 | 0.291 | 0.074 | 0.607 | 0.066 |
-| undisclosed | 4,029 | 0.480 | 0.055 | 0.271 | 0.078 | 0.621 | 0.067 |
-| widowed | 2,674 | 0.463 | 0.055 | 0.262 | 0.078 | 0.626 | 0.067 |
+| common_law | 11,291 | 0.469 | 0.056 | 0.289 | 0.075 | 0.609 | 0.061 |
+| divorced | 5,499 | 0.462 | 0.055 | 0.291 | 0.076 | 0.607 | 0.066 |
+| married | 28,997 | 0.468 | 0.055 | 0.285 | 0.078 | 0.612 | 0.063 |
+| separated | 8,644 | 0.609 | 0.033 | 0.186 | 0.048 | 0.754 | 0.052 |
+| single | 24,784 | 0.465 | 0.054 | 0.293 | 0.073 | 0.607 | 0.063 |
+| undisclosed | 4,029 | 0.480 | 0.055 | 0.272 | 0.078 | 0.621 | 0.063 |
+| widowed | 2,674 | 0.463 | 0.057 | 0.263 | 0.076 | 0.626 | 0.064 |
 
 **citizenship_status**
 
 | citizenship_status | cases | hardship_referral | call | digital | do_nothing | human_review | avg_self_cure |
 |---|---|---|---|---|---|---|---|
-| citizen | 71,886 | 0.483 | 0.053 | 0.275 | 0.073 | 0.626 | 0.064 |
-| permanent_resident | 13,566 | 0.476 | 0.049 | 0.282 | 0.077 | 0.620 | 0.068 |
-| study_permit | 2,911 | 0.477 | 0.051 | 0.285 | 0.079 | 0.608 | 0.072 |
-| work_permit | 4,019 | 0.477 | 0.055 | 0.275 | 0.078 | 0.623 | 0.069 |
+| citizen | 71,886 | 0.483 | 0.053 | 0.276 | 0.072 | 0.626 | 0.061 |
+| permanent_resident | 13,566 | 0.476 | 0.049 | 0.283 | 0.075 | 0.620 | 0.064 |
+| study_permit | 2,911 | 0.477 | 0.049 | 0.286 | 0.079 | 0.608 | 0.069 |
+| work_permit | 4,019 | 0.477 | 0.054 | 0.275 | 0.079 | 0.623 | 0.065 |
 
 **newcomer_program_flag**
 
 | newcomer_program_flag | cases | hardship_referral | call | digital | do_nothing | human_review | avg_self_cure |
 |---|---|---|---|---|---|---|---|
-| false | 84,797 | 0.482 | 0.053 | 0.275 | 0.073 | 0.625 | 0.064 |
-| true | 8,541 | 0.478 | 0.048 | 0.284 | 0.080 | 0.617 | 0.074 |
+| false | 84,797 | 0.482 | 0.053 | 0.276 | 0.072 | 0.625 | 0.061 |
+| true | 8,541 | 0.478 | 0.047 | 0.286 | 0.080 | 0.617 | 0.070 |
 
 **accessibility_needs_flag**
 
 | accessibility_needs_flag | cases | hardship_referral | call | digital | do_nothing | human_review | avg_self_cure |
 |---|---|---|---|---|---|---|---|
-| false | 90,716 | 0.482 | 0.052 | 0.276 | 0.074 | 0.625 | 0.065 |
-| true | 2,622 | 0.477 | 0.058 | 0.282 | 0.063 | 0.616 | 0.063 |
+| false | 90,716 | 0.482 | 0.052 | 0.277 | 0.073 | 0.625 | 0.062 |
+| true | 2,622 | 0.477 | 0.059 | 0.282 | 0.062 | 0.616 | 0.060 |
 
 **age_band**
 
 | age_band | cases | hardship_referral | call | digital | do_nothing | human_review | avg_self_cure |
 |---|---|---|---|---|---|---|---|
-| 18-29 | 30,321 | 0.476 | 0.052 | 0.279 | 0.077 | 0.620 | 0.066 |
-| 30-44 | 34,272 | 0.485 | 0.053 | 0.275 | 0.072 | 0.625 | 0.065 |
-| 45-59 | 21,490 | 0.489 | 0.051 | 0.275 | 0.071 | 0.629 | 0.064 |
-| 60+ | 6,806 | 0.465 | 0.056 | 0.270 | 0.079 | 0.626 | 0.067 |
+| 18-29 | 30,321 | 0.476 | 0.052 | 0.281 | 0.076 | 0.620 | 0.062 |
+| 30-44 | 34,272 | 0.485 | 0.053 | 0.277 | 0.071 | 0.625 | 0.062 |
+| 45-59 | 21,490 | 0.489 | 0.051 | 0.275 | 0.071 | 0.629 | 0.061 |
+| 60+ | 6,806 | 0.465 | 0.057 | 0.270 | 0.078 | 0.626 | 0.063 |
 
 ## 6. Notes
 
 - The 96,000 open cases were all opened Apr-Sep 2026 and never resolve inside the release, so later training months have lower self-cure rates (61% of cases open on 2026-04-01 cured within 30 days, 10% of those open on 2026-08-29). Production probabilities are calibrated on 2026-08-29, the latest month with a complete 30-day outcome; test metrics use the June calibrator.
 - The bank's no-contact holdout cured as often as its champion strategy (63.4% vs 62.7% within 30 days). The holdout still had some contacts, so this is a hint, not proof, that contact adds little for customers who would pay anyway; it is why OnTrack waits on likely self-cures.
-- `golden_id` values can differ between builds (the demo customer is G-0331645 on P1's build and G-0331648 on a fresh Windows build); `case_id` is stable, so the demo uses CS-2026-583749.
+- Training is repeatable: fixed seeds, deterministic LightGBM on 4 threads, rows read in a fixed order and inputs rounded to 6 decimals, so two runs give the same AUCs and the same 96,000 recommendations.
