@@ -153,6 +153,84 @@ def train_notes_model(con) -> NotesModel:
 
 
 # ---------------------------------------------------------------------------------------------------------------
+# Transcripts, cheap path: the same kind of model on the customer's own turns (covers every transcript in minutes)
+# ---------------------------------------------------------------------------------------------------------------
+
+def customer_turns(t: dict) -> list[tuple[int, str]]:
+    return [(x.get("turn_index"), redact(x.get("text", ""))) for x in t.get("turns", [])
+            if x.get("speaker") == "customer" and x.get("text")]
+
+
+class TranscriptModel:
+    """hardship level, delay reason and dispute from the customer turns; evidence = the customer turn the
+    turn-level model scores highest (exact text + its turn_index)."""
+
+    def fit(self, docs: list[dict], hardship: list[str], reason: list[str], dispute: list[bool],
+            evidence: list[str]):
+        texts = [" | ".join(x for _, x in customer_turns(d)) for d in docs]
+        self.hardship = _pipeline("balanced").fit(texts, hardship)
+        self.reason = _pipeline("balanced").fit(texts, reason)
+        self.dispute = _pipeline("balanced").fit(texts, [bool(x) for x in dispute])
+        xs, ys = [], []
+        for d, h, e in zip(docs, hardship, evidence):
+            if h == "none" or not isinstance(e, str) or not e.strip():
+                continue
+            for _, turn in customer_turns(d):
+                xs.append(turn)
+                ys.append(int(e.lower()[:40] in turn.lower() or turn.lower() in e.lower()))
+        self.turn = _pipeline("balanced").fit(xs, ys) if len(set(ys)) == 2 else None
+        return self
+
+    def predict(self, docs: list[dict]) -> list[dict]:
+        texts = [" | ".join(x for _, x in customer_turns(d)) for d in docs]
+        hp, rp = self.hardship.predict_proba(texts), self.reason.predict_proba(texts)
+        dp = self.dispute.predict_proba(texts)
+        hc, rc, dc = list(self.hardship.classes_), list(self.reason.classes_), list(self.dispute.classes_)
+        out = []
+        for i, d in enumerate(docs):
+            p = dict(zip(hc, hp[i]))
+            level = hc[int(np.argmax(hp[i]))]
+            p_hard = float(p.get("clear", 0) + p.get("possible", 0))
+            quote, ti = (None, None)
+            turns = customer_turns(d)
+            if level != "none" and turns:
+                scores = (self.turn.predict_proba([x for _, x in turns])[:, 1] if self.turn is not None
+                          else self.hardship.predict_proba([x for _, x in turns])[:, hc.index("clear")])
+                ti, quote = turns[int(np.argmax(scores))]
+            call_day = str(d.get("call_start_ts") or "")[:10]
+            payday = None
+            for _, x in turns:
+                payday = stated_payday(x, date.fromisoformat(call_day) if call_day else None)
+                if payday:
+                    break
+            out.append({
+                "transcript_id": str(d["transcript_id"]), "hardship": level,
+                "hardship_confidence": round(p_hard if level != "none" else 1 - p_hard, 3),
+                "evidence_quote": quote, "evidence_turn_index": ti,
+                "stated_delay_reason": rc[int(np.argmax(rp[i]))],
+                "stated_payday": payday,
+                "dispute_mentioned": bool(dc[int(np.argmax(dp[i]))]),
+            })
+        return out
+
+
+def load_transcript_labels(con):
+    p = TRANSCRIPT_LABELS.as_posix()
+    return con.execute(
+        f"SELECT l.transcript_id, t.file_path, l.label_hardship AS hardship, "
+        f"coalesce(l.label_stated_delay_reason, 'other') AS reason, l.label_dispute = 'true' AS dispute, "
+        f"l.label_hardship_evidence AS evidence FROM read_csv('{p}', all_varchar = true) l "
+        f"JOIN bronze.call_transcripts t USING (transcript_id)").df()
+
+
+def train_transcript_model(con) -> TranscriptModel:
+    lab = load_transcript_labels(con)
+    docs = [load_transcript(fp) for fp in lab.file_path]
+    return TranscriptModel().fit(docs, lab.hardship.tolist(), lab.reason.tolist(), lab.dispute.tolist(),
+                                 lab.evidence.tolist())
+
+
+# ---------------------------------------------------------------------------------------------------------------
 # Transcripts: Claude with a JSON schema, batched
 # ---------------------------------------------------------------------------------------------------------------
 
@@ -205,8 +283,10 @@ def render_transcript(t: dict) -> str:
     return f"=== transcript_id {t['transcript_id']} · call {t.get('call_start_ts')} · {t.get('language')}\n{turns}"
 
 
-def extract_transcripts(items: list[dict], batch_size: int = 8, use_cache: bool = True) -> dict[str, dict]:
-    """items: loaded transcript JSON dicts. Returns transcript_id -> signals (validated quotes)."""
+def extract_transcripts(items: list[dict], batch_size: int = 8, use_cache: bool = True,
+                        cache_only: bool = False) -> dict[str, dict]:
+    """items: loaded transcript JSON dicts. Returns transcript_id -> signals (validated quotes).
+    cache_only=True returns what earlier runs already extracted, with no LLM call."""
     out: dict[str, dict] = {}
     todo = []
     for t in items:
@@ -216,6 +296,8 @@ def extract_transcripts(items: list[dict], batch_size: int = 8, use_cache: bool 
             out[t["transcript_id"]] = hit
         else:
             todo.append(t)
+    if cache_only:
+        return out
     for i in range(0, len(todo), batch_size):
         batch = todo[i:i + batch_size]
         prompt = "\n\n".join(render_transcript(t) for t in batch)

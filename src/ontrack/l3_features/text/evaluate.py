@@ -47,6 +47,29 @@ def evaluate_notes(con) -> None:
     print(f"  evidence clause overlaps the labelled evidence: {hit:.0%} of hardship notes")
 
 
+def evaluate_transcript_model(con) -> None:
+    from sklearn.model_selection import StratifiedKFold
+    lab = S.load_transcript_labels(con).reset_index(drop=True)
+    docs = [S.load_transcript(fp) for fp in lab.file_path]
+    preds = [None] * len(lab)
+    for train, test in StratifiedKFold(5, shuffle=True, random_state=7).split(lab, lab.hardship):
+        m = S.TranscriptModel().fit([docs[i] for i in train], lab.hardship[train].tolist(),
+                                    lab.reason[train].tolist(), lab.dispute[train].tolist(),
+                                    lab.evidence[train].tolist())
+        for i, p in zip(test, m.predict([docs[i] for i in test])):
+            preds[i] = p
+    print(f"TRANSCRIPTS, cheap model ({len(lab)} labelled, 5-fold CV, char n-grams on customer turns)")
+    print(f"  hardship_signal (clear|possible) : {pr(lab.hardship != 'none', [p['hardship'] != 'none' for p in preds])}")
+    print(f"  hardship clear only              : {pr(lab.hardship == 'clear', [p['hardship'] == 'clear' for p in preds])}")
+    acc = np.mean([p["stated_delay_reason"] == r for p, r in zip(preds, lab.reason)])
+    print(f"  stated_delay_reason accuracy     : {acc:.2f}")
+    print(f"  dispute_mentioned                : {pr(lab.dispute, [p['dispute_mentioned'] for p in preds])}")
+    ev = [(p["evidence_quote"] or "", g if isinstance(g, str) else "") for p, g, h in
+          zip(preds, lab.evidence, lab.hardship) if h != "none" and p["hardship"] != "none"]
+    hit = np.mean([bool(g) and (g.lower()[:40] in e.lower() or e.lower() in g.lower()) for e, g in ev]) if ev else 0
+    print(f"  evidence turn contains the labelled evidence: {hit:.0%} of hardship calls")
+
+
 def evaluate_transcripts(con, n: int) -> None:
     p = S.TRANSCRIPT_LABELS.as_posix()
     lab = con.execute(
@@ -75,6 +98,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     con = connect(read_only=True)
     evaluate_notes(con)
+    evaluate_transcript_model(con)
     if args.transcripts:
         evaluate_transcripts(con, args.transcripts)
     return 0
