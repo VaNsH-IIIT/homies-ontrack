@@ -72,7 +72,8 @@ def build() -> None:
     notes = con.execute("SELECT note_id, case_id, note_ts, note_type, note_text FROM bronze.agent_notes "
                         "WHERE note_text IS NOT NULL AND coalesce(redaction_status, '') <> 'needs_review'").df()
     con.close()
-    notes["note_text"] = [redact(t) for t in notes.note_text]
+    from ontrack.l3_features.text.accents import repair
+    notes["note_text"] = [redact(repair(t)) for t in notes.note_text]
     idx.register("notes_df", notes)
     idx.execute("CREATE TABLE notes AS SELECT row_number() OVER () AS id, * FROM notes_df")
     idx.execute("PRAGMA create_fts_index('notes', 'id', 'note_text', stemmer = 'english', overwrite = 1)")

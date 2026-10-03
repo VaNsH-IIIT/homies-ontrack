@@ -94,3 +94,15 @@ def test_understood_as_window_and_grouping():
                               "July-September 2026?")
     assert (u.metric, u.group_by, u.start, u.end) == ("broken_promise_rate", "site", "2026-07-01", "2026-09-28")
     assert not u.unresolved
+
+
+# ---- R5: roll-forward questions route to gold.nba_recommendation, historical roll-rate questions don't --------
+
+def test_roll_forward_routing():
+    import re
+    from ontrack.l2_ask.nba_questions import ROLL_FORWARD_RE
+    assert re.search(ROLL_FORWARD_RE, "which open cases are most likely to roll to a worse bucket in the next 30 days?")
+    assert re.search(ROLL_FORWARD_RE, "show the top 5 cases at highest risk of rolling forward")
+    assert not re.search(ROLL_FORWARD_RE, "of accounts that were 1-30 days past due at the end of march 2026, what "
+                                          "share had rolled to a worse bucket by the end of june 2026, by product?")
+    assert not re.search(ROLL_FORWARD_RE, "roll rate from 1-30 to 31-60 this month by product?")

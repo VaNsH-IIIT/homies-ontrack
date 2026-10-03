@@ -22,6 +22,7 @@ import numpy as np
 from ontrack import config
 from ontrack.l2_ask import llm
 from ontrack.l2_ask.ask import redact
+from ontrack.l3_features.text.accents import repair
 
 PROMPT_VERSION = "text-v1"
 TEXT_MODEL = __import__("os").environ.get("ONTRACK_TEXT_MODEL", "haiku" if llm.backend() == "cli"
@@ -144,7 +145,7 @@ def load_note_labels(con):
         f"SELECT l.note_id, coalesce(n.note_text, '') AS text, l.label_hardship AS hardship, "
         f"coalesce(l.label_stated_delay_reason, 'other') AS reason, l.label_dispute = 'true' AS dispute, "
         f"l.label_hardship_evidence AS evidence FROM read_csv('{p}', all_varchar = true) l "
-        f"JOIN bronze.agent_notes n USING (note_id)").df()
+        f"JOIN bronze.agent_notes n USING (note_id)").df().assign(text=lambda d: [repair(t) for t in d.text])
 
 
 def train_notes_model(con) -> NotesModel:

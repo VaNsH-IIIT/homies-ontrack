@@ -344,7 +344,8 @@ class Engine:
             [case_id.strip(), int(limit or 10)]).fetchall()
         if not rows:
             return f"No notes for case {case_id}."
-        return "\n".join(f"note_id {n} · {ts} · {t}: {redact(txt or '')}" for n, ts, t, txt in rows)
+        from ontrack.l3_features.text.accents import repair      # accents lost as U+FFFD in the release
+        return "\n".join(f"note_id {n} · {ts} · {t}: {redact(repair(txt) or '')}" for n, ts, t, txt in rows)
 
     # -- main --------------------------------------------------------------------------------------------------
     def certified(self, u: understand.Understood, question: str = "") -> Answer | None:
@@ -365,11 +366,30 @@ class Engine:
         return Answer(format_table(df), safe, False, "data", {"certified_metric": u.metric, **u.tokens()},
                       table=df, sql=safe)
 
+    def roll_forward(self, question: str) -> Answer | None:
+        from ontrack.l2_ask import nba_questions as nq
+        if not re.search(nq.ROLL_FORWARD_RE, question.lower()):
+            return None
+        try:
+            ok, _, risk = nq.status(self.con.cursor())
+            if not ok or not risk:
+                return None
+            m = re.search(r"\btop (\d+)\b", question.lower())
+            safe, df = self.run_sql(nq.rollforward_sql(risk, int(m.group(1)) if m else 20))
+        except Exception:  # noqa: BLE001 - fall back to the normal path
+            return None
+        return Answer(format_table(df), safe + "\n-- sources: [\"gold.nba_recommendation (P3 model scores)\"]",
+                      False, "data", {"source": "gold.nba_recommendation", "ranked_by": risk, "filter": "open cases"},
+                      table=df, sql=safe)
+
     def answer(self, question: str, as_of_date: str = config.SNAPSHOT_DATE, metric_id: str | None = None,
                question_id: str = "", tolerance: str = "") -> Answer:
         v = scope.route(question)
         if v.refused:                                   # check 1: rules, before any SQL
             return Answer(f"Refuse: {v.reason} {v.alternative}".strip(), "", True, "refuse", reason=v.category)
+        nba = self.roll_forward(question)               # R5: answered from gold.nba_recommendation (P3's scores)
+        if nba is not None:
+            return nba
         u = understand.understand(question, metric_id, as_of_date)
         if u.metric and not u.unresolved:               # certified metric, fully understood
             a = self.certified(u, question)
