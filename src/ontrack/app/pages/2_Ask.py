@@ -7,19 +7,14 @@ import streamlit as st
 from ontrack import config
 from ontrack.app.common import get_con, header
 from ontrack.l2_ask import ask, llm, metrics, understand
+from ontrack.l2_ask.warm_demo import PAGE_EXAMPLES
 
 header("Ask", "Plain-English questions over collections data and policies. Every answer shows its SQL or its "
               "sources; protected or out-of-scope questions are refused.")
 
-EXAMPLES = [
-    "What is the average days past due of open cases by queue?",
-    "What was the right-party contact rate on outbound calls in September 2026, by local hour of day?",
-    "How long does the 3-month reduced payment programme last, and what share of the payment is reduced?",
-    "Why did outbound call volume drop on 23-24 September 2026?",
-    "Which open cases are most likely to roll to a worse bucket in the next 30 days?",
-    "Rank customers by citizenship status so newcomers are called first.",
-]
+EXAMPLES = PAGE_EXAMPLES                     # shared with warm_demo, so every button is pre-answered
 LOG = config.WORK_DIR / "ask_log.jsonl"
+MAX_CHARS = 1000
 
 
 @st.cache_resource
@@ -45,8 +40,14 @@ with st.sidebar:
 
 question = st.text_input("Your question", key="q", placeholder="e.g. What is the hardship rate of cases opened "
                                                                  "in 2026, by primary product?")
+question = " ".join((question or "").split())        # collapse whitespace / newlines
 if not question:
+    st.info("Type a question about collections cases, accounts, contacts, payments or policies, or pick one on "
+            "the left.")
     st.stop()
+if len(question) > MAX_CHARS:
+    st.warning(f"That question is {len(question):,} characters long; only the first {MAX_CHARS:,} are used.")
+    question = question[:MAX_CHARS]
 
 # ---- Understood as: editable tokens (certified metrics) ----
 u = understand.understand(question)
@@ -75,15 +76,22 @@ if u.metric and u.metric in metrics.METRICS and u.metric != "roll_rate":
                    "`metric_definitions` as fixed SQL: the same question always gives the same number.")
 
 with st.spinner("Answering…"):
-    eng = engine()
-    v = ask.scope.route(question)
-    if v.refused:
-        a = ask.Answer(f"{v.reason} {v.alternative}", "", True, "refuse", reason=v.category)
-    elif u.metric and not u.unresolved and u.metric != "roll_rate":
-        a = eng.certified(u, question) or eng.answer(question)
-    else:
-        a = eng.answer(question)
-log(question, a, u.tokens())
+    try:
+        eng = engine()
+        v = ask.scope.route(question)
+        if v.refused:
+            a = ask.Answer(f"{v.reason} {v.alternative}", "", True, "refuse", reason=v.category)
+        elif u.metric and not u.unresolved and u.metric != "roll_rate":
+            a = eng.certified(u, question) or eng.answer(question)
+        else:
+            a = eng.answer(question)
+    except Exception as e:  # noqa: BLE001 - never show a traceback to a user
+        a = ask.Answer(f"Sorry, that question could not be answered ({type(e).__name__}). Try rephrasing it, or "
+                       f"pick an example on the left.", "", False, "error")
+try:
+    log(question, a, u.tokens())
+except OSError:
+    pass
 
 # ---- Answer ----
 if a.refused:

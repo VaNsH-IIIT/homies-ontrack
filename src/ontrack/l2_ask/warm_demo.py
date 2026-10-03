@@ -9,12 +9,19 @@ import time
 from ontrack.db import connect
 from ontrack.l2_ask import ask
 
-DEMO_QUESTIONS = [
+# The Ask page's example buttons (the page imports this list).
+PAGE_EXAMPLES = [
     "What is the average days past due of open cases by queue?",
-    "Summarise the most recent recorded call on case CS-2026-583749: what did the customer say and agree to?",
-    "How long does the 3-month reduced payment programme last, and what share of the payment is reduced?",
-    "Rank customers by citizenship status so newcomers are called first.",
     "What was the right-party contact rate on outbound calls in September 2026, by local hour of day?",
+    "How long does the 3-month reduced payment programme last, and what share of the payment is reduced?",
+    "Why did outbound call volume drop on 23-24 September 2026?",
+    "Which open cases are most likely to roll to a worse bucket in the next 30 days?",
+    "Which open cases are closest to charge-off?",
+    "Rank customers by citizenship status so newcomers are called first.",
+]
+# Everything the video segment asks: the buttons plus the demo case's call.
+DEMO_QUESTIONS = PAGE_EXAMPLES + [
+    "Summarise the most recent recorded call on case CS-2026-583749: what did the customer say and agree to?",
 ]
 
 

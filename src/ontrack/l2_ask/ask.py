@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from ontrack import config
 from ontrack.l2_ask import llm, metrics, scope, sql_guard, understand
 
-PROMPT_VERSION = "ask-v6"
+PROMPT_VERSION = "ask-v8"
 MAX_TURNS = 14
 MAX_SQL_ERRORS = 6          # repair budget across the whole question (design: up to two per query)
 RESULT_PREVIEW_ROWS = 40
@@ -161,7 +161,14 @@ How to answer:
   hardship_flag_at_assignment are per assignment). The treatment-strategy test (champion / challenger_A /
   challenger_B / no_contact_holdout) is collections_cases.test_cell with collections_cases.assignment_method = 'random'.
   days_to_cure counts from case opening; pilot cases are assigned about 30 days after opening, so measure a pilot's
-  N-day cure from the assignment date (cure_date between assigned date and assigned date + N days).
+  N-day cure from the assignment date (cure_date between assigned date and assigned date + N days). A pilot's
+  "hardship cases" are assignments with hardship_flag_at_assignment; apply the cure_rate default filters
+  (exclude insolvency and deceased holds).
+- A case's or contact's (customer) province is collections_cases.province_code (copied from CRM at case open, already
+  clean): join contact_history to collections_cases on case_id. customers.province_code is raw CRM text in mixed
+  formats; use it only when a question is about CRM records themselves.
+- Group by attributes of the matched records with inner joins; do not add 'unknown' / 'other' groups for rows whose
+  key is missing unless the question asks for them.
 - Label periods and groups in the question's own words (e.g. '15-22 Sep', '7-14 Sep'), not ISO ranges.
 - Document questions: answer in one or two plain sentences with the key facts (numbers, durations, conditions),
   from CURRENT documents only; where an FAQ or script disagrees with a policy or programme terms, the policy wins. sources = list like ["POL-COLL-001 §5.2", "FAQ-COLL-001 Q2", "qa_checklist item 7"].
@@ -367,19 +374,31 @@ class Engine:
                       table=df, sql=safe)
 
     def roll_forward(self, question: str) -> Answer | None:
+        """R5 / G5: roll-forward and charge-off risk lists from gold.nba_recommendation (P3's scores)."""
         from ontrack.l2_ask import nba_questions as nq
-        if not re.search(nq.ROLL_FORWARD_RE, question.lower()):
+        q = question.lower()
+        charge_off = bool(re.search(nq.CHARGE_OFF_RE, q))       # checked first: "most likely to be charged off"
+        if not charge_off and not re.search(nq.ROLL_FORWARD_RE, q):
             return None
         try:
             ok, _, risk = nq.status(self.con.cursor())
             if not ok or not risk:
                 return None
-            m = re.search(r"\btop (\d+)\b", question.lower())
-            safe, df = self.run_sql(nq.rollforward_sql(risk, int(m.group(1)) if m else 20))
+            m = re.search(r"\btop (\d+)\b", q)
+            limit = int(m.group(1)) if m else 20
+            cols = nq.columns(self.con.cursor())
+            if charge_off:
+                if nq.CHARGE_OFF_COL not in cols:
+                    return None
+                risk, filt = nq.CHARGE_OFF_COL, "open cases at 151-180 DPD (charge-off at 181)"
+                safe, df = self.run_sql(nq.chargeoff_sql(limit, cols))
+            else:
+                filt = "open cases up to 150 DPD"
+                safe, df = self.run_sql(nq.rollforward_sql(risk, limit, cols))
         except Exception:  # noqa: BLE001 - fall back to the normal path
             return None
         return Answer(format_table(df), safe + "\n-- sources: [\"gold.nba_recommendation (P3 model scores)\"]",
-                      False, "data", {"source": "gold.nba_recommendation", "ranked_by": risk, "filter": "open cases"},
+                      False, "data", {"source": "gold.nba_recommendation", "ranked_by": risk, "filter": filt},
                       table=df, sql=safe)
 
     def answer(self, question: str, as_of_date: str = config.SNAPSHOT_DATE, metric_id: str | None = None,

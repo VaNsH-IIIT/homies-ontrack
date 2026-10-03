@@ -2,6 +2,7 @@
 
     python -m ontrack.l2_ask.run_benchmark --questions <csv> --out benchmark/answers.csv
     python -m ontrack.l2_ask.run_benchmark --questions <csv> --out benchmark/answers.csv --only BQ-004,BQ-035
+    python -m ontrack.l2_ask.run_benchmark --questions <csv> --out benchmark/answers.csv --retry-failed --workers 2
 
 Always writes one row per question, in question order, in the template format
 (question_id, answer, sql_or_sources, refused). A question that fails still gets a row, so the file is
@@ -24,6 +25,7 @@ from ontrack.l2_ask import ask, llm
 
 FIELDS = ["question_id", "answer", "sql_or_sources", "refused"]
 trace_lock = threading.Lock()
+FAILED_PREFIXES = ("Could not answer", "Not answered", "Could not run")
 
 
 def read_questions(path: Path) -> list[dict]:
@@ -42,15 +44,24 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-cache", action="store_true", help="ignore cached LLM responses")
     ap.add_argument("--workers", type=int, default=4, help="questions answered in parallel")
     ap.add_argument("--retries", type=int, default=1, help="extra attempts for a question that errors")
+    ap.add_argument("--retry-failed", action="store_true",
+                    help="re-run only the questions that failed or are missing in --out; keep the others")
     args = ap.parse_args(argv)
 
     questions = read_questions(Path(args.questions))
     only = {q.strip() for q in args.only.split(",") if q.strip()}
     out = Path(args.out)
     previous = {}
-    if only and out.exists():
+    if (only or args.retry_failed) and out.exists():
         with open(out, encoding="utf-8", newline="") as f:
             previous = {r["question_id"]: r for r in csv.DictReader(f)}
+    if args.retry_failed:                   # re-run only questions that errored (or are missing) in --out
+        only = {q["question_id"] for q in questions
+                if q["question_id"] not in previous
+                or previous[q["question_id"]]["answer"].startswith(FAILED_PREFIXES)}
+        print(f"Retrying {len(only)} failed or missing question(s): {', '.join(sorted(only)) or '-'}", flush=True)
+        if not only:
+            return 0
 
     con = connect(read_only=True)
     engine = ask.Engine(con, use_cache=not args.no_cache)
@@ -93,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
             results[row["question_id"]] = row
             print(line, flush=True)
     rows = [results.get(q["question_id"]) or previous[q["question_id"]] for q in questions]
-    failed = sum(1 for r in rows if r["answer"].startswith(("Could not answer", "Not answered")))
+    failed = sum(1 for r in rows if r["answer"].startswith(FAILED_PREFIXES))
 
     out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, "w", encoding="utf-8", newline="") as f:
