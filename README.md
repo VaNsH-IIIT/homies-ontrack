@@ -187,6 +187,9 @@ _Required by the brief. Add a row for every change and why._
 | **No tokenisation of direct PII in silver;** direct PII is instead **excluded from gold** (contract rule Q7) and never reaches the app, features or LLM calls | Same protection for every consumer of the data product with less code; tokenisation stays a production step. | P1 |
 | **Decision log in its own file** (`decisions.duckdb`, via `record_decision()`) instead of the `l4` schema of the main database | The app keeps the main database read-only (so pipelines can rebuild during a demo); DuckDB can't also write to it from the app. Edit/reject still requires a reason code, as designed. | P1 |
 | **Gold grain:** one current row per `golden_id`, rebuilt daily (no per-snapshot history yet) | Enough for decisions and Ask in the build; history is in bronze for training. | P1 |
+| **Batch SHAP instead of per-row:** TreeExplainer runs on all 96K open cases at once, not one at a time | Per-row SHAP was too slow (367K feature rows × 2 models). Batch takes ~2 min vs estimated hours. Reasons are identical. | P3 |
+| **EV-based ranking instead of raw model score:** net expected value (p × amount × multiplier − cost) per action | Captures that "do nothing" is free for likely self-cures, while specialist agents cost $15. Better aligns with business value. | P3 |
+| **Monotone constraints on all key features:** LightGBM `monotone_constraints` on DPD, past-due, payments, bureau score | Prevents counterintuitive patterns (e.g. higher DPD → lower risk). Required no extra data; AUC still 0.965/0.997. | P3 |
 
 ## AI tools used
 
