@@ -16,9 +16,9 @@ presentation and storytelling **20%** · innovative ideas **15%** · team work *
 | 1 | **OnTrack: the next best action for every collections case, with a person in charge** | Tagline · team and roles (P1 data, P2 Ask + text AI, P3 decisioning) · Maple Bank synthetic data, 1M customers | Presentation |
 | 2 | **A customer's story is split across 5 systems, so hardship is spotted late** | 5 customer keys, messy formats (3 card name formats, 4 DOB formats, masked phones) · what it costs: wrong treatment, wasted contacts | Business |
 | 3 | **Architecture: four layers on one governed base** | `docs/architecture/architecture.png` · AI and HUMAN markers · batch vs real time | Technical, presentation |
-| 4 | **Layer 1: one trusted record per customer** | 31/31 tables loaded · 9 data issue types found and handled · 1,015,637 golden ids for 1,000,000 people · **Splink precision 99.78%, recall 99.38%** on 5,000 known links · conflict guard: 0 wrong merges · contract 8/8 rules pass | Technical |
-| 5 | **Layer 2: ask in plain English, see the SQL, get refused when it's off-limits** | Screenshot: question → understood-as tokens → answer + SQL · benchmark: dev accuracy `[TBD-P2]`, correct refusals `[TBD-P2]` · refusal example (protected attribute) | Technical (benchmark) |
-| 6 | **Layer 3: conversations become features, with evidence** | Structured + text features from one definition (training = live) · hardship signal F1 on the 500 public labels `[TBD-P2]` · evidence quote example | Innovation, technical |
+| 4 | **Layer 1: one trusted record per customer** | 31/31 tables loaded · 18 data issue types found and handled · 1,015,637 golden ids for 1,000,000 people · **Splink precision 99.8%, recall 99.4%** on 5,000 known links · conflict guard: 0 wrong merges · 1,924 uncertain matches go to a **data steward** (Match review page; decisions feed the next build) · contract 8/8 rules pass | Technical |
+| 5 | **Layer 2: ask in plain English, see the SQL, get refused when it's off-limits** | Screenshot: question → understood-as tokens → answer + SQL · benchmark: **dev 21/21** (data 12/12, documents 4/4, transcripts 2/2, refusals 3/3, 0 false refusals) · red-team **26/26** refused, 0/14 false refusals · SQL guard blocks 10/10 · refusal example (protected attribute) | Technical (benchmark) |
+| 6 | **Layer 3: conversations become features, with evidence** | Structured + text features from one definition (training = live) · hardship signal on the 500 labelled notes: **precision 0.97, recall 0.98, F1 0.98** (5-fold CV; design target recall ≥ 90%) · transcripts (Claude, quote verified in its turn) `[TBD-P2]` · 292K notes scored in 70 s → 37,455 open cases with text hardship in the last 90 days · evidence quote example ("only getting 3 days a week now") | Innovation, technical |
 | 7 | **Layer 4: rules first, models second, a person decides** | Policy gate (38 tests) → models (AUC `[TBD-P3]`) → ranking within allowed actions → plain-English reasons · agent card screenshot with accept/edit/reject | Technical, business |
 | 8 | **Business value: fewer roll-forwards, fewer wasted contacts** | Back-test vs the bank's current rules engine (`nba_recommendation_last`) `[TBD-P3]` · "do nothing" for likely self-cures · value per 10,000 cases (method from our design) | Business |
 | 9 | **Fair and governed by design** | No protected attributes anywhere (contract Q7, feature guard) · fairness check across groups `[TBD-P3]` · hardship → human-only queue · every decision logged with reason | Business, innovation |
@@ -38,5 +38,6 @@ presentation and storytelling **20%** · innovative ideas **15%** · team work *
 ## Checklist before recording
 - [ ] All PRs merged; `python scripts/run_all.py` all OK on full data
 - [ ] Demo customer chosen (P1) and the same id used in deck, video and live review
-- [ ] Numbers filled: benchmark (P2), hardship F1 (P2), model AUC + back-test + fairness (P3)
+- [x] Numbers filled: benchmark (P2), hardship F1 on notes (P2)
+- [ ] Numbers filled: transcript hardship recall (P2), model AUC + back-test + fairness (P3, after #3)
 - [ ] Screen recording at 1080p, ≤ 5:00, uploaded unlisted (YouTube or Drive)
