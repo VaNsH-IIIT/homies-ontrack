@@ -1,0 +1,152 @@
+# Data contract for the golden Collections 360 customer record.
+# Based on the example DC-COLL-001 (files/docs/data_contracts/) and our submitted design (docs/HOmiES_SystemDesign.pdf, page 6).
+# Executable: `python -m ontrack.l1_factory.contract_check` runs every quality rule below against the built table.
+apiVersion: v3.0.0            # Open Data Contract Standard (ODCS) layout
+kind: DataContract
+id: DC-COLL-C360-001
+name: gold.c360_customer
+version: 1.0.0
+status: active
+domain: collections
+description:
+  purpose: One trusted record per person (one golden_id) for collections servicing, analytics and decisioning.
+  grain: one row per golden_id (per daily snapshot)
+  usage: Agent workbench, Layer 2 Ask (masked view), Layer 3 feature store, Layer 4 next best action.
+
+owner:
+  business_owner: Head of Collections Strategy (proposed)
+  data_steward: Collections Data Office
+  technical_owner: Collections data platform team (Team HOmiES in the build)
+  contact: collections-data-office@maple.example.ca
+
+refresh:
+  frequency: daily
+  ready_by: "06:00 America/Toronto"       # same window as DC-COLL-001 (05:00 ET source refresh)
+  event_updates: consent, cease and hold flags within 15 minutes of a change event
+  freshness_sla: 24h
+
+sources:                                    # five source systems, each with its own customer key
+  - {system: crm, table: customers, key: crm_customer_id}
+  - {system: cards, table: card_accounts, key: src_customer_ref}
+  - {system: loans, table: loan_accounts, key: src_customer_ref}
+  - {system: core_banking, table: deposit_accounts / external, key: 10-digit CIF}
+  - {system: collections, table: collections_cases, key: coll_customer_ref (CRM id)}
+lineage: bronze (raw, typed) -> silver (standardised) -> identity resolution (tiers 1-3) -> gold
+
+schema:
+  - name: golden_id
+    type: string
+    required: true
+    unique: true
+    description: Person id from identity resolution (gold.customer_xref).
+    classification: internal
+  - {name: primary_crm_customer_id, type: string, description: Surviving CRM record (not a duplicate, most recently updated)., classification: internal}
+  - {name: province_code, type: string, description: Province (contact rules only, not a model input)., classification: quasi_identifier}
+  - {name: time_zone, type: string, description: IANA time zone for permitted contact hours., classification: internal}
+  - {name: preferred_language, type: string, description: Service language (EN/FR)., classification: internal}
+  - {name: consent_call, type: boolean, required: true, description: True only if every CRM record of the person allows it., classification: internal}
+  - {name: consent_sms, type: boolean, required: true, description: As consent_call., classification: internal}
+  - {name: consent_email, type: boolean, required: true, description: As consent_call., classification: internal}
+  - {name: consent_push, type: boolean, required: true, description: As consent_call., classification: internal}
+  - {name: consent_autodialer, type: boolean, required: true, description: As consent_call., classification: internal}
+  - {name: internal_do_not_call_flag, type: boolean, required: true, description: True if any CRM record has it., classification: internal}
+  - {name: cease_communication_flag, type: boolean, required: true, description: Written cease request on any record., classification: internal}
+  - {name: insolvency_flag, type: boolean, required: true, description: bankruptcy_flag OR consumer_proposal_flag., classification: restricted}
+  - {name: deceased_flag, type: boolean, required: true, classification: restricted}
+  - {name: third_party_hold_flag, type: boolean, required: true, description: Third party authorised, power of attorney, legal representative or credit counselling agency., classification: restricted}
+  - {name: vulnerability_flag, type: boolean, description: Routing to certified agents only; never a model input. vulnerability_type is excluded., classification: restricted}
+  - {name: crm_record_count, type: integer, description: CRM records merged into this person., classification: internal}
+  - {name: products_held, type: integer, description: Card, loan and deposit accounts linked., classification: internal}
+  - {name: total_exposure, type: number, description: Sum of credit balances (CAD)., classification: internal}
+  - {name: total_overdue, type: number, description: Sum of past_due_amount (CAD)., classification: internal}
+  - {name: max_dpd, type: integer, description: Highest days past due across linked accounts., classification: internal}
+  - {name: open_case_count, type: integer, description: Collections cases with no outcome yet., classification: internal}
+  - {name: case_count, type: integer, classification: internal}
+  - {name: match_confidence_min, type: number, description: Lowest link confidence in the person's cluster., classification: internal}
+  - {name: source_key_count, type: integer, classification: internal}
+  - {name: _source_systems, type: array<string>, description: Lineage, classification: internal}
+  - {name: _loaded_at, type: timestamp, description: Freshness, classification: internal}
+  - {name: _dq_status, type: string, description: "'ok' or 'review_match' (link confidence < 0.95)", classification: internal}
+
+excluded:
+  direct_pii: [names, date_of_birth, phones, email, address, national_id_hash]   # restricted PII schema, joined on golden_id for assigned cases only
+  protected_attributes: [gender_code, marital_status, citizenship_status, household_size, dependants_count,
+                         newcomer_program_flag, newcomer_arrival_date, accessibility_needs_flag, accessibility_type,
+                         vulnerability_type, ccb_deposit_flag, customer_accent_region, age]   # fairness testing only
+
+quality:                                     # every rule is checked on each load; sql returns the number of violations
+  - id: Q1
+    name: golden_id unique and not null
+    sql: SELECT count(*) - count(DISTINCT golden_id) + count(*) FILTER (WHERE golden_id IS NULL) FROM gold.c360_customer
+    threshold: 0
+    on_failure: block publication
+  - id: Q2
+    name: Every link carries a method and a confidence; auto-links >= 0.95
+    sql: >-
+      SELECT count(*) FROM gold.customer_xref
+      WHERE match_method IS NULL OR match_confidence IS NULL
+         OR (match_method = 'splink' AND match_confidence < 0.95)
+    threshold: 0
+    on_failure: alert steward
+  - id: Q3
+    name: Collections cases resolve to a golden_id (orphans < 1%, as DC-COLL-001)
+    sql: SELECT count(*) FILTER (WHERE golden_id IS NULL) * 100.0 / count(*) FROM gold.case_360
+    threshold: 1.0
+    on_failure: quarantine orphans
+  - id: Q4
+    name: Consent and hold flags never null
+    sql: >-
+      SELECT count(*) FROM gold.c360_customer WHERE primary_crm_customer_id IS NOT NULL AND (
+        consent_call IS NULL OR consent_sms IS NULL OR consent_email IS NULL OR consent_push IS NULL
+        OR consent_autodialer IS NULL OR internal_do_not_call_flag IS NULL OR cease_communication_flag IS NULL
+        OR insolvency_flag IS NULL OR deceased_flag IS NULL OR third_party_hold_flag IS NULL)
+    threshold: 0
+    on_failure: block publication
+  - id: Q5
+    name: Valid amounts and delinquency (max_dpd >= 0, total_overdue >= 0)
+    sql: SELECT count(*) FROM gold.c360_customer WHERE max_dpd < 0 OR total_overdue < 0
+    threshold: 0
+    on_failure: quarantine row
+  - id: Q6
+    name: No person merged across different dates of birth
+    sql: >-
+      SELECT count(*) FROM (SELECT x.golden_id FROM gold.customer_xref x
+        JOIN silver.crm c ON x.source_system = 'crm' AND c.crm_customer_id = x.source_key
+        GROUP BY 1 HAVING count(DISTINCT c.dob) > 1)
+    threshold: 0
+    on_failure: block publication; steward review
+  - id: Q7
+    name: No protected attribute or direct PII column in the product
+    sql: >-
+      SELECT count(*) FROM information_schema.columns
+      WHERE table_schema = 'gold' AND table_name = 'c360_customer' AND column_name IN (
+        'gender_code','marital_status','citizenship_status','household_size','dependants_count',
+        'newcomer_program_flag','newcomer_arrival_date','accessibility_needs_flag','accessibility_type',
+        'vulnerability_type','ccb_deposit_flag','customer_accent_region','age',
+        'first_name','last_name','date_of_birth','email','primary_phone_e164','national_id_hash')
+    threshold: 0
+    on_failure: block build
+  - id: Q8
+    name: Fresh (loaded within the last 24 hours)
+    sql: SELECT count(*) FROM gold.c360_customer WHERE _loaded_at < now() - INTERVAL 24 HOUR
+    threshold: 0
+    on_failure: mark stale; page owner
+
+allowed_uses:
+  - Collections servicing and the agent workbench
+  - Collections analytics through Ask (aggregated, PII masked)
+  - Features for collections models (Layers 3-4)
+  - Fairness, audit and regulatory reporting
+prohibited_uses:
+  - Marketing or cross-sell (as DC-COLL-001)
+  - Credit approval, limit or underwriting decisions
+  - Any decision using protected attributes or their proxies
+  - Re-identification; sharing outside Collections without owner approval
+
+access:
+  agent: full record for assigned cases only (PII joined from the restricted schema)
+  analyst: masked (no direct PII), aggregates only through Ask
+  steward: gold.customer_xref and gold.match_review_queue
+  auditor: protected attributes in the audit schema, for fairness testing only
+
+change_management: Breaking changes (rename, type change, removed column) need a new major version and 14 days' notice to consumers.

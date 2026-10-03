@@ -161,6 +161,7 @@ _Filled in as the layers land. Target: one command per step._
 |---|---|---|
 | Load raw data into bronze (once; ~10 min full data, ~30 s sample) | `python -m ontrack.l1_factory.bronze` | P1 |
 | Build silver + identity resolution (tiers 1–3, incl. Splink) + gold C360 + DQ report (~4 min) | `python -m ontrack.l1_factory.build` | P1 |
+| Check the data contract rules (also run by `build`) | `python -m ontrack.l1_factory.contract_check` | P1 |
 | Make the 5% dev sample | `python scripts/make_sample.py --pct 5 --out D:/maple_sample` | P1 |
 | Answer benchmark questions | `python -m ontrack.l2_ask.run_benchmark --questions <csv> --out benchmark/answers.csv` | P2 |
 | Extract text signals | `python -m ontrack.l3_features.text.extract` | P2 |

@@ -76,6 +76,11 @@ def main() -> None:
     gold_rows = [(name, con.execute(sql).fetchone()[0], handling) for name, sql, handling in GOLD_CHECKS]
     lines += [md_table(["Check", "Records", "Rule / handling"], gold_rows), ""]
 
+    results = con.execute("SELECT rule_id, rule_name, observed, threshold, CASE WHEN passed THEN 'pass' ELSE 'FAIL' END, "
+                          "on_failure FROM gold._contract_results ORDER BY rule_id").fetchall()
+    lines += ["### Data contract quality rules (`contracts/c360_customer.yaml`)", "",
+              md_table(["Rule", "Check", "Observed", "Threshold", "Result", "On failure"], results), ""]
+
     val = con.execute("SELECT holdout_keys, auto_linked, precision, recall FROM silver.splink_validation").fetchone()
     queue = con.execute("SELECT count(*) FROM gold.match_review_queue").fetchone()[0]
     lines += ["### Probabilistic matching (Splink, tier 3): accuracy on known links", "",
