@@ -54,6 +54,25 @@ Same cases, same date: every case open and unresolved on 2026-07-01, outcome aft
 
 Reading it: if the 20% of cases each model is most confident will self-cure were left alone, the 'cured' columns show how many actually did; the 'act now' columns show how many of each model's bottom 20% really needed action. Higher is better in both.
 
+## 2b. Business value in dollars (conservative)
+
+Same open book, same day: what OnTrack recommends against the bank's last recommendation (`collections_cases.nba_recommendation_last`), valued with measured numbers only.
+
+| lever | bank's last recommendation | OnTrack | difference | unit |
+|---|---|---|---|---|
+| 1. Expected payments within 7 days from the recommended contact (automated cases) | $121,629 (1,697 payments) | $283,904 (3,961 payments) | +$162,275 | per round of contacts |
+| 2. Contact spend on customers who paid on their own anyway (the 20% each would leave alone) | $4,947 (4,911 contacts) found | $7,029 (6,247 contacts) found | +$2,082 | per month (2026-07-01 back-test) |
+| 3. Calls that fit the day's call capacity | 34,326 calls (6.8 days of capacity) | 5,037 calls (1 day) | 29,289 fewer calls | capacity 5,037 calls a day |
+
+**Method and assumptions** (each one chosen to understate OnTrack's value):
+- Lever 1 values every expected payment at the **median recorded payment, $71.68** (the mean is about 2.6x higher), not at the overdue amount.
+- The chance of a payment within 7 days of a contact is the **measured** rate per channel from `contact_history` (last 12 months), times the customer's responsiveness from the payment model (0.5x-2x), the same numbers the ranker uses. It is observed, not a randomised uplift.
+- Only the 36,060 **automated** cases count. Nothing is claimed for the cases sent to a person (hardship, vulnerability, disputes, complaints, holds), where OnTrack deliberately does not collect.
+- A bank recommendation the policy gate would block (no consent, holds, contact cap) counts as no payment: 10,652 of the bank's recommendations for automated cases could not legally be sent.
+- Lever 2 uses what the bank actually spent (`contact_cost_cad`) in the 30 days after 2026-07-01 on cases that then cured on their own: OnTrack's leave-alone 20% contains 3,131 such cases, the bank model's 2,685. Leaving a case alone is not free: the rest of each 20% did not cure, which is why production waits only on cases above 3.5x the book's self-cure rate.
+- Lever 3 is capacity, not dollars: the bank's engine recommends more calls than the team can make.
+- Nothing is annualised: a round is one recommended contact per case.
+
 ## 3. Recommendations for the open book (snapshot 2026-09-28)
 
 | action | cases | share | avg_self_cure | avg_overdue | human_review |
