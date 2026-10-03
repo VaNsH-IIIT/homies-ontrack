@@ -125,3 +125,14 @@ def test_risk_list_tie_break():
     assert "ORDER BY r.p_roll_forward DESC NULLS LAST, r.model_risk_rank ASC, r.case_id" in with_rank
     before_k7 = chargeoff_sql(5, ["overdue_now"])
     assert "ORDER BY r.p_charge_off_risk DESC NULLS LAST, r.overdue_now DESC NULLS LAST, r.case_id" in before_k7
+
+
+def test_multi_part_questions_leave_the_template():
+    # comparisons without a grouping, superlatives and two-part questions go to the agent (G9 hard rehearsal)
+    for q in ["How did the right-party contact rate on outbound calls change between July 2026 and August 2026?",
+              "Which queue has the highest average days past due among open cases, and what is that average?"]:
+        assert any("comparison" in x for x in understand.understand(q).unresolved), q
+    # ... but a comparison the template can group stays certified (BQ-028), and plain grouped questions too
+    for q in ["Among randomised cases, compare the promise-kept rate of the champion strategy with challenger_A "
+              "and challenger_B.", "What is the average days past due of open cases by queue?"]:
+        assert not understand.understand(q).unresolved, q
