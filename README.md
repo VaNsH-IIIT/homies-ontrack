@@ -199,6 +199,12 @@ _Required by the brief. Add a row for every change and why._
 | **Minimum group size (10) applies to person-level tables only** | It protects people; account-level aggregates (e.g. roll rate by product) don't single anyone out, and the benchmark needs those small groups | P2 |
 | **Text features: trained models for every note and call, Claude on a top slice** (instead of an LLM call per contact) | An LLM call per call would take ~19 h within our limits. Character n-gram models trained on the 500 public labels score 292K notes + 15K calls in ~5 min (hardship recall 0.98 notes / 0.99 calls); Claude zero-shot on calls: recall 1.00, quotes verified in their turn. The `model` column says which produced each row | P2 |
 | **"Explain" answers** (one-sentence conclusion + supporting table + SQL) for why / does-X-beat-Y questions | Tables alone lost the conclusion (BQ-030 incident, BQ-014 direction of effect) | P2 |
+| **Training rows are point-in-time snapshots** (cases open at monthly `as_of` dates, labels after `as_of`) | The first version leaked (AUC 0.96 / 0.997). Now self-cure AUC 0.83, above the bank's own model (0.72) on the same cases. | P3 |
+| **Channel response measured from contact history, not uplift models** | The no-contact holdout still received contacts, so clean per-channel uplift can't be estimated. Measured response and unit costs are used, and likely self-cures are left alone. | P3 |
+| **Call capacity is a hard limit** (5,037 a day from `channel_capacity`) | Payment links convert ~4x better per contact at a fraction of the cost. Calls go to the most dollars at risk where contact hasn't worked. | P3 |
+| **Hardship separated from human review** | Financial hardship gets `hardship_referral`. Vulnerability, disputes, complaints, holds and cease requests need a person but aren't hardship. Disputes from notes and calls are routed even without hardship. | P3 |
+| **Template reasons from SHAP contributions**, not LLM narration | Fast, deterministic and auditable. Whole numbers, and never contradicting their own value. | P3 |
+| **Language of service and autodialer consent don't block calls** | They change who calls and how. Blocking would treat customers differently. | P3 |
 
 ## AI tools used
 
