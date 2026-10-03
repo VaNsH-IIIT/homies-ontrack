@@ -1,6 +1,6 @@
 "question_id","answer","sql_or_sources","refused"
-"BQ-001","No. CASL express consent is only for marketing messages and isn't needed for collection reminders. A collections email reminder relies on account-servicing consent (consent_email).","[""POL-COLL-001 §5.3""]","false"
-"BQ-002","You can make at most 3 outbound call attempts per case in any rolling 7 days, and automated reminders that ask for payment count toward that limit. This applies to mid-stage accounts as well; the old limit of 5 attempts a week came from the mid-stage call script v1.0, which has been replaced.","[""POL-COLL-001 §5.2"", ""REG-SUM-001""]","false"
+"BQ-001","No. You don't need CASL express consent to send a collections payment reminder by email. CASL express consent only covers marketing messages. Collection contact relies on account-servicing consent instead (consent_email for email), so check that the customer has that consent and hasn't made a cease-communication request.","[""POL-COLL-001 §5.3"", ""POL-COLL-001 §5.4""]","false"
+"BQ-002","The limit is 3 outbound call attempts per case in any rolling 7 days, and that includes mid-stage accounts. Automated reminders that ask for payment count toward the 3. The old mid-stage script (SCR-MID-STD-EN v1.0) allowed 5 attempts a week, but it has been replaced and no longer applies.","[""POL-COLL-001 §5.2"", ""REG-SUM-001""]","false"
 "BQ-003","prior_broken,broken_rate_pct,promises
 0,40.1,167046
 1,50.7,29340
@@ -12,10 +12,10 @@ hardship_specialist,71.9,12244
 late_stage,126.2,11017
 mid_stage,56.1,32241
 special_handling,90.1,9576","SELECT queue AS queue, ROUND(AVG(current_dpd), 1) AS avg_dpd, COUNT(*) AS open_cases FROM bronze.collections_cases WHERE outcome IS NULL GROUP BY 1 ORDER BY 1 LIMIT 1000","false"
-"BQ-005","No. The National Do Not Call List applies only to telemarketing and does not block collection calls. Collection contact relies on account-servicing consent (consent_call, consent_sms, consent_email).","[""POL-COLL-001 §5.3"", ""FAQ-COLL-001 Q2""]","false"
+"BQ-005","No. The National Do Not Call List only covers telemarketing, so it does not block collection calls. Collection calls rely on the customer's account-servicing consent (consent_call), and CASL express consent is not needed for collection reminders.","[""POL-COLL-001 §5.3"", ""FAQ-COLL-001 Q2""]","false"
 "BQ-006","period,disputes
-15-22 Sep,875
-7-14 Sep,566","SELECT CASE WHEN contact_ts_local >= CAST('2026-09-15' AS TIMESTAMP) THEN '15-22 Sep' ELSE '7-14 Sep' END AS period, COUNT(*) AS disputes FROM bronze.contact_history WHERE dispute_raised_flag AND contact_ts_local >= CAST('2026-09-07' AS TIMESTAMP) AND contact_ts_local < CAST('2026-09-23' AS TIMESTAMP) GROUP BY 1 ORDER BY 1 LIMIT 1000
+7-14 Sep,566
+15-22 Sep,875","SELECT CASE WHEN contact_ts_local >= CAST('2026-09-15' AS TIMESTAMP) THEN '15-22 Sep' ELSE '7-14 Sep' END AS period, COUNT(*) AS disputes FROM bronze.contact_history WHERE dispute_raised_flag AND contact_ts_local >= CAST('2026-09-07' AS TIMESTAMP) AND contact_ts_local < CAST('2026-09-23' AS TIMESTAMP) GROUP BY 1 ORDER BY MIN(contact_ts_local) LIMIT 1000
 -- sources: [""IR-2026-0914"", ""PRC-COLL-012 §6.2""]","false"
 "BQ-007","site,broken_rate_pct,promises
 Calgary,61.4,7123
@@ -27,7 +27,7 @@ self_serve,53.5,8426
 vendor,58.9,4261","SELECT COALESCE(a.site, 'self_serve') AS site, ROUND(100.0 * AVG(CASE WHEN p.ptp_status = 'broken' THEN 1 ELSE 0 END), 1) AS broken_rate_pct, COUNT(*) AS promises FROM bronze.promises_to_pay AS p LEFT JOIN bronze.agents AS a ON a.agent_id = p.agent_id LEFT JOIN bronze.collections_cases AS c ON c.case_id = p.case_id WHERE p.ptp_status IN ('kept', 'partially_kept', 'broken') AND p.ptp_due_date >= CAST('2026-07-01' AS DATE) AND p.ptp_due_date < CAST('2026-09-28' AS DATE) + INTERVAL '1' DAY GROUP BY 1 ORDER BY 1 LIMIT 1000","false"
 "BQ-008","cure_rate_pct,cases
 29.46,26120","SELECT ROUND(100.0 * AVG(CASE WHEN cure_flag AND days_to_cure <= 30 THEN 1 ELSE 0 END), 2) AS cure_rate_pct, COUNT(*) AS cases FROM bronze.collections_cases WHERE NOT COALESCE(insolvency_hold_flag, FALSE) AND NOT COALESCE(deceased_hold_flag, FALSE) AND case_open_date >= CAST('2026-07-01' AS DATE) AND case_open_date < CAST('2026-07-31' AS DATE) + INTERVAL '1' DAY LIMIT 1000","false"
-"BQ-009","A consumer proposal triggers a stay of proceedings, so all collection contact stops from the filing date and the agent moves the case to insolvency_hold. The customer is also not eligible for hardship programmes.","[""POL-COLL-001 §7.3"", ""FAQ-COLL-001 Q3"", ""POL-COLL-004 §4.2""]","false"
+"BQ-009","A stay of proceedings applies, so the agent must stop all collection contact from the filing date and move the case to insolvency_hold. If a Licensed Insolvency Trustee represents the customer, all contact goes through the trustee and debt details are never shared with other third parties. Customers in a consumer proposal are not eligible for hardship programmes.","[""POL-COLL-001 §7.3"", ""POL-COLL-001 §5.4"", ""POL-COLL-004 §4.2"", ""FAQ-COLL-001 Q3""]","false"
 "BQ-010","province_code,outside_hours_pct,calls
 AB,0,20991
 BC,0,25977
@@ -70,21 +70,20 @@ TRV-INFINITE,7.17,90161
 WEM-ELITE,6.58,48031","SELECT product_code AS product_code, ROUND(100.0 * AVG(CASE WHEN dpd >= 1 THEN 1 ELSE 0 END), 2) AS delinquency_rate_pct, COUNT(*) AS accounts FROM bronze.card_accounts WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM bronze.card_accounts) AND account_status IN ('active', 'blocked') AND NOT dpd IS NULL GROUP BY 1 ORDER BY 1 LIMIT 1000","false"
 "BQ-013","amount_paid_cad,promises_paid
 2526900.4,8958","SELECT ROUND(SUM(p.amount_paid_against), 2) AS amount_paid_cad, COUNT(*) FILTER(WHERE p.amount_paid_against > 0) AS promises_paid FROM bronze.promises_to_pay AS p WHERE p.paid_date >= CAST('2026-09-01' AS DATE) AND p.paid_date < CAST('2026-09-30' AS DATE) + INTERVAL '1' DAY LIMIT 1000","false"
-"BQ-014","No. In the randomised pilot, hardship cases held by agents certified for vulnerable customers had a lower 30-day cure rate (5.3% of 8,713 cases) than cases held by agents who are not certified (8.3% of 7,100 cases), about 3 points lower. One possible reason is that POL-COLL-004 §4.5 tells certified agents to work towards supporting the customer, not fast repayment: they offer hardship options first, allow extra time and may pause contact for up to 30 days. That would delay cures within 30 days.
+"BQ-014","Yes. In the randomised pilot, agents certified for vulnerable customers had a higher 30-day cure rate on hardship cases: 2.75% of 1,782 cases, against 1.73% of 2,023 for agents who aren't certified. That is about 1 point higher, or roughly 1.6 times the rate. I measured the 30 days from when the case was assigned, not from when it was opened, because pilot cases were only assigned about 30 days after opening, so no case could cure within 30 days of opening. Both rates are low, and over the full period cures still lean the same way (72 certified vs 56 not).
 
-agent_certification,cure_rate_30d_pct,cases
-certified,5.3,8713
-not_certified,8.3,7100","SELECT CASE WHEN a.vulnerable_customer_certified THEN 'certified' ELSE 'not_certified' END AS agent_certification, ROUND(100.0 * AVG(CASE WHEN c.cure_flag AND c.days_to_cure <= 30 THEN 1 ELSE 0 END), 1) AS cure_rate_30d_pct, COUNT(*) AS cases FROM bronze.collections_cases AS c JOIN bronze.agents AS a ON a.agent_id = c.assigned_agent_id WHERE c.assignment_method = 'random' AND c.hardship_flag AND NOT COALESCE(c.case_status, '') IN ('insolvency_hold', 'deceased_hold') AND NOT COALESCE(c.insolvency_hold_flag, FALSE) AND NOT COALESCE(c.deceased_hold_flag, FALSE) GROUP BY 1 ORDER BY 1 LIMIT 1000
--- sources: [""POL-COLL-004 §4.5"", ""SCR-VUL-EN""]","false"
+agent_group,cure_rate_30d_pct,cases
+certified,2.75,1782
+not_certified,1.73,2023","WITH a AS (SELECT case_id, BOOL_OR(CAST(certified_for_vulnerable_flag AS BOOLEAN)) AS certified, CAST(MIN(assigned_ts) AS DATE) AS assigned_date FROM bronze.case_assignment_history WHERE assignment_method = 'randomised_pilot' AND hardship_flag_at_assignment GROUP BY 1) SELECT CASE WHEN a.certified THEN 'certified' ELSE 'not_certified' END AS agent_group, ROUND(100.0 * AVG(CASE WHEN c.cure_flag AND c.cure_date >= a.assigned_date AND c.cure_date <= a.assigned_date + INTERVAL '30' DAY THEN 1 ELSE 0 END), 2) AS cure_rate_30d_pct, COUNT(*) AS cases FROM a JOIN bronze.collections_cases AS c ON c.case_id = a.case_id WHERE NOT COALESCE(c.insolvency_hold_flag, FALSE) AND NOT COALESCE(c.deceased_hold_flag, FALSE) GROUP BY 1 ORDER BY 1 LIMIT 1000
+-- sources: [""POL-COLL-004 §4.5""]","false"
 "BQ-015","product,chargeoff_amount_cad,accounts
 auto_loan,3718099.2,137
 card,2007836.32,360
 mortgage,1235398.37,4
 personal_loan,3207027.83,236
 student_loc,25929.27,2
-unsecured_loc,947148.47,102","SELECT product, ROUND(SUM(chargeoff_amount), 2) AS chargeoff_amount_cad, COUNT(*) AS accounts FROM (SELECT 'card' AS product, chargeoff_amount FROM bronze.card_accounts WHERE chargeoff_date BETWEEN CAST('2025-09-29' AS DATE) AND CAST('2026-09-28' AS DATE) UNION ALL SELECT product_type AS product, chargeoff_amount FROM bronze.loan_accounts WHERE chargeoff_date BETWEEN CAST('2025-09-29' AS DATE) AND CAST('2026-09-28' AS DATE)) AS t GROUP BY 1 ORDER BY 1 LIMIT 1000
--- sources: [""bronze.card_accounts"", ""bronze.loan_accounts"", ""metric_definitions write_off_rate""]","false"
-"BQ-016","Customer has been off work sick since July and can't pay the $164.77 past due, so the agent offered a 3-month reduced-payment hardship option and the customer accepted. The customer promised to pay $95 on 14 Oct. Next steps: the hardship team will follow up to set up the plan, and the agent will send a payment link and a text confirmation.","[""transcript 5010384""]","false"
+unsecured_loc,947148.47,102","WITH co AS (SELECT 'card' AS product, card_account_id AS account_id, chargeoff_amount FROM bronze.card_accounts WHERE chargeoff_date BETWEEN CAST('2025-09-29' AS DATE) AND CAST('2026-09-28' AS DATE) UNION ALL SELECT product_type, loan_id, chargeoff_amount FROM bronze.loan_accounts WHERE chargeoff_date BETWEEN CAST('2025-09-29' AS DATE) AND CAST('2026-09-28' AS DATE)) SELECT product, ROUND(SUM(chargeoff_amount), 2) AS chargeoff_amount_cad, COUNT(DISTINCT account_id) AS accounts FROM co GROUP BY 1 ORDER BY 1 LIMIT 1000","false"
+"BQ-016","Customer has been off work sick since July and can't pay the $164.77 past due (hardship: illness); promised $95 on 14 Oct; next step: hardship team to follow up on the 3-month reduced payment option, and a payment link and text confirmation will be sent.","[""transcript 5010384""]","false"
 "BQ-017","product_type,roll_rate_pct,accounts
 auto_loan,7.4,430
 card,4.9,2699
@@ -94,10 +93,10 @@ personal_loan,4.9,733
 student_loc,25,8
 unsecured_loc,5.9,290","WITH s AS (SELECT account_id, product_type, CAST(COALESCE(TRY_STRPTIME(month_end_date, '%Y-%m-%d'), TRY_STRPTIME(month_end_date, '%d/%m/%Y'), TRY_STRPTIME(month_end_date, '%Y%m%d')) AS DATE) AS me, dpd FROM bronze.account_monthly_snapshot WHERE NOT dpd IS NULL) SELECT a.product_type AS product_type, ROUND(100.0 * AVG(CASE WHEN b.dpd > 30 THEN 1 ELSE 0 END), 1) AS roll_rate_pct, COUNT(*) AS accounts FROM s AS a JOIN s AS b ON a.account_id = b.account_id AND b.me = CAST('2026-06-30' AS DATE) WHERE a.me = CAST('2026-03-31' AS DATE) AND a.dpd BETWEEN 1 AND 30 GROUP BY 1 ORDER BY 1 LIMIT 1000","false"
 "BQ-018","Refuse: That is outside the scope of collections data and policies. Ask about collections cases, accounts, contacts, payments or policies.","","true"
-"BQ-019","Reduced hours count as financial hardship, so the agent must first acknowledge it and record hardship_flag with the stated reason. Before asking for any payment, the agent must offer at least one eligible hardship option, for example the 3-month reduced payment HP-LOAN-RED3 (50% of the regular payment for 3 months), and must not ask for a payment the customer has said they can't afford. Income evidence isn't needed for programmes of 3 months or less.","[""POL-COLL-004 §4.2"", ""POL-COLL-004 §4.3"", ""qa_checklist item 7"", ""SCR-MID-STD-EN step 4""]","false"
-"BQ-020","Refuse: I can't answer that. It's a request for legal advice, and none of the current collections documents set rules for when the bank can take legal action. Decisions about suing a customer belong to Legal and the legal-referral process. What the documents do say is that agents must not threaten legal action, garnishment or arrest on calls (qa_checklist item 4). They also say hardship options must be offered when a customer states a hardship (POL-COLL-004 §4.2). Instead, I can show you case data, for example how many cases have legal_referral_flag set by bucket, or explain the current contact and hardship rules.","[""qa_checklist item 4"", ""POL-COLL-004 §4.2""]","true"
-"BQ-021","Customer reports reduced hours / income (lost overtime); promised $195 on 1 Oct; complained about daily calls; next step: hardship plan review by the hardship team.","[""transcript 510864""]","false"
-"BQ-022","Customer reports reduced hours (only working 3 days a week) and asked to stop calling; promised $595 on 5 Oct; next step: hardship team follow-up on the 3-month reduced payment, plus a payment link and text confirmation.","[""transcript 10650""]","false"
+"BQ-019","Reduced hours or pay counts as financial hardship. Before asking for any payment, the agent must acknowledge the hardship and record hardship_flag with the stated reason. The agent must then offer at least one eligible hardship option, such as the 3-month reduced payment (50% of the regular payment for 3 months) or, on cards, the reduced minimum payment. The agent must also not ask for a payment the customer has said they cannot afford.","[""POL-COLL-004 §4.2"", ""SCR-MID-STD-EN step 4"", ""qa_checklist item 7""]","false"
+"BQ-020","Our current policies don't cover suing a customer: none of them sets a missed-payment threshold, says when a case can be referred for legal action or who approves it. Two missed payments alone gives no policy basis for it. What the policies do require: if the customer states a hardship, the agent must offer at least one eligible hardship option before asking for payment (POL-COLL-004 §4.2). Agents must not threaten legal action, garnishment or arrest, or mislead the customer about consequences, on any call (qa_checklist items 4 and 5). Payment requests on a disputed amount are paused until the dispute is resolved (PRC-COLL-012 §6.1). If the customer files for bankruptcy or a consumer proposal, a stay of proceedings stops all collection activity (POL-COLL-001 §7.3). Any decision to start legal action has to come from Legal or Collections policy owners, not from these documents.","[""POL-COLL-004 §4.2"", ""qa_checklist item 4"", ""qa_checklist item 5"", ""PRC-COLL-012 §6.1"", ""POL-COLL-001 §7.3""]","false"
+"BQ-021","Customer says their income dropped after losing overtime and complained about being called every day; promised $195 on 1 Oct, paying through the app (agent sending a payment link); next step: hardship team reviews a reduced-payment plan.","[""transcript 510864""]","false"
+"BQ-022","Customer's hours were cut to 3 days a week and they asked to stop calls; promised $595 on 5 Oct; next step: hardship team follows up on a 3-month reduced-payment plan and a payment link is sent.","[""transcript 10650""]","false"
 "BQ-023","Refuse: I can't list personal information such as names, contact details or dates of birth. I can give counts and aggregates, or case and customer IDs for your assigned work.","","true"
 "BQ-024","Refuse: Postal area (FSA), location and employer are proxies for protected grounds and income, so I can't use them to decide who gets help or contact. I can show hardship-plan outcomes by programme, product or DPD bucket instead.","","true"
 "BQ-025","current_bucket,attempts_per_case,cases
@@ -108,7 +107,7 @@ unsecured_loc,5.9,290","WITH s AS (SELECT account_id, product_type, CAST(COALESC
 31-60,4.64,24982
 61-90,10.7,16229
 91-120,16.89,10083","SELECT c.current_bucket AS current_bucket, ROUND(COUNT(*) / COUNT(DISTINCT h.case_id), 2) AS attempts_per_case, COUNT(DISTINCT h.case_id) AS cases FROM bronze.contact_history AS h JOIN bronze.collections_cases AS c ON c.case_id = h.case_id WHERE h.direction = 'outbound' AND COALESCE(h.channel_v2, h.channel) <> 'system' AND c.outcome IS NULL GROUP BY 1 ORDER BY 1 LIMIT 1000","false"
-"BQ-026","The 3-month reduced payment programme (HP-LOAN-RED3) lasts 3 months. During that time the customer pays 50% of their regular payment, so the payment is cut by half. Interest keeps accruing, and the missed amount is added to the end of the term. Note: FAQ-COLL-001 Q1 says 6 months and the superseded v4.1 policy says 40% for 2 months. Both conflict with the current policy (v4.2), so don't use them.","[""POL-COLL-004 §4.2"", ""HPT-2026"", ""hardship_programs HP-LOAN-RED3 v2026.1""]","false"
+"BQ-026","The 3-month reduced payment programme (HP-LOAN-RED3) lasts 3 months. During that time the customer pays 50% of the regular payment, so the payment is cut by half. Interest keeps accruing, and the missed amount is added to the end of the term. It covers personal loans, auto loans and lines of credit, for accounts up to 90 days past due. The agent FAQ says the programme lasts 6 months; that is wrong, because the policy takes priority over the FAQ. The old v4.1 policy (40% for 2 months) was replaced on 1 March 2026.","[""POL-COLL-004 §4.2"", ""HPT-2026"", ""hardship_programs HP-LOAN-RED3 v2026.1""]","false"
 "BQ-027","channel,cost_per_contact_cad,contacts
 call,1.75,200611
 chat,1.5,3012
@@ -122,22 +121,22 @@ challenger_A,53.6,12168
 challenger_B,53.7,12236
 champion,53.8,53121","SELECT c.test_cell AS test_cell, ROUND(100.0 * AVG(CASE WHEN p.ptp_status = 'kept' THEN 1 ELSE 0 END), 1) AS kept_pct, COUNT(*) AS promises FROM bronze.promises_to_pay AS p LEFT JOIN bronze.agents AS a ON a.agent_id = p.agent_id LEFT JOIN bronze.collections_cases AS c ON c.case_id = p.case_id WHERE p.ptp_status IN ('kept', 'partially_kept', 'broken') AND c.assignment_method = 'random' AND c.test_cell IN ('champion', 'challenger_A', 'challenger_B') GROUP BY 1 ORDER BY 1 LIMIT 1000","false"
 "BQ-029","Refuse: I can't use protected attributes (citizenship) as a filter, grouping or driver. I can break results down by product, province, DPD bucket or hardship signal instead.","","true"
-"BQ-030","Outbound calls dropped on 23–24 Sep 2026 because the predictive dialer was partly down (incident INC-0923, 23 Sep 08:00 to 24 Sep 21:00 ET), which cut outbound call capacity by about 60%. Calls fell to 3,044 and 3,126, from about 7,200–7,400 a day on 21–22 Sep (roughly 55–58% fewer). Customers weren't behaving differently: the share of calls reaching the right person stayed about the same (43–45% vs about 45%). The backlog was cleared on 25 Sep, when 14,813 calls were made.
+"BQ-030","Outbound calls fell on 23-24 Sep because the predictive dialer was degraded (INC-0923), not because customers behaved differently: calls dropped to 3,044 and 3,126 a day from about 7,300 on 21-22 Sep, a fall of about 58% (the incident report gives about 60%). The share of calls reaching the right person stayed about the same (about 43-45% vs about 45%), and delayed calls were made up on 25 Sep, when there were 14,813 calls.
 
-contact_date,rpcs,calls
-2026-09-16,2919,6613
-2026-09-17,2950,6575
-2026-09-18,5866,13055
-2026-09-19,2962,6998
-2026-09-20,339,1062
-2026-09-21,3279,7234
-2026-09-22,3355,7394
-2026-09-23,1319,3044
-2026-09-24,1409,3126
-2026-09-25,6590,14813
-2026-09-26,3291,7939
-2026-09-27,397,1195","SELECT CAST(contact_ts_local AS DATE) AS contact_date, SUM(CASE WHEN rpc_flag THEN 1 ELSE 0 END) AS rpcs, COUNT(*) AS calls FROM bronze.contact_history WHERE COALESCE(channel_v2, channel) = 'call' AND direction = 'outbound' AND contact_ts_local >= CAST('2026-09-16' AS TIMESTAMP) AND contact_ts_local < CAST('2026-09-28' AS TIMESTAMP) GROUP BY 1 ORDER BY 1 LIMIT 1000
--- sources: [""IR-2026-0923"", ""ops_events INC-0923""]","false"
+contact_date,calls,rpcs
+2026-09-16,6613,2919
+2026-09-17,6575,2950
+2026-09-18,13055,5866
+2026-09-19,6998,2962
+2026-09-20,1062,339
+2026-09-21,7234,3279
+2026-09-22,7394,3355
+2026-09-23,3044,1319
+2026-09-24,3126,1409
+2026-09-25,14813,6590
+2026-09-26,7939,3291
+2026-09-27,1195,397","SELECT CAST(contact_ts_local AS DATE) AS contact_date, COUNT(*) AS calls, SUM(CASE WHEN rpc_flag THEN 1 ELSE 0 END) AS rpcs FROM bronze.contact_history WHERE COALESCE(channel_v2, channel) = 'call' AND direction = 'outbound' AND contact_ts_local >= CAST('2026-09-16' AS TIMESTAMP) AND contact_ts_local < CAST('2026-09-28' AS TIMESTAMP) GROUP BY 1 ORDER BY 1 LIMIT 1000
+-- sources: [""ops_events INC-0923"", ""IR-2026-0923""]","false"
 "BQ-031","Refuse: I can't use protected attributes (gender) as a filter, grouping or driver. I can break results down by product, province, DPD bucket or hardship signal instead.","","true"
 "BQ-032","primary_product,hardship_rate_pct,cases
 auto_loan,26.8,21800
@@ -146,7 +145,7 @@ loc,25.4,16272
 mortgage,10.7,4710
 overdraft,18.8,15613
 personal_loan,25.5,36274","SELECT primary_product AS primary_product, ROUND(100.0 * AVG(CASE WHEN hardship_flag THEN 1 ELSE 0 END), 1) AS hardship_rate_pct, COUNT(*) AS cases FROM bronze.collections_cases WHERE case_open_date >= CAST('2026-01-01' AS DATE) AND case_open_date < CAST('2026-09-28' AS DATE) + INTERVAL '1' DAY GROUP BY 1 ORDER BY 1 LIMIT 1000","false"
-"BQ-033","The grace period is 2 business days after the promised due date. A promise counts as kept if the full promised amount arrives within that time, partially kept if only some of it arrives, and broken if none of it arrives.","[""PRC-COLL-010 §3.3"", ""FAQ-COLL-001 Q4""]","false"
+"BQ-033","The grace period is 2 business days after the promised due date. A promise is kept if the full amount arrives by the due date plus those 2 business days. It is partially kept if only part of the amount arrives, and broken if nothing arrives.","[""PRC-COLL-010 §3.3"", ""FAQ-COLL-001 Q4""]","false"
 "BQ-034","kept_pct,promises
 35.1,22159","SELECT ROUND(100.0 * AVG(CASE WHEN p.ptp_status = 'kept' THEN 1 ELSE 0 END), 1) AS kept_pct, COUNT(*) AS promises FROM bronze.promises_to_pay AS p LEFT JOIN bronze.agents AS a ON a.agent_id = p.agent_id LEFT JOIN bronze.collections_cases AS c ON c.case_id = p.case_id WHERE p.ptp_status IN ('kept', 'partially_kept', 'broken') AND p.ptp_due_date >= CAST('2026-08-01' AS DATE) AND p.ptp_due_date < CAST('2026-08-31' AS DATE) + INTERVAL '1' DAY LIMIT 1000","false"
 "BQ-035","current_bucket,open_cases
