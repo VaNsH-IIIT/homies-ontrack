@@ -11,15 +11,19 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from ontrack import config
 from ontrack.db import connect
-from ontrack.l2_ask import ask
+from ontrack.l2_ask import ask, llm
 
 FIELDS = ["question_id", "answer", "sql_or_sources", "refused"]
+trace_lock = threading.Lock()
 
 
 def read_questions(path: Path) -> list[dict]:
@@ -36,6 +40,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", default=str(config.REPO_ROOT / "benchmark" / "answers.csv"))
     ap.add_argument("--only", default="", help="comma-separated question_ids to run (others are kept from --out)")
     ap.add_argument("--no-cache", action="store_true", help="ignore cached LLM responses")
+    ap.add_argument("--workers", type=int, default=4, help="questions answered in parallel")
+    ap.add_argument("--retries", type=int, default=1, help="extra attempts for a question that errors")
     args = ap.parse_args(argv)
 
     questions = read_questions(Path(args.questions))
@@ -48,27 +54,46 @@ def main(argv: list[str] | None = None) -> int:
 
     con = connect(read_only=True)
     engine = ask.Engine(con, use_cache=not args.no_cache)
-    rows, failed = [], 0
+    if llm.available():
+        _ = engine.context                                   # build the shared prompt once, before the threads
     start = time.time()
-    for q in questions:
+    trace_path = config.WORK_DIR / "benchmark_trace.jsonl"
+
+    def one(q: dict) -> tuple[dict, str]:
         qid = q["question_id"]
-        if only and qid not in only and qid in previous:
-            rows.append(previous[qid])
-            continue
         t0 = time.time()
-        try:
-            a = engine.answer(q["question_text"], as_of_date=q.get("as_of_date") or config.SNAPSHOT_DATE,
-                              metric_id=q.get("metric_id") or None, question_id=qid,
-                              tolerance=q.get("tolerance") or "")
-        except Exception as e:  # never lose a row
-            failed += 1
-            print(f"  {qid}: ERROR {type(e).__name__}: {e}", file=sys.stderr, flush=True)
-            a = ask.Answer(answer="Could not answer: internal error", sql_or_sources="", refused=False,
-                           route="error")
-        rows.append({"question_id": qid, "answer": a.answer, "sql_or_sources": a.sql_or_sources,
-                     "refused": "true" if a.refused else "false"})
+        a = None
+        for attempt in range(1 + args.retries):          # an LLM hiccup must not cost a question
+            try:
+                a = engine.answer(q["question_text"], as_of_date=q.get("as_of_date") or config.SNAPSHOT_DATE,
+                                  metric_id=q.get("metric_id") or None, question_id=qid,
+                                  tolerance=q.get("tolerance") or "")
+            except Exception as e:  # noqa: BLE001 - never lose a row
+                print(f"  {qid}: attempt {attempt + 1} ERROR {type(e).__name__}: {str(e)[:200]}", file=sys.stderr,
+                      flush=True)
+                a = ask.Answer(answer="Could not answer: internal error", sql_or_sources="", refused=False,
+                               route="error")
+            if a.route != "error":
+                break
+        row = {"question_id": qid, "answer": a.answer, "sql_or_sources": a.sql_or_sources,
+               "refused": "true" if a.refused else "false"}
+        with trace_lock, open(trace_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"question_id": qid, "question": q["question_text"], "route": a.route,
+                                "seconds": round(time.time() - t0, 1), "understood_as": a.understood_as,
+                                **row}, ensure_ascii=False, default=str) + "\n")
         first = (a.answer.splitlines() or [""])[0][:70]
-        print(f"  {qid} [{a.route:8s}] {time.time() - t0:5.1f}s  {first}", flush=True)
+        return row, f"  {qid} [{a.route:8s}] {time.time() - t0:5.1f}s  {first}"
+
+    todo = [q for q in questions if not (only and q["question_id"] not in only and q["question_id"] in previous)]
+    results: dict[str, dict] = {}
+    with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
+        futs = {pool.submit(one, q): q["question_id"] for q in todo}
+        for f in as_completed(futs):
+            row, line = f.result()
+            results[row["question_id"]] = row
+            print(line, flush=True)
+    rows = [results.get(q["question_id"]) or previous[q["question_id"]] for q in questions]
+    failed = sum(1 for r in rows if r["answer"].startswith(("Could not answer", "Not answered")))
 
     out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, "w", encoding="utf-8", newline="") as f:
