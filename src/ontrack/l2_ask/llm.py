@@ -3,7 +3,7 @@
 Two backends, same call (`complete_json`):
   * api -> Anthropic Messages API when ANTHROPIC_API_KEY is set (.env or environment);
   * cli -> the logged-in Claude Code CLI (`claude -p`, headless, no tools, JSON-schema output) otherwise.
-  Force one with ONTRACK_LLM_BACKEND=api|cli. Model: ONTRACK_LLM_MODEL (api default claude-opus-5; cli default
+  Force one with ONTRACK_LLM_BACKEND=api|cli. Model: ONTRACK_LLM_MODEL (api default claude-opus-5-5; cli default
   the 'opus' alias).
 * Disk cache: final results are stored under $ONTRACK_WORK_DIR/llm_cache keyed by a hash of the request, so
   re-running the benchmark is repeatable and free. Bump the caller's PROMPT_VERSION to invalidate.
@@ -46,7 +46,7 @@ def available() -> bool:
     return backend() is not None
 
 
-MODEL = os.environ.get("ONTRACK_LLM_MODEL") or ("claude-opus-5" if backend() == "api" else "opus")
+MODEL = os.environ.get("ONTRACK_LLM_MODEL") or ("claude-opus-5-5" if backend() == "api" else "opus")
 
 
 def client():
