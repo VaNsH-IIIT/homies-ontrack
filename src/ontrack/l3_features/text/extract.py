@@ -1,14 +1,15 @@
 """Build features.text_signals for open cases (owner: P2). Layer 3, text features.
 
-    python -m ontrack.l3_features.text.extract                      # notes (all) + transcripts (LLM, cached)
-    python -m ontrack.l3_features.text.extract --max-transcripts 500 --workers 6
-    python -m ontrack.l3_features.text.extract --skip-transcripts   # notes only, ~2 min, no LLM
+    python -m ontrack.l3_features.text.extract                      # all notes + all transcripts, no LLM calls
+    python -m ontrack.l3_features.text.extract --llm-transcripts 500 --workers 4   # + Claude on 500 more calls
+    python -m ontrack.l3_features.text.extract --skip-transcripts   # notes only
 
 Output (interface in README):
   features.text_signals       one row per note / transcript of an open case
   features.text_signals_case  one row per open case: latest hardship evidence, any dispute, latest stated payday
-Transcripts are processed most recent first and cached, so a re-run only sends new transcripts to the LLM; until
-every transcript is done, the table holds the ones processed so far (coverage is printed).
+Every open-case transcript gets signals from the cheap model (trained on the 500 labelled calls); Claude's result
+(quote verified in its turn) replaces it where one exists, so `model` says which produced each row. Claude results
+are cached: a re-run sends only new transcripts, and only when --llm-transcripts asks for them.
 The slow part only reads the database; the write at the end takes seconds (DuckDB allows one writer).
 """
 from __future__ import annotations
@@ -57,39 +58,45 @@ def note_signals(con) -> pd.DataFrame:
     return out
 
 
-def transcript_signals(con, max_n: int | None, workers: int, batch_size: int) -> pd.DataFrame:
+def transcript_signals(con, llm_n: int, workers: int, batch_size: int) -> pd.DataFrame:
+    """Every open-case transcript gets signals from the cheap model; Claude's (verified-quote) result replaces it
+    where one exists: cached from earlier runs, plus the `llm_n` most recent transcripts not yet done."""
     meta = con.execute(
-        f"SELECT transcript_id, contact_id, case_id, crm_customer_id, call_end_ts, file_path "
+        f"SELECT transcript_id, contact_id, case_id, crm_customer_id, call_start_ts, call_end_ts, file_path "
         f"FROM bronze.call_transcripts WHERE case_id IN ({OPEN}) ORDER BY call_start_ts DESC").df()
-    if max_n:
-        meta = meta.head(max_n)
+    meta["transcript_id"] = meta.transcript_id.astype(str)
     t0 = time.time()
     items = [S.load_transcript(fp) for fp in meta.file_path]
-    batches = [items[i:i + batch_size * 4] for i in range(0, len(items), batch_size * 4)]
-    results: dict[str, dict] = {}
-    done = 0
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        futs = [pool.submit(S.extract_transcripts, b, batch_size) for b in batches]
-        for f in as_completed(futs):
-            results.update(f.result())
-            done += 1
-            if done % 5 == 0 or done == len(futs):
-                print(f"  transcripts: {len(results):,}/{len(items):,} in {time.time() - t0:.0f}s", flush=True)
-    meta = meta[meta.transcript_id.astype(str).isin(results)]
-    r = [results[str(t)] for t in meta.transcript_id]
-    out = pd.DataFrame({
-        "source_type": "transcript", "source_id": meta.transcript_id.astype(str), "contact_id": meta.contact_id,
-        "case_id": meta.case_id, "crm_customer_id": meta.crm_customer_id, "event_ts": meta.call_end_ts,
-        "hardship_signal": [x["hardship"] != "none" for x in r], "hardship_level": [x["hardship"] for x in r],
-        "hardship_confidence": [float(x.get("hardship_confidence") or 0) for x in r],
-        "evidence_quote": [x.get("evidence_quote") for x in r],
-        "evidence_turn_index": [x.get("evidence_turn_index") for x in r],
-        "stated_delay_reason": [x.get("stated_delay_reason") for x in r],
-        "stated_payday": [_iso_or_none(x.get("stated_payday")) for x in r],
-        "dispute_mentioned": [bool(x.get("dispute_mentioned")) for x in r],
-        "model": f"claude {S.TEXT_MODEL}", "prompt_version": S.PROMPT_VERSION,
-    })
-    print(f"transcripts: {len(out):,} with signals; hardship {out.hardship_signal.mean() if len(out) else 0:.1%}",
+    model = S.train_transcript_model(con)
+    cheap = {r["transcript_id"]: r for r in model.predict(items)}
+    print(f"transcripts: {len(items):,} scored by the cheap model in {time.time() - t0:.0f}s", flush=True)
+
+    claude = S.extract_transcripts(items, cache_only=True)
+    todo = [t for t in items if str(t["transcript_id"]) not in claude][:max(0, llm_n)]
+    if todo:
+        chunks = [todo[i:i + batch_size * 4] for i in range(0, len(todo), batch_size * 4)]
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for f in as_completed([pool.submit(S.extract_transcripts, c, batch_size) for c in chunks]):
+                claude.update(f.result())
+    print(f"transcripts: {len(claude):,} with Claude results (cached + new), {len(items) - len(claude):,} "
+          f"cheap model only", flush=True)
+
+    rows = []
+    for m in meta.itertuples():
+        r, src = (claude[m.transcript_id], f"claude {S.TEXT_MODEL}") if m.transcript_id in claude else             (cheap[m.transcript_id], "transcripts-char-ngram-logreg (public_500)")
+        rows.append({
+            "source_type": "transcript", "source_id": m.transcript_id, "contact_id": m.contact_id,
+            "case_id": m.case_id, "crm_customer_id": m.crm_customer_id, "event_ts": m.call_end_ts,
+            "hardship_signal": r["hardship"] != "none", "hardship_level": r["hardship"],
+            "hardship_confidence": float(r.get("hardship_confidence") or 0),
+            "evidence_quote": r.get("evidence_quote"), "evidence_turn_index": r.get("evidence_turn_index"),
+            "stated_delay_reason": r.get("stated_delay_reason"),
+            "stated_payday": _iso_or_none(r.get("stated_payday")),
+            "dispute_mentioned": bool(r.get("dispute_mentioned")), "model": src,
+            "prompt_version": S.PROMPT_VERSION,
+        })
+    out = pd.DataFrame(rows)
+    print(f"transcripts: {len(out):,} rows; hardship {out.hardship_signal.mean() if len(out) else 0:.1%}",
           flush=True)
     return out
 
@@ -121,7 +128,8 @@ FROM s GROUP BY case_id
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Build features.text_signals")
-    ap.add_argument("--max-transcripts", type=int, default=None, help="most recent N open-case transcripts")
+    ap.add_argument("--llm-transcripts", "--max-transcripts", dest="llm_transcripts", type=int, default=0,
+                    help="also send the N most recent not-yet-extracted transcripts to Claude (cache reused)")
     ap.add_argument("--skip-transcripts", action="store_true")
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--batch-size", type=int, default=10)
@@ -130,7 +138,7 @@ def main(argv=None) -> int:
     con = connect(read_only=True)
     parts = [note_signals(con)]
     if not args.skip_transcripts:
-        parts.append(transcript_signals(con, args.max_transcripts, args.workers, args.batch_size))
+        parts.append(transcript_signals(con, args.llm_transcripts, args.workers, args.batch_size))
     con.close()
     df = pd.concat(parts, ignore_index=True)[COLUMNS]
     df["evidence_turn_index"] = pd.to_numeric(df.evidence_turn_index, errors="coerce").astype("Int64")
