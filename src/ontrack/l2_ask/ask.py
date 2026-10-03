@@ -344,7 +344,8 @@ class Engine:
             [case_id.strip(), int(limit or 10)]).fetchall()
         if not rows:
             return f"No notes for case {case_id}."
-        return "\n".join(f"note_id {n} · {ts} · {t}: {redact(txt or '')}" for n, ts, t, txt in rows)
+        from ontrack.l3_features.text.accents import repair      # accents lost as U+FFFD in the release
+        return "\n".join(f"note_id {n} · {ts} · {t}: {redact(repair(txt) or '')}" for n, ts, t, txt in rows)
 
     # -- main --------------------------------------------------------------------------------------------------
     def certified(self, u: understand.Understood, question: str = "") -> Answer | None:

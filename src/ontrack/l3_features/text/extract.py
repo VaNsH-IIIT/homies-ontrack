@@ -25,6 +25,7 @@ import pandas as pd
 from ontrack import config
 from ontrack.db import connect
 from ontrack.l3_features.text import signals as S
+from ontrack.l3_features.text.accents import repair
 
 COLUMNS = ["source_type", "source_id", "contact_id", "case_id", "crm_customer_id", "event_ts", "hardship_signal",
            "hardship_level", "hardship_confidence", "evidence_quote", "evidence_turn_index", "stated_delay_reason",
@@ -39,6 +40,7 @@ def note_signals(con) -> pd.DataFrame:
         f"SELECT note_id, contact_id, case_id, crm_customer_id, note_ts, coalesce(note_text, '') AS note_text "
         f"FROM bronze.agent_notes WHERE case_id IN ({OPEN}) "
         f"AND coalesce(redaction_status, '') <> 'needs_review'").df()   # design: needs_review notes excluded
+    notes["note_text"] = [repair(t) for t in notes.note_text]       # restore accents lost as U+FFFD (DQ issue)
     preds = model.predict([S.redact(t) for t in notes.note_text])
     df = pd.DataFrame(preds)
     # stated_payday relative to the note's own date, not the snapshot
