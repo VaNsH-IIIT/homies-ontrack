@@ -5,7 +5,29 @@ Status: `[ ]` to do · `[~]` in progress · `[x]` merged to `main`. Update your 
 
 **Tasks say what must work, not how.** The "Done when" column and the interfaces in the README are fixed; the approach inside your folders is yours: choose libraries, prompts, features and models, and experiment. Fixed regardless: the table names and columns in the interfaces, the hackathon rules (no protected attributes, a plain-English reason for every decision, human review, hardship flagged), and the design as the base (log any change and why).
 
-## 📌 Final plan from P1 — read this first (updated 3 Oct, 21:50 IST)
+## ☀️ 4 Oct plan from P1: read this first (updated 4 Oct, 00:45 IST)
+
+**State:** PRs #15 and #17 (Kris: K1 repeatable training, K2 video facts, K3 edge cases, "Why this channel" card, fairness by group) are verified on full data and merged. Checks: pytest 197, `run_all --skip-l1` all OK, dev 21/21, all 5 pages load. Open: **#16 (K5)** and Garv's branch `p2/P2-G-polish` (G2, G3), which has no PR yet.
+**Numbers source:** the deck, README and video quote **P1's build**, because P1's machine produces the submission. On `main` now: 96,000 open cases · human-only **59,942 (62%)** · hardship referral **46,235 (48%)** · text-only hardship **8,883** · calls **5,037** · self-cure AUC **0.83** vs bank **0.72**. Your own machine may differ by a few cases, because it has a different LLM cache. In voice-overs, say "62%", "about 46,000" and "nearly 9,000" rather than exact counts.
+
+| ID | Who | Task | Done when | By |
+|---|---|---|---|---|
+| G6 | **Garv** | Open a PR for `p2/P2-G-polish` (G2 `--retry-failed`, G3 Ask hardening) and post the **G1** result (3 fresh runs) in #13 | PR open, the peer-merge checks in the description, G1 diff posted | 10:00 |
+| K5 | **Kris** | #16: P1 approves the design (`p_roll_forward` NULL for `180+`, new `p_charge_off_risk`, `current_bucket`). Rebase on `main`, mark it ready, add full-data counts | 180+ count and top-5 of each list in the PR; pytest and `run_all --skip-l1` OK | 10:00 |
+| G5 | **Garv** | After #16 merges: R5 roll-forward uses `NULLS LAST` (no `180+` in the answer); add the example "which open cases are closest to charge-off?" on `p_charge_off_risk` | Both questions answer with SQL on the Ask page; dev still 21/21 | 12:00 |
+| — | **Garv ↔ Kris** | Review each other's PRs (#16, G6) with the 🌙 peer-merge checks; P1 merges | Check results posted on the PR | 12:00 |
+| G4 | **Garv** | Record the Ask segment (1:15–2:15), 1080p, ≤ 60 s; `warm_demo` first. Drive link to P1 | File received by P1 | **14:00** |
+| K4 | **Kris** | Record the Agent card + evaluation segment (2:15–4:15), 1080p, ≤ 2:00. The checked script in `VIDEO_AGENT_CARD_SEGMENT.md`; can show "Why this channel" | File received by P1 | **14:00** |
+| G7 | **Garv** | Online 18:45–19:45 for the final benchmark run (`BENCHMARK_NOTES.md` runbook). Fix only code, never `answers.csv` | 0 errors in the final run | 19:45 |
+| K6 | **Kris** | Online 19:45–20:30: after the final `run_all` on P1's machine, P1 regenerates `EVALUATION.md` there (`python -m ontrack.l4_nba.evaluation`) and you OK the diff, so it matches the submission build | Your OK in #13 | 20:15 |
+| V3 | **Vansh** | Demo run #2 feedback; decide the call policy (#17: keep calls as policy, or let the economics decide) and whether Anuj goes on the deck cover | Decisions posted in #13 | 11:00 |
+| V5 | **Vansh** | Clear test decisions; record P1 segments (0:00–1:15, 4:15–5:00); stitch to ≤ 5:00, upload unlisted; deck → PDF; README links | Video link and deck PDF in the README | 18:30 |
+| V6 | **P1 (Claude)** | Sync deck, README, diagram and video script to P1's build after #16 (8,877 → 8,883, 59,939 → 59,942, 46,226 → 46,235) | No number differs from P1's build | 12:00 |
+| — | **All** | **19:00** final benchmark → **20:00** code freeze → final `run_all` + pytest → README links check → **submit by 20:30** (deadline 21:00) | Submitted | 20:30 |
+
+**No new Claude calls before 19:00** (`--transcripts 0` stays the default). Post one line per finished task in #13.
+
+## 📌 Final plan from P1 (3 Oct, 21:50 IST; done except the 4 Oct rows, now in ☀️ above)
 
 **State:** everyone's work is merged into `main` (PRs #4, #6, #8, #10, #11, #12), verified by P1 on full data: 192 tests pass, benchmark dev 21/21, unseen rehearsal 21/21, all 5 app pages load. **No open issues.** Deck, README ("What changed": 24 rows) and video script have every number filled in.
 **Deadline: 4 Oct, 21:00 IST** (commits after it don't count). Extra benchmark questions: **4 Oct, 19:00 IST**.
@@ -33,9 +55,9 @@ Each one is done only when its "done when" holds on the full data. Post the resu
 | G2 | **Garv** | **Dry run of the 19:00 run:** a mock extra-questions file in the exact `benchmark_questions.csv` format (new ids, blank `metric_id`), run the way Vansh will run it (Claude Code CLI, `--workers 4`) | 0 errors, under 10 min for 35 + 15 questions, fallback written into the runbook (fewer workers, retry only failed ids) |
 | G3 | **Garv** | **Ask page hardening:** try an empty question, "DROP TABLE cases", a 2,000-character question, French, emoji | No traceback ever; a clear message for each; the 5 example buttons answer in < 3 s after `warm_demo` |
 | G4 | **Garv** | Record the Ask segment (1:15–2:15) and send it to Vansh | Every number on screen matches `VIDEO_ASK_SEGMENT.md`; 1080p, ≤ 60 s |
-| K1 | **Kris** | **Repeatable training:** fixed seeds plus LightGBM `deterministic=True` and fixed `num_threads`, so a re-run gives the same numbers; then drop the golden_id note and regenerate `EVALUATION.md` on the new build (stable ids) | Two runs of `l4_nba.run` give identical AUCs and identical recommendations for all 96,000 cases |
-| K2 | **Kris** | **Check the video facts:** confirm or fix "the salary deposits stopped" for `CS-2026-583749`, and every number in `VIDEO_AGENT_CARD_SEGMENT.md`, against the current build | Every claim traced to a query or table you can show |
-| K3 | **Kris** | **Agent card on edge cases:** 5 random cases per action, plus no contacts, no bureau pull, French-speaking, cease, insolvency, deceased, dispute-only | All render with 3 reasons and no error; the page loads in < 3 s; accept / edit / reject each logged |
+| ✅ K1 | **Kris** | **Repeatable training:** fixed seeds plus LightGBM `deterministic=True` and fixed `num_threads`, so a re-run gives the same numbers; then drop the golden_id note and regenerate `EVALUATION.md` on the new build (stable ids) | Two runs of `l4_nba.run` give identical AUCs and identical recommendations for all 96,000 cases |
+| ✅ K2 | **Kris** | **Check the video facts:** confirm or fix "the salary deposits stopped" for `CS-2026-583749`, and every number in `VIDEO_AGENT_CARD_SEGMENT.md`, against the current build | Every claim traced to a query or table you can show |
+| ✅ K3 | **Kris** | **Agent card on edge cases:** 5 random cases per action, plus no contacts, no bureau pull, French-speaking, cease, insolvency, deceased, dispute-only | All render with 3 reasons and no error; the page loads in < 3 s; accept / edit / reject each logged |
 | K4 | **Kris** | Record the Agent card + evaluation segment (2:15–4:15) and send it to Vansh | Matches the checked script; 1080p, ≤ 2:00 |
 | V1 | **Vansh (P1)** | Finish the full run with stable ids; add the accent issue to the DQ report as a coded check (19 issue types); update 18 → 19 in the deck, diagram and script | `run_all` all OK; DQ report regenerated, not hand-edited |
 | V2 | **Vansh (P1)** | Test PR #14 (R5 + accent repair) on full data and merge it | R5 answers with SQL; demo quote reads "depuis août"; all tests pass |
