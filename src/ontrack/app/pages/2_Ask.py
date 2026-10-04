@@ -4,6 +4,7 @@ import time
 from datetime import date, datetime
 
 import streamlit as st
+from streamlit.runtime.scriptrunner import add_script_run_ctx
 
 from ontrack import config
 from ontrack.app.common import get_con, header
@@ -97,19 +98,20 @@ with st.status("Answering…", expanded=False) as status:
         eng = engine()
         eng.on_step = lambda n, name, act: status.update(            # live progress for slower agent answers
             label=f"Step {n}: {STEP_LABELS.get(name, name)}…", state="running")
+        eng.on_thread = add_script_run_ctx                            # progress shows from the agent's thread
         v = ask.scope.route(question)
         if v.refused:
             a = ask.Answer(f"{v.reason} {v.alternative}", "", True, "refuse", reason=v.category)
         elif u.metric and not u.unresolved and u.metric != "roll_rate" and not multi_part:
-            a = eng.certified(u, question) or eng.answer(question)
-        else:
-            a = eng.answer(question)
+            a = eng.certified(u, question) or eng.answer(question, budget_s=ask.LIVE_BUDGET_S)
+        else:   # G21: a slow or failing LLM gives a clear message and the closest certified answer within ~25 s
+            a = eng.answer(question, budget_s=ask.LIVE_BUDGET_S)
     except Exception as e:  # noqa: BLE001 - never show a traceback to a user
         a = ask.Answer(f"Sorry, that question could not be answered ({type(e).__name__}). Try rephrasing it, or "
                        f"pick an example on the left.", "", False, "error")
     finally:
         try:
-            engine().on_step = None
+            engine().on_step = engine().on_thread = None
         except Exception:  # noqa: BLE001
             pass
     status.update(label=f"Answered in {time.time() - t0:.1f} s · route: {a.route}", state="complete")
@@ -127,6 +129,11 @@ if a.refused:
 if a.route == "error":
     st.warning(md(a.answer))
     st.stop()
+
+if a.route == "fallback":                           # G21: LLM slow or unavailable
+    st.warning(md(a.answer.split("\n\n")[0]), icon="⏳")
+    if a.table is None:
+        st.stop()
 
 st.caption(f"Route: **{a.route}**" + (f" · certified metric `{a.understood_as.get('certified_metric')}`"
                                       if a.understood_as.get("certified_metric") else ""))
