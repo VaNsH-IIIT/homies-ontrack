@@ -23,6 +23,11 @@ def engine() -> ask.Engine:
     return ask.Engine(get_con())
 
 
+def md(text: str) -> str:
+    """Streamlit reads `$...$` as LaTeX: "$770 a month ... $383.05" lost both dollar signs. Escape them."""
+    return text.replace("$", "\\$")
+
+
 def log(question: str, a: ask.Answer, tokens: dict) -> None:
     """Every question, answer route and refusal is logged for review (design: refusals logged and reviewed)."""
     with open(LOG, "a", encoding="utf-8") as f:
@@ -112,26 +117,26 @@ except OSError:
 
 # ---- Answer ----
 if a.refused:
-    st.error(f"**Refused.** {a.answer.removeprefix('Refuse: ')}", icon="🛑")
+    st.error(f"**Refused.** {md(a.answer.removeprefix('Refuse: '))}", icon="🛑")
     st.caption("Stopped before any SQL ran (scope guard), or by the SQL guard. Refusals are logged for review.")
     st.stop()
 
 if a.route == "error":
-    st.warning(a.answer)
+    st.warning(md(a.answer))
     st.stop()
 
 st.caption(f"Route: **{a.route}**" + (f" · certified metric `{a.understood_as.get('certified_metric')}`"
                                       if a.understood_as.get("certified_metric") else ""))
 df = a.table
 if a.route == "explain":
-    st.markdown(a.answer.split("\n\n")[0])
+    st.markdown(md(a.answer.split("\n\n")[0]))
 if df is not None and len(df):
     st.dataframe(df, hide_index=True, width="stretch")
     num = [c for c in df.columns[1:] if str(df[c].dtype).startswith(("float", "int"))]
     if len(df) > 1 and num and len(df) <= 60:
         st.bar_chart(df.set_index(df.columns[0])[num[0]])
 elif a.route not in ("explain",):
-    st.markdown(a.answer)
+    st.markdown(md(a.answer))
 
 # ---- Working: SQL or sources ----
 if a.sql:
