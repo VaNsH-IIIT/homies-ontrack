@@ -5,7 +5,7 @@ CIBC Collections Hackathon, build phase. **Deadline 9:00 PM IST, 4 Oct 2026.** C
 > **AI recommends. Rules constrain. Humans decide. Outcomes improve the next recommendation.**
 
 Use case: **next best action (NBA)** for open collections cases, hardship-first, with a person in charge.
-Our submitted design is the base: [`docs/HOmiES_SystemDesign.pdf`](docs/HOmiES_SystemDesign.pdf). Every change from it, and why, is in [What changed from the design](#what-changed-from-the-design).
+Our submitted design is the base: [`docs/HOmiES_SystemDesign.pdf`](docs/HOmiES_SystemDesign.pdf) (architecture designed by Anuj Kumar Tiwari, who led the team in the design phase). Every change from it, and why, is in [What changed from the design](#what-changed-from-the-design).
 
 ---
 
@@ -155,9 +155,11 @@ data/                local only, git-ignored
 | Make the 5% dev sample | `python scripts/make_sample.py --pct 5 --out D:/maple_sample` | P1 |
 | Answer benchmark questions | `python -m ontrack.l2_ask.run_benchmark --questions <csv> --out submission/benchmark_answers.csv` | P2 |
 | Extract text signals (notes model; Claude on the most recent transcripts, cached) | `python -m ontrack.l3_features.text.extract --max-transcripts 300` (`--skip-transcripts` = no LLM) | P2 |
-| Build features, train, recommend | `python -m ontrack.l4_nba.run` | P3 |
-| Feedback loop: decisions + later outcomes → labels for retraining (`features.decision_feedback`) | `python -m ontrack.feedback` | P1 |
+| Build features, train, recommend (policy gate, models, hardship routing, ranker) | `python -m ontrack.l4_nba.run` | P3, P4 |
+| Layer 4 evaluation: like-with-like back-test, fairness, business value, hardship-team capacity → `src/ontrack/l4_nba/EVALUATION.md` | `python -m ontrack.l4_nba.evaluation` | P4 |
+| Feedback loop: decisions + later outcomes → labels for retraining (`features.decision_feedback`) | `python -m ontrack.feedback` | P4 |
 | Demo app (Home, C360, Match review, Ask, Agent card) | `streamlit run src/ontrack/app/main.py` | P1 |
+| Live-question rehearsal: judge-style questions across all layers, answers from independent SQL (`docs/rehearsal/live_*`) | `python scripts/make_live_rehearsal.py` | P4 |
 | Unit tests (no dataset needed) | `pytest tests/` | all |
 
 ---
@@ -174,10 +176,10 @@ _Required by the brief. Add a row for every change and why._
 | **Identity resolution, per-system name parsing:** 3 card, 2 loan and 2 deposit name formats; surnames compared on letters only | Found in the data: 259K card names are `GIVEN SURNAME`, all-caps loan names are `SURNAME GIVEN`. Cut unlinked keys from 310K to 119K before Splink. | P1 |
 | **Data contract is executable:** ODCS YAML checked by our own runner (`contract_check`) on every build, instead of datacontract-cli | Same rules as the design (page 6) plus a freshness rule (Q8); runs inside the build with no extra service. | P1 |
 | **No tokenisation of direct PII in silver;** direct PII is instead **excluded from gold** (contract rule Q7) and never reaches the app, features or LLM calls | Same protection for every consumer of the data product with less code; tokenisation stays a production step. | P1 |
-| **Decision log in its own file** (`decisions.duckdb`, via `record_decision()`) instead of the `l4` schema of the main database | The app keeps the main database read-only (so pipelines can rebuild during a demo); DuckDB can't also write to it from the app. Edit/reject still requires a reason code, as designed. | P1 |
-| **Steward review is a working loop:** a Match review page shows each grey-zone match (Splink 0.80–0.95) with field-by-field evidence (masked); the steward approves or rejects with a reason, and the next build links approved pairs (`steward_approved`, confidence 0.97) and keeps rejected ones apart | The design had a review queue but no way to act on it. Now a person decides every uncertain merge, the decision is logged, and it changes the golden record. Masking keeps the gold no-PII rule. | P1 |
+| **Decision log in its own file** (`decisions.duckdb`, via `record_decision()`) instead of the `l4` schema of the main database | The app keeps the main database read-only (so pipelines can rebuild during a demo); DuckDB can't also write to it from the app. Edit/reject still requires a reason code, as designed. | P1, P4 |
+| **Steward review is a working loop:** a Match review page shows each grey-zone match (Splink 0.80–0.95) with field-by-field evidence (masked); the steward approves or rejects with a reason, and the next build links approved pairs (`steward_approved`, confidence 0.97) and keeps rejected ones apart | The design had a review queue but no way to act on it. Now a person decides every uncertain merge, the decision is logged, and it changes the golden record. Masking keeps the gold no-PII rule. | P1, P4 |
 | **`promises_to_pay` readable by Ask only:** Layer 2 answers aggregate questions from it (read-only, PII blocked); it is still not a feature, model input or decision input | The design scoped it out (30 tables), but 6 of the 35 released benchmark questions ask about promises (kept / broken rates, amounts paid). Limiting it to read-only aggregates in Ask answers them without changing what drives decisions. | P1 (on P2's request) |
-| **Feedback loop built as a labelled table:** every decision, the bank engine's history (accepted, not followed, overridden with a reason) and OnTrack decisions from the agent card, is joined to its 30-day outcome in `features.decision_feedback` | Makes "outcomes improve the next recommendation" concrete: 264,285 past decisions already carry a known outcome; new decisions are labelled automatically once 30 days of data arrive. Online learning is a next step. | P1 |
+| **Feedback loop built as a labelled table:** every decision, the bank engine's history (accepted, not followed, overridden with a reason) and OnTrack decisions from the agent card, is joined to its 30-day outcome in `features.decision_feedback` | Makes "outcomes improve the next recommendation" concrete: 264,285 past decisions already carry a known outcome; new decisions are labelled automatically once 30 days of data arrive. Online learning is a next step. | P4 |
 | **Gold grain:** one current row per `golden_id`, rebuilt daily (no per-snapshot history yet) | Enough for decisions and Ask in the build; history is in bronze for training. | P1 |
 | **Certified metrics run as fixed SQL templates before any LLM**, chosen through editable "understood as" tokens (metric, window, grouping, filters) | Same question → same SQL → same number; 9 of 12 dev data answers need no LLM and match gold exactly | P2 |
 | **The answer to a data question is the result of the final SQL, formatted by code**, not text written by the LLM | Numbers shown always equal the SQL shown (a stronger form of the design's "numbers checked against the result") | P2 |
@@ -187,15 +189,15 @@ _Required by the brief. Add a row for every change and why._
 | **Text features: trained models for every note and call, Claude on a top slice** (instead of an LLM call per contact) | An LLM call per call would take ~19 h within our limits. Character n-gram models trained on the 500 public labels score 292K notes + 15K calls in ~5 min (hardship recall 0.97 notes / 0.99 calls); Claude zero-shot on calls: recall 1.00, quotes verified in their turn. The `model` column says which produced each row | P2 |
 | **"Explain" answers** (one-sentence conclusion + supporting table + SQL) for why / does-X-beat-Y questions | Tables alone lost the conclusion (BQ-030 incident, BQ-014 direction of effect) | P2 |
 | **Training rows are point-in-time snapshots** (cases open at monthly `as_of` dates, labels after `as_of`) | The first version leaked (AUC 0.96 / 0.997). Now self-cure AUC 0.83, above the bank's own model (0.72) on the same cases. | P3 |
-| **Channel response measured from contact history, not uplift models** | The no-contact holdout still received contacts, so clean per-channel uplift can't be estimated. Measured response and unit costs are used, and likely self-cures are left alone. | P3 |
-| **Call capacity is a hard limit** (5,037 a day from `channel_capacity`) | Payment links convert ~4x better per contact at a fraction of the cost. Calls go to the most dollars at risk where contact hasn't worked. | P3 |
-| **Hardship separated from human review** | Financial hardship gets `hardship_referral`. Vulnerability, disputes, complaints, holds and cease requests need a person but aren't hardship. Disputes from notes and calls are routed even without hardship. | P3 |
+| **Channel response measured from contact history, not uplift models** | The no-contact holdout still received contacts, so clean per-channel uplift can't be estimated. Measured response and unit costs are used, and likely self-cures are left alone. | P3, P4 |
+| **Call capacity is a hard limit** (5,037 a day from `channel_capacity`) | Payment links convert ~4x better per contact at a fraction of the cost. Calls go to the most dollars at risk where contact hasn't worked. | P3, P4 |
+| **Hardship separated from human review** | Financial hardship gets `hardship_referral`. Vulnerability, disputes, complaints, holds and cease requests need a person but aren't hardship. Disputes from notes and calls are routed even without hardship. | P4 |
 | **Template reasons from SHAP contributions**, not LLM narration | Fast, deterministic and auditable. Whole numbers, and never contradicting their own value. | P3 |
-| **Language of service and autodialer consent don't block calls** | They change who calls and how. Blocking would treat customers differently. | P3 |
+| **Language of service and autodialer consent don't block calls** | They change who calls and how. Blocking would treat customers differently. | P4 |
 | **Province codes standardised in silver** (`Ont.`, `B.C.`, `Alta.`, `Quebec`, `PQ`, … → 2-letter codes) | Found by P2's Ask rehearsal on 4 Oct: 10,657 CRM records used non-standard forms, so province groupings undercounted. Fixed at the source and counted as DQ issue 20. | P1 |
 | **Contract rule Q7 covers every gold table**, not only `c360_customer` | A protected or direct-PII column copied upstream into any gold table now fails the build (suggested in P3's review). | P1 |
 | **A run never overwrites the submitted files unless asked** (`run_all --update-deliverables`) | A judge's run on the sample or without an LLM would otherwise replace `submission/benchmark_answers.csv` and the DQ report in their clone (found in P3's fresh-clone test). | P1 |
-| **Pre-submission check and 19:00 safety:** `scripts/check_submission.py`, `scripts/normalize_questions.py --append-released`, backup runner (`l2_ask/backup_run.py`) | The extra questions arrive 2 hours before the deadline in an unknown file shape; the checks make sure every question gets exactly one generated answer and the released 35 are never lost. | P1, P2 |
+| **Pre-submission check and 19:00 safety:** `scripts/check_submission.py`, `scripts/normalize_questions.py --append-released`, backup runner (`l2_ask/backup_run.py`) | The extra questions arrive 2 hours before the deadline in an unknown file shape; the checks make sure every question gets exactly one generated answer and the released 35 are never lost. | P1, P2, P4 |
 | **Roll-forward vs charge-off split by DPD:** `p_roll_forward` for cases up to 150 DPD, `p_charge_off_risk` for 151–180 DPD (4,000 cases) | Every charge-off in the data happened at 181 DPD, so a case past 150 can't roll to a worse bucket, only charge off. The source `current_bucket` label is stale for ~4% of cases, so the split uses DPD. Lists tie-break on the raw model score (`model_risk_rank`). | P3 |
 | **Repeatable training:** fixed seeds, deterministic LightGBM, fixed row order, rounded inputs, deterministic tie-breaks | Two runs from scratch give identical AUCs and identical recommendations for all 96,000 cases, so every number in the deck can be reproduced. | P3 |
 
@@ -205,12 +207,19 @@ Four people, one repo, one plan. Every change went through a pull request, a wri
 
 | Presents | Member | Work |
 |---|---|---|
-| **Layer 1 · Customer 360** | **Vansh Jaiswal** (lead) | Layer 1 data product (identity resolution, contract, data quality); integration, verification and merging |
-| **Layer 2 · Ask** | **Garv Pratap Singh** | Ask: benchmark runner, SQL guard, refusals, live-question templates; text signals for Layer 3 |
-| **Layer 3 · Feature store** | **Kris Jain** | Point-in-time structured features and the Layer 4 engine (policy gate, models, ranker, agent card, evaluation) |
-| **Layer 4 · Next best action** | **Anuj Kumar Tiwari** | Worked across all layers through the team's Claude Code sessions on every machine (testing, rehearsals, reviews); the Layer 4 and business story in the demo and the pitch |
+| **Layer 1 · Customer 360** | **Vansh Jaiswal** (lead) | Customer 360: identity resolution, data contract, data quality report, steward review; integration, verifying and merging every pull request |
+| **Layer 2 · Ask** | **Garv Pratap Singh** | Ask: certified metrics, guarded SQL, refusals, benchmark runner; hardship and dispute signals from notes and calls for Layer 3 |
+| **Layer 3 · Feature store** | **Kris Jain** | Point-in-time feature store (one function for training and scoring); Layer 4 engine code: policy gate, models, ranker, agent card |
+| **Layer 4 · Next best action** | **Anuj Kumar Tiwari** (design lead) | Designed the four-layer architecture in the design phase; hardship routing and capacity; evaluation and business case (back-test, fairness, dollar value); the feedback loop from decisions to retraining labels; question rehearsals and red-team sets |
 
-**Team totals on GitHub** (4 Oct): 230+ commits, 40+ merged pull requests, 150+ review and coordination comments. Commits show the GitHub account of the machine they were made on.
+**How the four of us worked together:**
+- Anuj led the design phase: he designed the four-layer architecture and the interfaces between the layers in `docs/HOmiES_SystemDesign.pdf`. Vansh led the build, starting from that design.
+- Garv, Kris and Vansh each built their layer on a branch, against fixed table interfaces (below), so no one waited on anyone else.
+- Anuj tested the latest `main` on all three machines through the team's Claude Code sessions. He rehearsed unseen and adversarial questions, checked Layer 4 against the policy documents, and reported what he found in the team issue.
+- Vansh verified each pull request on the full data and merged it.
+- Before any number went into the deck or the video, a second member re-checked it.
+
+**Team totals on GitHub** (4 Oct): 230+ commits, 40+ merged pull requests, 150+ review and coordination comments. Commits show the GitHub account of the machine they were made on. Anuj worked on the other members' machines, so his work appears under their accounts.
 
 - **Every PR was tested on the full data before merging:** pytest, the affected pipeline steps, and the pages. `main` is protected, so only the lead merges, after a written check on the PR. A refactor had to prove "no change" by comparing all 96,000 recommendations column by column.
 - **Cross-reviews found real problems,** each fixed with a test:
@@ -238,27 +247,28 @@ Each person owns separate folders, so nobody edits anyone else's code. Shared in
 |---|---|---|---|
 | **P1** (lead) | Vansh Jaiswal | [@VaNsH-IIIT](https://github.com/VaNsH-IIIT) | **Layer 1** `src/ontrack/l1_factory/`, `src/ontrack/db.py`, `src/ontrack/config.py`, `contracts/`, `docs/`, `scripts/`, `src/ontrack/app/main.py`, `src/ontrack/app/pages/1_*.py`, `README.md`, `TASKS.md` |
 | **P2** | Garv Pratap Singh | [@Gravity006](https://github.com/Gravity006) | **Layer 2** `src/ontrack/l2_ask/`, `benchmark/`, **Layer 3 text features** `src/ontrack/l3_features/text/`, `src/ontrack/app/pages/2_*.py` |
-| **P3** | Kris Jain | [@KJKris05](https://github.com/KJKris05) | **Layer 3 structured features + feature store** `src/ontrack/l3_features/structured/`, **Layer 4 code** `src/ontrack/l4_nba/` (with P4), `src/ontrack/app/pages/3_*.py` |
-| **P4** | Anuj Kumar Tiwari | — | **Layer 4 lead** (next best action): presents and explains Layer 4 (policy gate, models, evaluation, business value, capacity); worked across all layers through the team's Claude Code sessions (testing, rehearsals, reviews) |
+| **P3** | Kris Jain | [@KJKris05](https://github.com/KJKris05) | **Layer 3 structured features + feature store** `src/ontrack/l3_features/structured/`, **Layer 4 engine** `src/ontrack/l4_nba/` policy gate, models, ranker (`policy_gate.py`, `models.py`, `ranker.py`, `run.py`), `src/ontrack/app/pages/3_*.py` |
+| **P4** | Anuj Kumar Tiwari | [@RDT556](https://github.com/RDT556) **Design lead** (the four-layer architecture in `docs/HOmiES_SystemDesign.pdf`) and **Layer 4 lead** (next best action): hardship routing and capacity `src/ontrack/l4_nba/hardship.py`, `capacity.py`; evaluation and business case `evaluation.py`, `EVALUATION.md`, `QA_NOTES.md`; **feedback loop** `src/ontrack/feedback.py`; live-question rehearsals `scripts/make_live_rehearsal.py`, `docs/rehearsal/live_*` (with P2) |
 
 Shared files: `requirements.txt` (append only) and `AI_TOOLS.md`.
 
 ### Interfaces between parts
 
-Everyone codes against these names, so the four layers connect without waiting for each other. One local DuckDB file per person: `$ONTRACK_WORK_DIR/ontrack.duckdb`, opened with `ontrack.db.connect()` (P1).
+The interfaces come from the design (P4, design lead). Everyone codes against these names, so the four layers connect without waiting for each other. One local DuckDB file per person: `$ONTRACK_WORK_DIR/ontrack.duckdb`, opened with `ontrack.db.connect()` (P1).
 
 | Schema.table | Built by | Read by | Minimum columns |
 |---|---|---|---|
 | `bronze.<table_name>` (one view per raw table, same names as the dataset) | P1 | all | as in the dataset |
 | `gold.customer_xref` | P1 | P2, P3 | `golden_id, source_system, source_key, match_method, match_confidence` |
-| `gold.c360_customer` | P1 | P2, P3 | `golden_id, primary_crm_customer_id, province_code, time_zone, preferred_language, consent_call, consent_sms, consent_email, consent_push, consent_autodialer, internal_do_not_call_flag, cease_communication_flag, insolvency_flag, deceased_flag, third_party_hold_flag, vulnerability_flag, products_held, total_exposure, total_overdue, max_dpd, open_case_count, match_confidence_min` |
-| `gold.c360_account` | P1 | P2, P3 | `account_id, golden_id, product_type, balance, credit_limit, past_due_amount, dpd, dpd_bucket, account_status` |
-| `gold.case_360` | P1 | P2, P3 | `case_id, golden_id, crm_customer_id` + cleaned `collections_cases` columns |
-| `gold.contact_timeline` | P1 | P2, P3 | `golden_id, case_id, contact_id, contact_ts_utc, channel, outcome_code, rpc_flag, payment_taken_flag, note_id, transcript_id` |
-| `features.text_signals` | P2 | P3 | `source_type ('note'/'transcript'), source_id, contact_id, case_id, crm_customer_id, event_ts, hardship_signal, hardship_confidence, evidence_quote, evidence_turn_index, stated_delay_reason, stated_payday, dispute_mentioned, model, prompt_version` |
-| `features.case_features` | P3 | P3 | `case_id, golden_id, as_of_date` + feature columns, built by **one** function used for both training and live scoring |
-| `gold.nba_recommendation` | P3 | P2 (Ask can query it) | `case_id, golden_id, as_of_ts, action, channel, time_window, score, reason_1, reason_2, reason_3, blocked_actions, hardship_flag, needs_human_review, model_version` |
-| decision log (human review / override) | P3 calls it from the agent card | P1 (demo), audit | **Write with `ontrack.app.common.record_decision(...)`**, read with `decisions(case_id)`. Stored in `$ONTRACK_WORK_DIR/decisions.duckdb` (table `decision_log`: `decision_id, case_id, golden_id, agent_id, recommended_action, agent_action ('accept'/'edit'/'reject'), final_action, reason_code, note, model_version, ts`), separate from the main DB so the app can write while the main DB stays read-only. Edit/reject without a reason code is refused. |
+| `gold.c360_customer` | P1 | P2, P3, P4 | `golden_id, primary_crm_customer_id, province_code, time_zone, preferred_language, consent_call, consent_sms, consent_email, consent_push, consent_autodialer, internal_do_not_call_flag, cease_communication_flag, insolvency_flag, deceased_flag, third_party_hold_flag, vulnerability_flag, products_held, total_exposure, total_overdue, max_dpd, open_case_count, match_confidence_min` |
+| `gold.c360_account` | P1 | P2, P3, P4 | `account_id, golden_id, product_type, balance, credit_limit, past_due_amount, dpd, dpd_bucket, account_status` |
+| `gold.case_360` | P1 | P2, P3, P4 | `case_id, golden_id, crm_customer_id` + cleaned `collections_cases` columns |
+| `gold.contact_timeline` | P1 | P2, P3, P4 | `golden_id, case_id, contact_id, contact_ts_utc, channel, outcome_code, rpc_flag, payment_taken_flag, note_id, transcript_id` |
+| `features.text_signals` | P2 | P3, P4 (hardship routing) | `source_type ('note'/'transcript'), source_id, contact_id, case_id, crm_customer_id, event_ts, hardship_signal, hardship_confidence, evidence_quote, evidence_turn_index, stated_delay_reason, stated_payday, dispute_mentioned, model, prompt_version` |
+| `features.case_features` | P3 | P3, P4 (evaluation) | `case_id, golden_id, as_of_date` + feature columns, built by **one** function used for both training and live scoring |
+| `gold.nba_recommendation` | P3 (ranker), P4 (hardship routing, capacity) | P2 (Ask can query it) | `case_id, golden_id, as_of_ts, action, channel, time_window, score, reason_1, reason_2, reason_3, blocked_actions, hardship_flag, needs_human_review, model_version` |
+| decision log (human review / override) | P3 calls it from the agent card | P4 (feedback loop), P1 (demo), audit | **Write with `ontrack.app.common.record_decision(...)`**, read with `decisions(case_id)`. Stored in `$ONTRACK_WORK_DIR/decisions.duckdb` (table `decision_log`: `decision_id, case_id, golden_id, agent_id, recommended_action, agent_action ('accept'/'edit'/'reject'), final_action, reason_code, note, model_version, ts`), separate from the main DB so the app can write while the main DB stays read-only. Edit/reject without a reason code is refused. |
+| `features.decision_feedback`, `features.override_summary` | P4 | Layer 4 retraining (`label_status = 'known'`), P1 (home page) | `source ('bank_history'/'ontrack'), case_id, golden_id, decided_as_of, recommended_action, agent_action, reason, final_action, label_status, cured_30d, outcome`; summary: override share and 30-day cure rate per recommendation |
 
 **`gold.*` is ready on `main`:** run `python -m ontrack.l1_factory.bronze` once, then `python -m ontrack.l1_factory.build`. Read `gold.*` for customers, accounts, cases and contacts; read `bronze.*` for everything else (history tables, notes, transcripts, policies, benchmark).
 **Data quirks to know** (full list in [`docs/data_quality_report.md`](docs/data_quality_report.md)):
