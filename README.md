@@ -158,7 +158,7 @@ data/                local only, git-ignored
 | Layer 4 evaluation: like-with-like back-test, fairness, business value, hardship-team capacity → `src/ontrack/l4_nba/EVALUATION.md` | `python -m ontrack.l4_nba.evaluation` | P4 |
 | Feedback loop: decisions + later outcomes → labels for retraining (`features.decision_feedback`) | `python -m ontrack.feedback` | P4 |
 | Demo app (Home, C360, Match review, Ask, Agent card) | `streamlit run src/ontrack/app/main.py` | P1 |
-| Live-question rehearsal: judge-style questions across all layers, answers from independent SQL (written to `docs/rehearsal/`) | `python scripts/make_live_rehearsal.py` | P4 |
+| Live-question rehearsal: judge-style questions across all layers, answers from independent SQL (written to `tests/fixtures/rehearsal/`) | `python scripts/make_live_rehearsal.py` | P4 |
 | Unit tests (no dataset needed) | `pytest tests/` | all |
 
 ---

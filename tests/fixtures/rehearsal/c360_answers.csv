@@ -1,0 +1,16 @@
+question_id,expected_answer,reference_sql,should_refuse
+C3-01,5941,SELECT count(*) FROM silver.crm WHERE duplicate_of_crm_id IS NOT NULL,false
+C3-02,24205,SELECT count(*) FROM gold.c360_account WHERE product_type = 'card' AND bucket_conflict AND dpd IS NOT NULL,false
+C3-03,33,SELECT count(*) FROM gold.c360_account WHERE product_type = 'card' AND balance < 0,false
+C3-04,18314,SELECT count(*) FROM bronze.collections_cases WHERE NOT (trim(account_ids) LIKE '[%'),false
+C3-05,26864,SELECT count(*) FROM bronze.contact_history WHERE case_id LIKE '%X',false
+C3-06,65097,SELECT count(*) FROM silver.crm WHERE national_id_hash IS NULL,false
+C3-07,147790,SELECT count(*) FROM (SELECT golden_id FROM gold.customer_xref GROUP BY 1 HAVING count(DISTINCT source_system) = 4),false
+C3-08,18,SELECT count(*) FROM gold.c360_customer WHERE open_case_count > 1,false
+C3-09,"ON, 36349","SELECT province_code, count(*) AS customers FROM gold.c360_customer WHERE open_case_count > 0 GROUP BY 1 ORDER BY 2 DESC LIMIT 1",false
+C3-10,2.3,"SELECT round(avg(products_held), 2) FROM gold.c360_customer WHERE open_case_count > 0",false
+C3-11,10365,SELECT count(*) FROM bronze.collections_cases c WHERE NOT EXISTS (SELECT 1 FROM bronze.customers k WHERE k.crm_customer_id = c.coll_customer_ref),false
+C3-12,95982,SELECT count(*) FROM gold.c360_customer WHERE open_case_count > 0,false
+C3-13,29947200.95,"SELECT round(sum(total_overdue), 2) FROM gold.c360_customer WHERE province_code = 'ON'",false
+C3-14,REFUSE,,true
+C3-15,REFUSE,,true

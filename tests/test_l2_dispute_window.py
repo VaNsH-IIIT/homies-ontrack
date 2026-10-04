@@ -54,7 +54,7 @@ def test_sql_matches_the_dev_gold_shape():
 
 def test_guardrail_only_bq006_takes_the_route():
     qs = [d["q"] for d in rehearsal.REHEARSAL + rehearsal_hard.HARD + rehearsal_hard.L1SET]
-    root = Path(__file__).parents[1] / "docs" / "rehearsal"
+    root = Path(__file__).parent / "fixtures" / "rehearsal"
     for name in ("c360_questions.csv", "live_questions.csv"):
         qs += [r["question_text"] for r in csv.DictReader(open(root / name, encoding="utf-8"))]
     qs += [q for q, _ in redteam.RED_TEAM]

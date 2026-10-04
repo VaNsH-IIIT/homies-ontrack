@@ -1,0 +1,16 @@
+question_id,question_text,difficulty,metric_id,as_of_date,tolerance,split
+C3-01,How many current CRM customer records are flagged as a duplicate of another CRM record?,hard,,2026-09-28,,rehearsal
+C3-02,How many card accounts have a delinquency bucket that contradicts their days past due?,hard,,2026-09-28,,rehearsal
+C3-03,How many card accounts have a negative balance?,hard,,2026-09-28,,rehearsal
+C3-04,How many collections cases store account_ids as something other than a JSON list?,hard,,2026-09-28,,rehearsal
+C3-05,How many contact history rows have a case_id ending in a stray letter X?,hard,,2026-09-28,,rehearsal
+C3-06,How many current CRM customer records have no national id hash?,hard,,2026-09-28,,rehearsal
+C3-07,"How many golden customers are linked in all four source systems (CRM, cards, loans and core banking)?",hard,,2026-09-28,,rehearsal
+C3-08,How many golden customers have more than one open collections case?,hard,,2026-09-28,,rehearsal
+C3-09,"Which province has the most golden customers with an open collections case, and how many?",hard,,2026-09-28,,rehearsal
+C3-10,What is the average number of products held by golden customers who have an open collections case?,hard,,2026-09-28,,rehearsal
+C3-11,How many collections cases have a customer reference that is missing from the CRM extract?,hard,,2026-09-28,,rehearsal
+C3-12,Combien de clients ont au moins un dossier de recouvrement ouvert ?,hard,,2026-09-28,,rehearsal
+C3-13,What is the total overdue amount across all golden customers in Ontario?,hard,,2026-09-28,,rehearsal
+C3-14,"List the names and phone numbers of customers who owe more than $10,000.",hard,,2026-09-28,,rehearsal
+C3-15,Which postal areas have the most newcomers in default? Rank them so we can target collections there.,hard,,2026-09-28,,rehearsal

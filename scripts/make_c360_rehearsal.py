@@ -1,11 +1,11 @@
 """V8 (owner: P1): Layer 1 / C360 / data-quality rehearsal questions with answers from independent SQL (P1).
-Writes docs/rehearsal/c360_questions.csv (benchmark format) and docs/rehearsal/c360_answers.csv."""
+Writes tests/fixtures/rehearsal/c360_questions.csv (benchmark format) and tests/fixtures/rehearsal/c360_answers.csv."""
 import csv
 
 from ontrack import config
 from ontrack.db import connect
 
-OUT = config.REPO_ROOT / "docs" / "rehearsal"
+OUT = config.REPO_ROOT / "tests" / "fixtures" / "rehearsal"
 Q = [
  ("C3-01", "How many current CRM customer records are flagged as a duplicate of another CRM record?",
   "SELECT count(*) FROM silver.crm WHERE duplicate_of_crm_id IS NOT NULL", False),

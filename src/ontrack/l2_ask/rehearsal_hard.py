@@ -144,8 +144,8 @@ L1SET = [
 ]
 
 def c360_set() -> list[dict]:
-    """P1's V8 set (docs/rehearsal/): 15 C360 / data-quality questions with answers from independent SQL."""
-    base = config.REPO_ROOT / "docs" / "rehearsal"
+    """P1's V8 set (tests/fixtures/rehearsal/): 15 C360 / data-quality questions with answers from independent SQL."""
+    base = config.REPO_ROOT / "tests" / "fixtures" / "rehearsal"
     qs = {r["question_id"]: r for r in csv.DictReader(open(base / "c360_questions.csv", encoding="utf-8-sig"))}
     out = []
     for a in csv.DictReader(open(base / "c360_answers.csv", encoding="utf-8-sig")):

@@ -1,6 +1,6 @@
 """V14 (owner: P4 Anuj, with P2): judge-style live questions across all layers, answers from independent SQL.
 
-Writes docs/rehearsal/live_questions.csv (benchmark format) and docs/rehearsal/live_answers.csv
+Writes tests/fixtures/rehearsal/live_questions.csv (benchmark format) and tests/fixtures/rehearsal/live_answers.csv
 (question_id, expected_answer, reference_sql, kind). kind: number / table / contains / refuse / document.
 
     python scripts/make_live_rehearsal.py
@@ -10,7 +10,7 @@ import csv
 from ontrack import config
 from ontrack.db import connect
 
-OUT = config.REPO_ROOT / "docs" / "rehearsal"
+OUT = config.REPO_ROOT / "tests" / "fixtures" / "rehearsal"
 OPEN = "FROM gold.case_360 WHERE outcome IS NULL"
 
 Q = [

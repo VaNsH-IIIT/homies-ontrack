@@ -9,7 +9,7 @@ from ontrack import config
 from ontrack.l2_ask import live_templates as T
 from ontrack.l2_ask import metrics, redteam, rehearsal, rehearsal_hard, understand
 
-LIVE = {   # P1's live set (docs/rehearsal/live_questions.csv): question -> (entity, measure, filters, group)
+LIVE = {   # P1's live set (tests/fixtures/rehearsal/live_questions.csv): question -> (entity, measure, filters, group)
     "How many golden customers are in the customer 360?": ("customers", "count", [], None),
     "On average, how many products does a golden customer hold?": ("customers", "avg_products", [], None),
     "How many customers have not given consent to be called?": ("customers", "count", ["no call consent"], None),
@@ -63,7 +63,7 @@ def _certified_first(q: str) -> bool:
 
 def _guarded():
     qs = [d["q"] for d in rehearsal.REHEARSAL + rehearsal_hard.HARD + rehearsal_hard.L1SET]
-    qs += [r["question_text"] for r in csv.DictReader(open(Path(__file__).parents[1] / "docs" / "rehearsal" /
+    qs += [r["question_text"] for r in csv.DictReader(open(Path(__file__).parent / "fixtures" / "rehearsal" /
                                                            "c360_questions.csv", encoding="utf-8"))]
     qs += [q for q, refuse in redteam.RED_TEAM if not refuse]
     return qs
