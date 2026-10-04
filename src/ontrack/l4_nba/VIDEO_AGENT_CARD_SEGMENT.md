@@ -30,7 +30,7 @@ with the measured time from click to finished screen. Total target **≤ 2:00**.
 | 3:05 | Scroll up, click the search box, select all, delete, press **Enter**; then **Action** dropdown → **call** | Queue table, highest dollars at risk first: **CS-2026-759035 · $11,581**; scroll down to its card: "Call: 96% chance the $12,030 stays unpaid without action; contact in the last 30 days brought no payment…" | 0.7 s + 0.8 s |
 | 3:15 | Type **CS-2026-583749** in the search box, **Enter**; scroll to **Your decision**: click **edit**, *Action to take* → **specialist_agent**, *Reason code* → **customer_hardship**, click **Submit decision** | Green "Logged EDIT → specialist_agent", and the decision history table below | 1.3 s |
 | 3:30 | Scroll to the top, click **"Queue overview for supervisors"** | Right-hand table: hardship_case_flag ~34,9xx · hardship_text ~8,9xx · hardship_income ~2,4xx, plus vulnerability, dispute, holds… (left: the action mix) | 0.9 s |
-| 3:45 | Switch to the GitHub tab: EVALUATION **section 2**, then **2b** | §2 `cure_30d` row: AUC 0.717 vs 0.83; act-now 0.99x · §2b: "+$16x,xxx" expected payments per round | — |
+| 3:45 | Switch to the GitHub tab: EVALUATION **section 2**, then **2b** | §2 `cure_30d` row: AUC 0.717 vs 0.830; act-now 0.996 · §2b: "+$156,548" expected payments per round | — |
 | 4:00 | Scroll to **section 5** | "Largest gap between groups" table: automated-case gaps of a few points | — |
 
 *Exact counts on your screen can differ by a few cases from the deck (your build vs P1's); the voice-over uses
@@ -76,7 +76,7 @@ Exact counts are from Kris's build; the submission is P1's build (hardship 46,23
 | Links bring a payment within a week 12%, calls 3% | SMS 12.1%, email 12.2%, call 2.8% | `ranker.channel_economics()`: payment within 7 days of an outbound contact, last 12 months |
 | A call costs 240 times a text | $2.40 vs $0.01 | `bronze.channel_capacity.unit_cost_cad` |
 | Self-cure AUC 0.83 vs 0.72 for the bank's model | 0.830 vs 0.717 on the same 29,680 cases | `EVALUATION.md` section 2 (`cure_30d` row) |
-| More than 99% of "act now" cases did not pay on their own | 0.995 (P1's build: 0.994) | `EVALUATION.md` section 2 |
-| About $160K more expected payments per round of contacts | +$162,275 (P1's build may differ slightly) | `EVALUATION.md` section 2b: median payment $71.68, measured channel rates, automated cases only, blocked bank actions count as nothing |
-| Fairness gaps for automated decisions stay within a few points | max 5.5 points (digital rate by marital status; gender 5.1 points, from the small U / X groups) | `EVALUATION.md` section 5 |
+| More than 99% of "act now" cases did not pay on their own | 0.996 on P1's build (Kris's build: 0.995) | `EVALUATION.md` section 2 |
+| About $160K more expected payments per round of contacts | +$156,548 on P1's build (Kris's build: +$162,275) | `EVALUATION.md` section 2b: median payment $71.68, measured channel rates, automated cases only, blocked bank actions count as nothing |
+| Fairness gaps for automated decisions stay within a few points | max 5.4 points on P1's build (digital rate by marital status; gender 4.9 points) | `EVALUATION.md` section 5 |
 

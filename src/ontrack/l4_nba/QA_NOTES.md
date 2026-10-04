@@ -17,7 +17,7 @@ Separated customers get hardship referrals about 61% of the time against about 4
 **5. Payment links beat calls on the numbers. Why still call anyone?**
 Measured response: a link brings a payment within 7 days after about 12% of contacts, a call about 3%, at 240 times the cost of a text. So digital is the default. Calls are a deliberate policy for the cases with the most dollars at risk where contact has not worked, because a conversation is where hardship comes out (6% of calls vs none of the digital contacts) and arrangements are made. The agent card shows each channel's value, so the policy is visible, not hidden. Calls never exceed the 5,037 a day the bank can make. (§3, agent card "Why this channel")
 
-**6. What does "+$163K per round" mean, and what doesn't it mean?**
+**6. What does "about +$160K per round" mean, and what doesn't it mean?**
 It means: for the same open cases on the same day, OnTrack's recommended contacts are expected to bring about $160K more in payments within 7 days than the bank's current recommendations. It is conservative: every payment is valued at the median ($72, the mean is about 2.6x higher), only cases OnTrack handles automatically count, and a bank recommendation the rules would block counts as nothing. It is not a forecast of annual savings, not a randomised uplift (response rates are observed), and a "round" is one recommended contact per case. (§2b)
 
 **7. Why does 62% of the open book go to a person?**
