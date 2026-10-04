@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from ontrack import config
 from ontrack.l2_ask import llm, metrics, scope, sql_guard, understand
 
-PROMPT_VERSION = "ask-v10"
+PROMPT_VERSION = "ask-v12"
 MAX_TURNS = 14
 MAX_SQL_ERRORS = 6          # repair budget across the whole question (design: up to two per query)
 RESULT_PREVIEW_ROWS = 40
@@ -170,6 +170,10 @@ How to answer:
 - A case's or contact's (customer) province is collections_cases.province_code (copied from CRM at case open, already
   clean): join contact_history to collections_cases on case_id. customers.province_code is raw CRM text in mixed
   formats; use it only when a question is about CRM records themselves.
+- "Contradicts", "conflicts with", "doesn't match": count only rows where both values are known (e.g. a bucket that
+  conflicts with DPD needs a non-null dpd; gold bucket_conflict is also true when dpd is missing).
+- "In N source systems" means distinct source_system values in gold.customer_xref; "N source keys" means
+  source_key_count. Use the one the question names.
 - Group by attributes of the matched records with inner joins; do not add 'unknown' / 'other' groups for rows whose
   key is missing unless the question asks for them.
 - A "customer" is a person: count golden customers in gold.c360_customer (one row per person; products_held,
@@ -184,7 +188,8 @@ How to answer:
 - Questions about what notes say (across cases or for one case): use search_notes / case_notes and cite the note ids
   ("note N-... (case CS-...)") in sources.
 - Questions about a specific case's call: use case_calls, take the most recent recorded call, and answer
-  "reason; promise (amount and date); next step" in one line. sources = ["transcript <transcript_id>"].
+  "reason; promise (amount and date); next step" in one line. Write whole-dollar amounts without cents ($595,
+  not $595.00) and dates as "5 Oct". sources = ["transcript <transcript_id>"].
 - Questions that ask WHY something happened, or ask for a conclusion (does X beat Y, is it higher, did it change):
   kind = "explain": answer_text = one or two sentences with the conclusion, the cause or direction and the key
   numbers; answer_sql = the supporting query; cite any document or ops event in sources.
