@@ -23,6 +23,8 @@ Our submitted design is the base: [`docs/HOmiES_SystemDesign.pdf`](docs/HOmiES_S
 | What changed from the design, and why | [below](#what-changed-from-the-design) (26 changes) |
 | AI tools used | [`AI_TOOLS.md`](AI_TOOLS.md) |
 
+Check the submission in one command: `python scripts/check_submission.py` (deliverables present, README links resolve, `answers.csv` in the template format, contract parses, no data or secrets in git).
+
 **Measured on the full data** (1,000,000 customers, snapshot 28 Sep 2026):
 
 | Layer | Result |
