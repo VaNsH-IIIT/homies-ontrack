@@ -12,7 +12,7 @@ All code tasks so far are merged (#15–#28; 231 tests). Until **16:00** we clos
 | ID | Who | Task | Done when | By |
 |---|---|---|---|---|
 | ✅ V8 | **P1-Claude** (15 questions in docs/rehearsal/, 06:30) | **C360 / data-quality question set:** ~15 questions a judge may ask about Layer 1 (golden customers, matching, duplicates, DQ counts, contract), each with the correct answer from independent SQL. Saved as `benchmark/rehearsal_c360.csv` (+ answers) and posted in #13 | 15 questions + verified answers on `main` | 11:00 |
-| G12 | **Garv** | Run V8's set through Ask; fix every miss in `l2_ask/` with tests; score posted on the PR | 15/15 (or each miss explained); dev still 21/21 | 14:00 |
+| ✅ G12 | **Garv** | Run V8's set through Ask; fix every miss in `l2_ask/` with tests; score posted on the PR | 15/15 (or each miss explained); dev still 21/21 | 14:00 |
 | V9 | **Vansh, after 11:00** | **19:00 dress rehearsal** by hand on cached questions: normalise → `run_benchmark` → `score_dev` → commit (to a test branch). Checklist from P1-Claude | Runs from the checklist alone, 0 errors, < 10 min | 13:00 |
 | ✅ G13 | **Garv** (#29 merged) | **Backup runner** for 19:00: same steps ready on Garv's machine with his own Claude access, tested on cached questions | Garv can produce a full `answers.csv` within 15 min of a failure | 16:00 |
 | V10 | **Vansh, after 11:00** (P1-Claude does a headless pass first) | **Browser click-through** of the whole demo path (`docs/pitch/video_script.md`): fix list of anything slow, confusing or ugly, posted in #13 | List posted; P1 pages fixed by P1-Claude, P2/P3 items routed to Garv/Kris | 12:00 |
@@ -21,8 +21,8 @@ All code tasks so far are merged (#15–#28; 231 tests). Until **16:00** we clos
 | V11 | **Vansh, after 11:00** | **Lead review:** read and approve K13 and G12 (P1-Claude prepares the full-data checks) | Both approved on GitHub by Vansh | 15:00 |
 | V12 | **Vansh, after 11:00** | Decide judge access to the private repo | Decisions in #13 | 09:00 |
 | V13 | **Vansh, after 11:00** | Rehearse the P1 voice-overs (0:00–1:15, 4:15–5:00), no recording yet | Read through twice, timed | 16:00 |
-| G14 | **Garv's Claude** | Recording card for Garv's 16:00 take (clicks, screens, time stamps, pre-flight); warm_demo covers every question shown | Card in `VIDEO_ASK_SEGMENT.md`, step times tested | 10:00 |
-| G15 → K21 | **Garv's Claude** | Final regression on `main` after all merges: dev 35 + hard 29 + L1 8 + V8 + mock extras | Scores posted, 0 errors | 10:30 |
+| ✅ G14 | **Garv's Claude** | Recording card for Garv's 16:00 take (clicks, screens, time stamps, pre-flight); warm_demo covers every question shown | Card in `VIDEO_ASK_SEGMENT.md`, step times tested | 10:00 |
+| ✅ G15 → K21 | **Garv's Claude** | Final regression on `main` after all merges: dev 35 + hard 29 + L1 8 + V8 + mock extras | Scores posted, 0 errors | 10:30 |
 | ✅ G16 | **Kris's Claude** (#37; 343 pass with and without data) | `test_l2_guards.py`: the PII-name test passes with and without the dataset (monkeypatch `sql_guard._TAGGED`; Kris's finding) | `pytest` all pass on a clone with no `.env` and with full data | 10:00 |
 | ✅ K14 | **Kris's Claude** (#32 merged) | Recording card for Kris's 16:00 take; every voice-over number checked on `main`; screens fit 1920×1080 | Card in `VIDEO_AGENT_CARD_SEGMENT.md` | 10:00 |
 | ✅ K15 | **Kris's Claude** | Judge fresh-clone re-test on the latest `main` (K9 again), now and again after the 20:00 freeze | All OK, `git status` clean, check_submission passes | 07:30 |
