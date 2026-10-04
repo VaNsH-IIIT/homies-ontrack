@@ -95,3 +95,22 @@ def test_rebuilding_a_date_keeps_other_dates(con):
     build_case_features(con, AS_OF)
     dates = con.execute("SELECT as_of_date::VARCHAR, count(*) FROM features.case_features GROUP BY 1 ORDER BY 1").fetchall()
     assert dates == [("2026-01-25", 3), ("2026-02-01", 3)]
+
+
+@pytest.mark.parametrize("extra", ["0 AS gender_code", "0 AS age", "true AS cure_flag", "DATE '2026-03-01' AS outcome_date"])
+def test_protected_or_outcome_columns_are_refused(con, monkeypatch, extra):
+    # Governance guard: if a feature SQL ever selects a protected attribute or an outcome, nothing is written
+    import ontrack.l3_features.structured.features as F
+    original = F.feature_sql
+    monkeypatch.setattr(F, "feature_sql", lambda d: f"SELECT *, {extra} FROM ({original(d)})")
+    with pytest.raises(RuntimeError, match="Outcome or protected"):
+        F.build_case_features(con, AS_OF)
+    assert con.execute("SELECT count(*) FROM duckdb_tables() WHERE table_name = 'case_features'").fetchone()[0] == 0
+
+
+def test_unexpected_feature_columns_are_refused(con, monkeypatch):
+    import ontrack.l3_features.structured.features as F
+    original = F.feature_sql
+    monkeypatch.setattr(F, "feature_sql", lambda d: f"SELECT *, 1 AS surprise_column FROM ({original(d)})")
+    with pytest.raises(RuntimeError, match="differ from FEATURE_COLUMNS"):
+        F.build_case_features(con, AS_OF)
