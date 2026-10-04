@@ -15,7 +15,7 @@ Judging: technical quality and working demo (incl. benchmark and **live unseen q
 | ✅ G21 | **Garv's Claude** (#43) | Live-question resilience: LLM slow or failing → clear message and the closest certified answer, never a traceback or a long spinner | Tests for timeout and usage limit | 15:30 |
 | ✅ G22 | **Garv's Claude** (#44) | `src/ontrack/l2_ask/QA_NOTES.md`: judge Q&A for Layers 2/3 | One page, numbers checked | 15:30 |
 | G23 | **Garv's Claude** | Deterministic templates for common live data questions over gold (no LLM, SQL shown); guardrail test: routes of the 35 + 29 + 8 + 15 rehearsal questions unchanged | V14 live set: LQ-01–22, 29, 30 under 1 s without LLM; dev 21/21 | 16:00 |
-| K24 | **Kris's Claude** | `$` escaping on the Agent card (as in #41) | Email/SMS cases render dollars correctly | 14:00 |
+| ✅ K24 | **Kris's Claude** (#45) | `$` escaping on the Agent card (as in #41) | Email/SMS cases render dollars correctly | 14:00 |
 | K25 | **Kris's Claude** | "62% go to a person: can agents cope?": human queue by reason and dollars, priority order, workload vs capacity, 1-business-day feasibility (EVALUATION + supervisor view + QA_NOTES) | Generated section + card line | 15:30 |
 | K26 | **Kris's Claude** | Run P1's live-question set through Ask on Kris's allowance; misses to Garv | Score table posted | 15:30 |
 | ✅ V14 | **P1-Claude** | Live-question set (~30 judge-style questions, all layers, answers from independent SQL) | In `docs/rehearsal/` | 14:15 |
