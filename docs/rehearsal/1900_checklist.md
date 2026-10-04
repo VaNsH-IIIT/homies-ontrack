@@ -3,7 +3,7 @@
 Runbook source: `src/ontrack/l2_ask/BENCHMARK_NOTES.md` § "Runbook: extra questions at 19:00". Backup: Garv runs
 `python -m ontrack.l2_ask.backup_run` on his machine if anything here fails for more than 10 minutes.
 
-All commands from `C:\Users\vja89\Downloads\CIBC\ontrack`, Git Bash, `export PYTHONIOENCODING=utf-8`, venv python
+All commands from the repo root, Git Bash, `export PYTHONIOENCODING=utf-8`, venv python
 `.venv/Scripts/python.exe` (shown as `py`).
 
 ## 18:45 — before the file arrives
