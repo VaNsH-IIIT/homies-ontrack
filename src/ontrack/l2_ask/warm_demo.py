@@ -17,6 +17,8 @@ PAGE_EXAMPLES = [
     "Why did outbound call volume drop on 23-24 September 2026?",
     "Which open cases are most likely to roll to a worse bucket in the next 30 days?",
     "Which open cases are closest to charge-off?",
+    "Explain the recommendation for case CS-2026-583749.",      # G20: from gold, no LLM
+    "Tell me about customer VIB-8709.",                          # G20: the same customer's C360
     "Rank customers by citizenship status so newcomers are called first.",
 ]
 # Everything the video segment asks: the buttons plus the demo case's call.

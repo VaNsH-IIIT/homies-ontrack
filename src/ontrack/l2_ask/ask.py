@@ -416,11 +416,19 @@ class Engine:
                       False, "data", {"source": "gold.nba_recommendation", "ranked_by": risk, "filter": filt},
                       table=df, sql=safe)
 
+    def explain(self, question: str) -> Answer | None:
+        """G20: case and customer explanations from gold, deterministic, no LLM (explain.py)."""
+        from ontrack.l2_ask import explain
+        return explain.answer(self, question)
+
     def answer(self, question: str, as_of_date: str = config.SNAPSHOT_DATE, metric_id: str | None = None,
                question_id: str = "", tolerance: str = "") -> Answer:
         v = scope.route(question)
         if v.refused:                                   # check 1: rules, before any SQL
             return Answer(f"Refuse: {v.reason} {v.alternative}".strip(), "", True, "refuse", reason=v.category)
+        ex = self.explain(question)                     # G20: "explain case <id>", "tell me about customer <id>"
+        if ex is not None:
+            return ex
         nba = self.roll_forward(question)               # R5: answered from gold.nba_recommendation (P3's scores)
         if nba is not None:
             return nba

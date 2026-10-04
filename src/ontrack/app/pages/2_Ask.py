@@ -7,7 +7,7 @@ import streamlit as st
 
 from ontrack import config
 from ontrack.app.common import get_con, header
-from ontrack.l2_ask import ask, llm, metrics, understand
+from ontrack.l2_ask import ask, explain, llm, metrics, understand
 from ontrack.l2_ask.warm_demo import PAGE_EXAMPLES
 
 header("Ask", "Plain-English questions over collections data and policies. Every answer shows its SQL or its "
@@ -59,6 +59,9 @@ if len(question) > MAX_CHARS:
 u = understand.understand(question)
 # Comparisons, rankings and multi-part questions go to the agent: no editable single-metric tokens for them.
 multi_part = any("comparison" in x for x in u.unresolved)
+explain_q = explain.match(question) is not None      # G20: case / customer explanations, no metric tokens
+if explain_q:
+    u.metric = None
 if u.metric and u.metric in metrics.METRICS and u.metric != "roll_rate" and not multi_part:
     m = metrics.METRICS[u.metric]
     with st.expander("Understood as (edit and re-run)", expanded=True):
@@ -133,7 +136,7 @@ if a.route == "explain":
 if df is not None and len(df):
     st.dataframe(df, hide_index=True, width="stretch")
     num = [c for c in df.columns[1:] if str(df[c].dtype).startswith(("float", "int"))]
-    if len(df) > 1 and num and len(df) <= 60:
+    if len(df) > 1 and num and len(df) <= 60 and a.route != "explain":
         st.bar_chart(df.set_index(df.columns[0])[num[0]])
 elif a.route not in ("explain",):
     st.markdown(md(a.answer))
