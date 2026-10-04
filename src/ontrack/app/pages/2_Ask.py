@@ -1,5 +1,6 @@
 """Ask: plain-English questions over the C360, with the SQL or sources shown (owner: P2)."""
 import json
+import time
 from datetime import date, datetime
 
 import streamlit as st
@@ -51,7 +52,9 @@ if len(question) > MAX_CHARS:
 
 # ---- Understood as: editable tokens (certified metrics) ----
 u = understand.understand(question)
-if u.metric and u.metric in metrics.METRICS and u.metric != "roll_rate":
+# Comparisons, rankings and multi-part questions go to the agent: no editable single-metric tokens for them.
+multi_part = any("comparison" in x for x in u.unresolved)
+if u.metric and u.metric in metrics.METRICS and u.metric != "roll_rate" and not multi_part:
     m = metrics.METRICS[u.metric]
     with st.expander("Understood as (edit and re-run)", expanded=True):
         c = st.columns([2, 1.2, 1.2, 1.6, 2.5])
@@ -75,19 +78,33 @@ if u.metric and u.metric in metrics.METRICS and u.metric != "roll_rate":
         st.caption("Dates resolve against the snapshot (28 Sep 2026), not today. Certified metrics come from "
                    "`metric_definitions` as fixed SQL: the same question always gives the same number.")
 
-with st.spinner("Answering…"):
+STEP_LABELS = {"run_sql": "running a validated SQL query", "certified_metric": "computing a certified metric",
+               "describe_table": "reading the data dictionary", "case_calls": "reading the case's recorded calls",
+               "case_notes": "reading the case's agent notes", "search_documents": "searching the policy documents",
+               "search_notes": "searching agent notes", "final_answer": "writing the answer"}
+
+with st.status("Answering…", expanded=False) as status:
+    t0 = time.time()
     try:
         eng = engine()
+        eng.on_step = lambda n, name, act: status.update(            # live progress for slower agent answers
+            label=f"Step {n}: {STEP_LABELS.get(name, name)}…", state="running")
         v = ask.scope.route(question)
         if v.refused:
             a = ask.Answer(f"{v.reason} {v.alternative}", "", True, "refuse", reason=v.category)
-        elif u.metric and not u.unresolved and u.metric != "roll_rate":
+        elif u.metric and not u.unresolved and u.metric != "roll_rate" and not multi_part:
             a = eng.certified(u, question) or eng.answer(question)
         else:
             a = eng.answer(question)
     except Exception as e:  # noqa: BLE001 - never show a traceback to a user
         a = ask.Answer(f"Sorry, that question could not be answered ({type(e).__name__}). Try rephrasing it, or "
                        f"pick an example on the left.", "", False, "error")
+    finally:
+        try:
+            engine().on_step = None
+        except Exception:  # noqa: BLE001
+            pass
+    status.update(label=f"Answered in {time.time() - t0:.1f} s · route: {a.route}", state="complete")
 try:
     log(question, a, u.tokens())
 except OSError:
