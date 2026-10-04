@@ -5,6 +5,22 @@ Status: `[ ]` to do · `[~]` in progress · `[x]` merged to `main`. Update your 
 
 **Tasks say what must work, not how.** The "Done when" column and the interfaces in the README are fixed; the approach inside your folders is yours: choose libraries, prompts, features and models, and experiment. Fixed regardless: the table names and columns in the interfaces, the hackathon rules (no protected attributes, a plain-English reason for every decision, human review, hardship flagged), and the design as the base (log any change and why).
 
+## 🏆 Competition push (4 Oct 13:30 → 16:00; code stop 17:30)
+
+Judging: technical quality and working demo (incl. benchmark and **live unseen questions**) · business understanding · innovation · teamwork · presentation.
+
+| ID | Who | Task | Done when | By |
+|---|---|---|---|---|
+| G20 | **Garv's Claude** | Deterministic "explain case <id>" and "tell me about customer <id>" in Ask (from gold + nba, SQL shown, no PII, no LLM), example buttons, tests | < 1 s, 0 LLM calls; tests pass | 15:00 |
+| G21 | **Garv's Claude** | Live-question resilience: LLM slow or failing → clear message and the closest certified answer, never a traceback or a long spinner | Tests for timeout and usage limit | 15:30 |
+| G22 | **Garv's Claude** | `src/ontrack/l2_ask/QA_NOTES.md`: judge Q&A for Layers 2/3 | One page, numbers checked | 15:30 |
+| K24 | **Kris's Claude** | `$` escaping on the Agent card (as in #41) | Email/SMS cases render dollars correctly | 14:00 |
+| K25 | **Kris's Claude** | "62% go to a person: can agents cope?": human queue by reason and dollars, priority order, workload vs capacity, 1-business-day feasibility (EVALUATION + supervisor view + QA_NOTES) | Generated section + card line | 15:30 |
+| K26 | **Kris's Claude** | Run P1's live-question set through Ask on Kris's allowance; misses to Garv | Score table posted | 15:30 |
+| V14 | **P1-Claude** | Live-question set (~30 judge-style questions, all layers, answers from independent SQL) | In `docs/rehearsal/` | 14:15 |
+| V15 | **P1-Claude** | `docs/QA_L1.md`: Layer 1 judge Q&A | One page | 15:00 |
+| V16 | **P1-Claude** | README "How we worked" with real numbers (PRs, reviews, findings) | In README | 15:00 |
+
 ## 🎯 Final hardening until 16:00 (posted 4 Oct, 06:15 IST): read this first
 
 All code tasks so far are merged (#15–#28; 231 tests). Until **16:00** we close the remaining risks; deck, PDF and video come **after 16:00**, all together.
