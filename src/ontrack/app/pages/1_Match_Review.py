@@ -58,7 +58,11 @@ view = view.sort_values("match_probability", ascending=False).reset_index(drop=T
 cols = ["status", "source_system", "source_key", "candidate_crm_customer_id", "match_probability",
         "surname_similarity", "given_initial_match", "dob_check", "postal_edit_distance", "phone_match"]
 st.markdown(f"#### {len(view):,} matches")
-picked = st.dataframe(view[cols], hide_index=True, width="stretch", height=280,
+LABELS = {"status": "status", "source_system": "system", "source_key": "source key",
+          "candidate_crm_customer_id": "candidate CRM id", "match_probability": "match probability",
+          "surname_similarity": "surname similarity", "given_initial_match": "same initial", "dob_check": "date of birth",
+          "postal_edit_distance": "postal code edits", "phone_match": "same phone"}
+picked = st.dataframe(view[cols].rename(columns=LABELS), hide_index=True, width="stretch", height=280,
                       on_select="rerun", selection_mode="single-row")
 rows = picked.selection.rows
 if not rows:
