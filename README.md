@@ -58,7 +58,7 @@ python scripts/run_all.py --with-bronze --transcripts 0 && streamlit run src/ont
 ### 1. Prerequisites
 - **Python 3.10+** and **git**.
 - **About 12 GB free disk** for the dataset, on any drive, **outside the repo**. Example: `D:\maple_data`.
-- 8 GB+ RAM. With less, use the **dev sample** (see [`TASKS.md`](TASKS.md), task P1-T2).
+- 8 GB+ RAM. With less, use the **dev sample** (Setup §4).
 - Optional: an **Anthropic API key** or a logged-in Claude Code CLI, only for Ask's document, call and explain answers. Everything else runs without it.
 
 ### 2. Clone and install
@@ -202,23 +202,26 @@ _Required by the brief. Add a row for every change and why._
 
 ## How we worked (teamwork)
 
-Three owners, one repo, a lead who verifies before merging. Numbers from GitHub on 4 Oct, 13:40 IST:
+Four people, one repo, one plan. Every change went through a pull request, a written check on the full data, and a merge by the lead.
 
-| | Vansh (P1, lead) | Garv (P2) | Kris (P3) | Total |
-|---|---|---|---|---|
-| Commits (excluding merges) | 112 | 73 | 46 | 231 |
-| Pull requests merged | 4 | 10 | 20 | 34 |
-| Comments on PRs and the team issue (#13) | 71 | 27 | 51 | 149 |
+| Member | Role |
+|---|---|
+| **Vansh Jaiswal** (lead) | Layer 1 data product (customer 360, identity resolution, contract, data quality); integration, verification and merging; the problem and data story |
+| **Garv Pratap Singh** | Layer 2 Ask (benchmark runner, SQL guard, refusals, live-question templates); Layer 3 text signals |
+| **Kris Jain** | Layer 3 structured features and Layer 4 next best action (policy gate, models, ranker, agent card, evaluation) |
+| **Anuj Kumar Tiwari** | Worked across all three layers through the team's Claude Code sessions on every machine: testing, rehearsals and reviews; the business story (evaluation, business value, capacity) in the demo video and the pitch |
+
+**Team totals on GitHub** (4 Oct): 230+ commits, 40+ merged pull requests, 150+ review and coordination comments. Commits show the GitHub account of the machine they were made on.
 
 - **Every PR was tested on the full data before merging:** pytest, the affected pipeline steps, and the pages. `main` is protected, so only the lead merges, after a written check on the PR. A refactor had to prove "no change" by comparing all 96,000 recommendations column by column.
-- **Peer reviews found real problems,** each fixed with a test:
-  - non-standard province codes in Layer 1 (P2's rehearsal → DQ issue 20);
-  - a judge's run overwriting the submitted answers (P3's fresh-clone test);
-  - a 19:00 path that could drop the 35 released answers (P3's dry run);
-  - dollar signs rendered as LaTeX on screen (P2);
-  - a check that misread reordered question files, a data-contract failure that didn't stop the build, and a stale-bucket label in the risk lists (P3).
-- **One plan, visible to all:** tasks with "done when" criteria in [`TASKS.md`](TASKS.md); decisions, results and requests logged in issue #13; every change from the design in [What changed](#what-changed-from-the-design).
-- **Clear ownership:** each person changed only their own folders, and shared files (benchmark answers, README, contract) changed only through their owner.
+- **Cross-reviews found real problems,** each fixed with a test:
+  - non-standard province codes in Layer 1 (DQ issue 20, found by a question rehearsal);
+  - a judge's run overwriting the submitted answers (fresh-clone test);
+  - a 19:00 path that could drop the 35 released answers (dry run);
+  - dollar signs rendered as LaTeX on screen;
+  - a check that misread reordered question files, a data-contract failure that didn't stop the build, and a benchmark answer that changed between runs (BQ-006, now deterministic).
+- **One plan, visible to all:** tasks with "done when" criteria; decisions, results and requests logged in one team issue; every change from the design in [What changed](#what-changed-from-the-design).
+- **Clear ownership:** each layer had an owner, and shared files (benchmark answers, README, contract) changed only through their owner.
 
 ## AI tools used
 
