@@ -69,3 +69,63 @@ def test_summary_shares_add_up(con, tmp_path):
     total = con.execute("""SELECT sum(share_of_recommendation) FROM features.override_summary
                            WHERE source = 'bank_history' AND recommended_action = 'call_evening'""").fetchone()[0]
     assert total == pytest.approx(1.0)
+
+
+# ---- K20 (tests by P3): the remaining branches ----
+
+def test_not_followed_and_unknown_agent_actions(con, tmp_path):
+    con.execute("""INSERT INTO gold.case_360 VALUES
+        ('C5', 'G5', DATE '2026-06-01', 'sms_payment_link', false, false, NULL, false, NULL, NULL, 'charged_off'),
+        ('C6', 'G6', DATE '2026-06-01', 'sms_payment_link', NULL, NULL, NULL, true, DATE '2026-06-05', 4, 'cured')""")
+    feedback.build(con, SNAPSHOT, tmp_path / "none.duckdb")
+    r = rows(con)
+    assert r["C5"][1] == "not_followed" and r["C5"][4] is False
+    assert r["C6"][1] == "unknown" and r["C6"][4] is True
+
+
+def test_unreadable_decision_log_is_skipped_not_fatal(con, tmp_path, capsys):
+    bad = tmp_path / "decisions.duckdb"
+    bad.write_bytes(b"not a duckdb file")
+    counts = feedback.build(con, SNAPSHOT, bad)
+    assert counts == {"bank_history": 3}                       # history still written
+    assert "decision log not read" in capsys.readouterr().out
+
+
+def test_decision_file_without_a_log_table(con, tmp_path):
+    db = tmp_path / "decisions.duckdb"
+    d = duckdb.connect(str(db))
+    d.execute("CREATE TABLE steward_log (x INTEGER)")          # the app wrote only steward decisions so far
+    d.close()
+    assert feedback.build(con, SNAPSHOT, db) == {"bank_history": 3}
+    assert con.execute("SELECT count(*) FROM duckdb_databases() WHERE database_name = 'dec'").fetchone()[0] == 0
+
+
+def test_cure_before_the_decision_does_not_count(con, tmp_path):
+    db = tmp_path / "decisions.duckdb"
+    d = duckdb.connect(str(db))
+    d.execute("""CREATE TABLE decision_log (decision_id VARCHAR, case_id VARCHAR, golden_id VARCHAR, agent_id VARCHAR,
+                 recommended_action VARCHAR, agent_action VARCHAR, final_action VARCHAR, reason_code VARCHAR,
+                 note VARCHAR, model_version VARCHAR, ts TIMESTAMP)""")
+    # C1 cured on 13 Jun; a decision on 13 Jun (same day) or later did not cause it
+    d.execute("INSERT INTO decision_log VALUES ('d1', 'C1', 'G1', 'a1', 'call', 'accept', 'call', 'agrees', '', 'v1', "
+              "TIMESTAMP '2026-06-13 09:00')")
+    d.close()
+    feedback.build(con, SNAPSHOT, db)
+    assert con.execute("SELECT cured_30d FROM features.decision_feedback WHERE source = 'ontrack'").fetchone()[0] is False
+
+
+def test_main_prints_counts_per_source(tmp_path, monkeypatch, capsys):
+    path = tmp_path / "fb.duckdb"
+    c = duckdb.connect(str(path))
+    c.execute("CREATE SCHEMA gold")
+    c.execute("""CREATE TABLE gold.case_360 AS SELECT 'C1' AS case_id, 'G1' AS golden_id, DATE '2026-06-01' AS case_open_date,
+                 'call' AS nba_recommendation_last, true AS nba_accepted_flag, false AS human_override_flag,
+                 NULL::VARCHAR AS override_reason, true AS cure_flag, DATE '2026-06-05' AS cure_date, 4 AS days_to_cure,
+                 'cured' AS outcome""")
+    c.close()
+    monkeypatch.setattr(feedback, "connect", lambda: duckdb.connect(str(path)))
+    monkeypatch.setattr(feedback, "DECISIONS_DB", tmp_path / "none.duckdb")
+    feedback.main()
+    out = capsys.readouterr().out
+    assert "bank_history          1 decisions,         1 with a known 30-day outcome" in out
+    assert "cured within 30 days: 1.0" in out

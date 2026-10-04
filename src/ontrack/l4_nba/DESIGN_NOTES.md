@@ -51,6 +51,11 @@ features.case_features (point-in-time, one row per case and as_of)
   6 decimals, deterministic tie-breaks; every training date is rebuilt each run. Two runs from scratch give the
   same AUCs and the same 96,000 recommendations. (Machines with different inputs, e.g. P1's cached Claude results,
   differ slightly: 0.828 vs 0.829.)
+- **Known limit (repeatability):** money features (`payment_amount_90d`, salary change, account utilisation) are
+  sums of doubles, and DuckDB's threads add them in a different order each run, so a value can move by up to 1e-13.
+  The 6-decimal rounding absorbs it: three full trainings on 4 Oct gave identical models and recommendations.
+  The next step is exact `DECIMAL` sums (branch `p3/K21-exact-sums`, kept out of the submission because it shifts
+  the self-cure test AUC from 0.829 to 0.8275 and 170 of 96,000 actions).
 - **Calibration drift:** the self-cure rate of cases open at each date falls month by month (32% on 2026-06-01,
   23% on 2026-07-01, 10% on 2026-08-29: the open book never resolves inside the release). A calibrator fitted on
   June over-predicts July by up to 8 points, so the card's probabilities use the 2026-08-29 calibrator and the
@@ -94,7 +99,7 @@ recommendation rates by protected group (automated decisions within 5.5 points) 
 ```bash
 python -m ontrack.l4_nba.run             # train + score, ~60 s
 python -m ontrack.l4_nba.evaluation      # regenerate EVALUATION.md
-pytest tests/test_policy_gate.py tests/test_hardship.py tests/test_ranker.py tests/test_l4_point_in_time.py
+pytest tests/test_policy_gate.py tests/test_hardship.py tests/test_ranker.py tests/test_l4_point_in_time.py \n       tests/test_l4_core.py tests/test_l3_structured_features.py
 ```
 
 ## What changed from the design (for the README table)
