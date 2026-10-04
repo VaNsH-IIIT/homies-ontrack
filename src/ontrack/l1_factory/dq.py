@@ -1,6 +1,7 @@
 """Data quality report, generated from the pipeline's own logs (owner: P1).
 
-    python -m ontrack.l1_factory.dq        -> docs/data_quality_report.md
+    python -m ontrack.l1_factory.dq        -> $ONTRACK_WORK_DIR/outputs/data_quality_report.md
+    ONTRACK_WRITE_DELIVERABLES=1 python -m ontrack.l1_factory.dq   -> docs/data_quality_report.md (the committed copy)
 
 Sources: bronze._load_log (row counts, schema drift), bronze._cast_failures (values that do not
 fit the declared type), silver._dq_issues (issues found while cleaning), gold checks below.
@@ -110,7 +111,7 @@ def main() -> None:
     lines += ["### Identity resolution: how each source key was linked", "",
               md_table(["Method", "Keys", "Avg confidence"], xref), ""]
 
-    out = config.REPO_ROOT / "docs" / "data_quality_report.md"
+    out = config.deliverable_path("docs/data_quality_report.md")
     out.write_text("\n".join(lines), encoding="utf-8")
     print(f"wrote {out}")
     con.close()

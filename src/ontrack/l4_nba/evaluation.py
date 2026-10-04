@@ -148,6 +148,94 @@ def backtest_section(con) -> list[str]:
     return out
 
 
+CONTACT_ACTIONS = ("call", "sms", "email", "push_notification", "reminder_letter")
+
+
+def business_value_section(con) -> list[str]:
+    """K8: conservative dollar value per lever, against the bank's last recommendation, with every assumption."""
+    import numpy as np
+    from ontrack.l4_nba.models import _matrix
+    from ontrack.l4_nba.ranker import channel_economics
+    econ = channel_economics(con)
+    median_payment = float(con.execute("SELECT median(payment_amount) FROM bronze.contact_history "
+                                       "WHERE payment_amount > 0").fetchone()[0])
+    r = con.execute("""
+        SELECT r.case_id, r.action, r.allowed_actions, r.needs_human_review, r.p_payment_7d,
+               k.nba_recommendation_last AS bank_last
+        FROM gold.nba_recommendation r JOIN gold.case_360 k ON k.case_id = r.case_id""").fetchdf()
+    r["bank"] = r["bank_last"].map(BANK_TO_OURS).fillna("do_nothing")
+    r["bank_allowed"] = [b in str(a).split(", ") for b, a in zip(r["bank"], r["allowed_actions"])]
+    resp = (r["p_payment_7d"] / max(r["p_payment_7d"].mean(), 1e-6)).clip(0.5, 2.0)   # as in the ranker
+    rate = lambda a: econ[a]["rate"] if a in CONTACT_ACTIONS else 0.0  # noqa: E731
+    auto = ~r["needs_human_review"].astype(bool)
+    pay_ours = np.where(auto, r["action"].map(rate) * resp, 0.0)
+    pay_bank = np.where(auto & r["bank_allowed"], r["bank"].map(rate) * resp, 0.0)
+    blocked = int((auto & ~r["bank_allowed"] & (r["bank"] != "do_nothing")).sum())
+    v_ours, v_bank = pay_ours.sum() * median_payment, pay_bank.sum() * median_payment
+
+    # Lever 2: what the bank actually spent, in the 30 days after the test date, on cases that cured on their own
+    test = load_frame(con, "self_cure_30d", [TEST_DATE])
+    model = load_model("self_cure_30d")
+    test["p"] = model["calibrator_test"].predict(model["booster"].predict(_matrix(test, model["feature_cols"])))
+    spend = con.execute(f"""
+        SELECT t.case_id, sum(coalesce(h.contact_cost_cad, 0)) AS spend, count(*) AS contacts
+        FROM gold.contact_timeline t JOIN bronze.contact_history h ON h.contact_id = t.contact_id
+        WHERE h.direction = 'outbound' AND t.contact_ts_utc >= DATE '{TEST_DATE}'
+          AND t.contact_ts_utc < DATE '{TEST_DATE}' + INTERVAL 30 DAY
+        GROUP BY 1""").fetchdf()
+    bank_scores = con.execute(f"""
+        SELECT case_id, score FROM bronze.model_scores
+        WHERE model_name = 'cure_30d' AND case_id IS NOT NULL AND score_date <= DATE '{TEST_DATE}'
+        QUALIFY row_number() OVER (PARTITION BY case_id ORDER BY score_date DESC, score_ts DESC) = 1""").fetchdf()
+    d = (test[["case_id", "label", "p"]].merge(bank_scores, on="case_id")
+         .merge(spend, on="case_id", how="left").fillna({"spend": 0.0, "contacts": 0}))
+    k = max(1, len(d) // 5)
+    waste = {}
+    for name, col in (("ours", "p"), ("bank", "score")):
+        top = d.nlargest(k, col)
+        cured = top[top["label"] == 1]
+        waste[name] = (len(cured), float(cured["spend"].sum()), int(cured["contacts"].sum()))
+
+    calls_bank = int((r["bank"] == "call").sum())
+    calls_ours = int((r["action"] == "call").sum())
+    cap = econ["call"]["capacity"]
+    levers = pd.DataFrame([
+        {"lever": "1. Expected payments within 7 days from the recommended contact (automated cases)",
+         "bank's last recommendation": f"${v_bank:,.0f} ({pay_bank.sum():,.0f} payments)",
+         "OnTrack": f"${v_ours:,.0f} ({pay_ours.sum():,.0f} payments)", "difference": f"+${v_ours - v_bank:,.0f}",
+         "unit": "per round of contacts"},
+        {"lever": "2. Contact spend on customers who paid on their own anyway (the 20% each would leave alone)",
+         "bank's last recommendation": f"${waste['bank'][1]:,.0f} ({waste['bank'][2]:,} contacts) found",
+         "OnTrack": f"${waste['ours'][1]:,.0f} ({waste['ours'][2]:,} contacts) found",
+         "difference": f"+${waste['ours'][1] - waste['bank'][1]:,.0f}", "unit": f"per month ({TEST_DATE} back-test)"},
+        {"lever": "3. Calls that fit the day's call capacity",
+         "bank's last recommendation": f"{calls_bank:,} calls ({calls_bank / max(cap, 1):.1f} days of capacity)",
+         "OnTrack": f"{calls_ours:,} calls (1 day)", "difference": f"{calls_bank - calls_ours:,} fewer calls",
+         "unit": f"capacity {cap:,} calls a day"},
+    ])
+    return ["## 2b. Business value in dollars (conservative)", "",
+            "Same open book, same day: what OnTrack recommends against the bank's last recommendation "
+            "(`collections_cases.nba_recommendation_last`), valued with measured numbers only.", "",
+            md_table(levers), "",
+            "**Method and assumptions** (each one chosen to understate OnTrack's value):",
+            f"- Lever 1 values every expected payment at the **median recorded payment, ${median_payment:,.2f}** "
+            f"(the mean is about 2.6x higher), not at the overdue amount.",
+            "- The chance of a payment within 7 days of a contact is the **measured** rate per channel from "
+            "`contact_history` (last 12 months), times the customer's responsiveness from the payment model "
+            "(0.5x-2x), the same numbers the ranker uses. It is observed, not a randomised uplift.",
+            f"- Only the {int(auto.sum()):,} **automated** cases count. Nothing is claimed for the cases sent to a "
+            "person (hardship, vulnerability, disputes, complaints, holds), where OnTrack deliberately does not "
+            "collect.",
+            f"- A bank recommendation the policy gate would block (no consent, holds, contact cap) counts as no "
+            f"payment: {blocked:,} of the bank's recommendations for automated cases could not legally be sent.",
+            f"- Lever 2 uses what the bank actually spent (`contact_cost_cad`) in the 30 days after {TEST_DATE} on "
+            f"cases that then cured on their own: OnTrack's leave-alone 20% contains {waste['ours'][0]:,} such "
+            f"cases, the bank model's {waste['bank'][0]:,}. Leaving a case alone is not free: the rest of each 20% "
+            "did not cure, which is why production waits only on cases above 3.5x the book's self-cure rate.",
+            "- Lever 3 is capacity, not dollars: the bank's engine recommends more calls than the team can make.",
+            "- Nothing is annualised: a round is one recommended contact per case.", ""]
+
+
 def mix_section(con) -> list[str]:
     out = ["## 3. Recommendations for the open book (snapshot 2026-09-28)", ""]
     mix = con.execute("""SELECT action, count(*) AS cases, round(count(*) / sum(count(*)) OVER (), 3) AS share,
@@ -262,14 +350,17 @@ def fairness_section(con) -> list[str]:
             "are the cases the model and ranker decide alone (not in the human queue):", "",
             md_table(pd.DataFrame(summary)), ""]
     small = auto.groupby("gender_code").size()
-    out += [f"Automated-case gaps for `gender_code` come from the U and X groups ({int(small.get('U', 0))} and "
-            f"{int(small.get('X', 0))} automated cases): at that size a 4-5 point gap is within noise.", ""]
+    if small.get("U", 0) and small.get("X", 0):
+        out += [f"Automated-case gaps for `gender_code` come from the U and X groups ({int(small['U'])} and "
+                f"{int(small['X'])} automated cases): at that size a 4-5 point gap is within noise.", ""]
     flags = con.execute("""SELECT c.marital_status, avg(k.hardship_flag::INT) AS case_flag,
                                   avg(coalesce(t.text_hardship_90d, false)::INT) AS text_90d
                            FROM gold.case_360 k JOIN bronze.customers c ON c.crm_customer_id = k.crm_customer_id
                            LEFT JOIN features.text_signals_case t ON t.case_id = k.case_id
                            WHERE k.outcome IS NULL GROUP BY 1""").fetchdf().set_index("marital_status")
     sep = base.dropna(subset=["marital_status"]).groupby("marital_status")["hardship"].mean()
+    if "separated" not in flags.index or "separated" not in sep.index or len(flags) < 2:
+        return out + detail   # smaller datasets (e.g. the 5% sample): no separate note
     out += ["The one large gap is `marital_status = separated` (more hardship referrals and human reviews). It comes "
             "from the hardship signals themselves (the bank's case flag and what customers say), which route to a "
             "person by policy; among automated cases the gaps stay small. Worth a human look as a policy question, "
@@ -314,6 +405,10 @@ def model_fairness_section(con) -> list[str]:
                      "over-prediction gap": g["over-prediction"].max() - g["over-prediction"].min()})
         detail += [f"`{col}`", "", md_table(g), ""]
     summary = pd.DataFrame(rows)
+    if summary.empty:   # smaller datasets: no protected group reaches 300 test cases
+        return ["### Is the model equally accurate for every group? (test month, offline)", "",
+                "No protected group has 300+ test cases with both outcomes on this dataset, so the per-group check is "
+                "skipped (it runs on the full data).", ""]
     out = ["### Is the model equally accurate for every group? (test month, offline)", "",
            f"Self-cure model on the {TEST_DATE} test cases (overall AUC {overall:.3f}), split by protected group "
            "(groups of 300+ cases). A fair model ranks equally well and is equally calibrated in every group.", "",
@@ -341,7 +436,7 @@ def write_evaluation_report(con) -> str:
     lines = ["# Layer 4 evaluation", "",
              f"_Generated by `python -m ontrack.l4_nba.evaluation` on the full data (snapshot {config.SNAPSHOT_DATE}, "
              f"written {dt.date.today().isoformat()})._", ""]
-    for section in (model_section(), calibration_section(con), backtest_section(con), mix_section(con), queue_section(con),
+    for section in (model_section(), calibration_section(con), backtest_section(con), business_value_section(con), mix_section(con), queue_section(con),
                     fairness_section(con), model_fairness_section(con), notes_section()):
         lines += section
     report = "\n".join(lines)

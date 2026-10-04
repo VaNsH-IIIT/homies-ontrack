@@ -2,9 +2,9 @@
 
 **Demo customer:** CRM `VIB-8709` (search by it, or by the case id; golden_id shown on screen), Alberta, English. Linked across **4 systems**: CRM, cards `CX6029150`, loans `B52511750`, core banking CIF `0062157849`.
 5 products, total exposure $23,681. **Open case `CS-2026-583749`**: auto loan, 6 days past due, $383.05 overdue, early-stage queue.
-On a call they said **"My pay got cut in Aug."** (transcript 4510675, hardship confidence 0.95).
+On a call they said **"My pay got cut in Aug."** (transcript 4510675).
 
-**Before recording (P1):** `python scripts/run_all.py` all OK · clear test decisions from `decisions.duckdb` · `streamlit run src/ontrack/app/main.py` · browser at 1080p, zoom 110% · warm the Ask cache (`python -m ontrack.l2_ask.run_benchmark`).
+**Before recording (P1):** `python scripts/run_all.py` all OK · clear test decisions from `decisions.duckdb` · `streamlit run src/ontrack/app/main.py` · browser at 1080p, zoom 110% · warm the Ask cache (`python -m ontrack.l2_ask.warm_demo`; never `run_benchmark` here, it rewrites the committed answers).
 
 | Time | Who | Show | Say |
 |---|---|---|---|

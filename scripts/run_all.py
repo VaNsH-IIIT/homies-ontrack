@@ -9,6 +9,7 @@ Steps whose module is not merged yet are reported as SKIPPED, so this works at e
 Each step runs in its own process (as a judge would run it) and the summary shows what passed.
 """
 import argparse
+import os
 import importlib.util
 import subprocess
 import sys
@@ -30,7 +31,13 @@ def main() -> int:
     ap.add_argument("--skip-l1", action="store_true", help="skip the Layer 1 build (reuse gold)")
     ap.add_argument("--transcripts", type=int, default=0,
                     help="most recent calls also sent to Claude (default 0: no new LLM calls; cached Claude results are still used; every call is scored by the trained model either way)")
+    ap.add_argument("--update-deliverables", action="store_true",
+                    help="also rewrite the committed benchmark/answers.csv and docs/data_quality_report.md "
+                         "(default: write them to $ONTRACK_WORK_DIR/outputs, so the submitted files stay as they are)")
     args = ap.parse_args()
+    if args.update_deliverables:
+        os.environ["ONTRACK_WRITE_DELIVERABLES"] = "1"  # inherited by every step below
+        config.WRITE_DELIVERABLES = True
 
     questions = (config.DATA_DIR / "data" / "benchmark_questions.csv").as_posix()
     steps = []
@@ -45,7 +52,7 @@ def main() -> int:
         ("L4 features, models, recommendations", "ontrack.l4_nba.run", []),
         ("Feedback loop: decisions + outcomes -> labels for retraining", "ontrack.feedback", []),
         ("L2 benchmark answers", "ontrack.l2_ask.run_benchmark",
-         ["--questions", questions, "--out", (config.REPO_ROOT / "benchmark" / "answers.csv").as_posix(), "--workers", "4"]),
+         ["--questions", questions, "--out", config.deliverable_path("benchmark/answers.csv").as_posix(), "--workers", "4"]),
     ]
 
     results = []
@@ -62,6 +69,8 @@ def main() -> int:
     print("\n" + "=" * 72 + "\nSUMMARY")
     for title, status, secs in results:
         print(f"  {status:26s} {secs:7.0f}s  {title}")
+    where = "the committed files (--update-deliverables)" if args.update_deliverables else (config.WORK_DIR / "outputs").as_posix()
+    print(f"Benchmark answers and DQ report written to {where}")
     print("Then: streamlit run src/ontrack/app/main.py")
     return 0 if all(s.startswith(("OK", "SKIPPED")) for _, s, _ in results) else 1
 
