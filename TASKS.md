@@ -23,7 +23,7 @@ All code tasks so far are merged (#15–#28; 231 tests). Until **16:00** we clos
 | V13 | **Vansh, after 11:00** | Rehearse the P1 voice-overs (0:00–1:15, 4:15–5:00), no recording yet | Read through twice, timed | 16:00 |
 | G14 | **Garv's Claude** | Recording card for Garv's 16:00 take (clicks, screens, time stamps, pre-flight); warm_demo covers every question shown | Card in `VIDEO_ASK_SEGMENT.md`, step times tested | 10:00 |
 | G15 | **Garv's Claude** | Final regression on `main` after all merges: dev 35 + hard 29 + L1 8 + V8 + mock extras | Scores posted, 0 errors | 10:30 |
-| G16 | **Kris's Claude** (reassigned by P1 at 09:00; Garv silent; tests only) | `test_l2_guards.py`: the PII-name test passes with and without the dataset (monkeypatch `sql_guard._TAGGED`; Kris's finding) | `pytest` all pass on a clone with no `.env` and with full data | 10:00 |
+| ✅ G16 | **Kris's Claude** (#37; 343 pass with and without data) | `test_l2_guards.py`: the PII-name test passes with and without the dataset (monkeypatch `sql_guard._TAGGED`; Kris's finding) | `pytest` all pass on a clone with no `.env` and with full data | 10:00 |
 | ✅ K14 | **Kris's Claude** (#32 merged) | Recording card for Kris's 16:00 take; every voice-over number checked on `main`; screens fit 1920×1080 | Card in `VIDEO_AGENT_CARD_SEGMENT.md` | 10:00 |
 | ✅ K15 | **Kris's Claude** | Judge fresh-clone re-test on the latest `main` (K9 again), now and again after the 20:00 freeze | All OK, `git status` clean, check_submission passes | 07:30 |
 | ✅ K16 | **Kris's Claude** | Peer review of today's P1 changes (app router, C360, Match review, check_submission, deliverable_path, V8 generator) | Findings posted in #13; P1-Claude fixes | 09:00 |
