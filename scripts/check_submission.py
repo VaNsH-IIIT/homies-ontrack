@@ -3,7 +3,7 @@
     python scripts/check_submission.py                       # repo checks only (no data needed)
     python scripts/check_submission.py --questions <csv>     # also: one answer row per question id in <csv>
 
-Checks: every deliverable file exists; every relative link in README.md resolves; benchmark/answers.csv has the
+Checks: every deliverable file exists; every relative link in README.md resolves; submission/benchmark_answers.csv has the
 template columns, unique ids, refused true/false, no empty answers; the data contract YAML parses; no secrets or
 data files are tracked by git. Exit 0 when everything passes.
 """
@@ -22,7 +22,7 @@ DELIVERABLES = {
     "Architecture diagram (PNG)": "docs/architecture/architecture.png",
     "Data contract": "contracts/c360_customer.yaml",
     "Data quality report": "docs/data_quality_report.md",
-    "Benchmark answers": "benchmark/answers.csv",
+    "Benchmark answers": "submission/benchmark_answers.csv",
     "Pitch deck (PDF)": "docs/pitch/OnTrack_pitch_deck.pdf",
     "AI tools used": "AI_TOOLS.md",
     "README": "README.md",
@@ -80,8 +80,8 @@ def check_answers(path: Path, question_ids: list[str] | None = None) -> list[str
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Pre-submission check")
     ap.add_argument("--questions", help="the questions file the answers must cover (any shape run_benchmark reads)")
-    ap.add_argument("--answers", default=str(REPO / "benchmark" / "answers.csv"),
-                    help="answers file to check (default: the committed benchmark/answers.csv)")
+    ap.add_argument("--answers", default=str(REPO / "submission" / "benchmark_answers.csv"),
+                    help="answers file to check (default: the committed submission/benchmark_answers.csv)")
     args = ap.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")   # placeholders and names print correctly on a Windows console

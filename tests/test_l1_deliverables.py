@@ -22,5 +22,5 @@ def test_default_writes_to_work_dir(monkeypatch):
 
 def test_opt_in_writes_committed_copy(monkeypatch):
     cfg = _reload(monkeypatch, "1")
-    assert cfg.deliverable_path("benchmark/answers.csv") == cfg.REPO_ROOT / "benchmark" / "answers.csv"
+    assert cfg.deliverable_path("submission/benchmark_answers.csv") == cfg.REPO_ROOT / "submission" / "benchmark_answers.csv"
     _reload(monkeypatch, None)

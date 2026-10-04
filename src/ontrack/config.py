@@ -11,7 +11,7 @@ DATA_DIR = Path(os.environ.get("MAPLE_DATA_DIR", REPO_ROOT / "data" / "maple_col
 WORK_DIR = (REPO_ROOT / os.environ.get("ONTRACK_WORK_DIR", "data")).resolve()
 WORK_DIR.mkdir(parents=True, exist_ok=True)
 
-# Committed deliverables (benchmark/answers.csv, docs/data_quality_report.md) are only rewritten on purpose:
+# Committed deliverables (submission/benchmark_answers.csv, docs/data_quality_report.md) are only rewritten on purpose:
 # ONTRACK_WRITE_DELIVERABLES=1 (run_all --update-deliverables). Otherwise outputs go to WORK_DIR/outputs, so a
 # run on a sample or without an LLM never overwrites the submitted files in a clone.
 WRITE_DELIVERABLES = os.environ.get("ONTRACK_WRITE_DELIVERABLES") == "1"

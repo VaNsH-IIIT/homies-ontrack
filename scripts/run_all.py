@@ -32,7 +32,7 @@ def main() -> int:
     ap.add_argument("--transcripts", type=int, default=0,
                     help="most recent calls also sent to Claude (default 0: no new LLM calls; cached Claude results are still used; every call is scored by the trained model either way)")
     ap.add_argument("--update-deliverables", action="store_true",
-                    help="also rewrite the committed benchmark/answers.csv and docs/data_quality_report.md "
+                    help="also rewrite the committed submission/benchmark_answers.csv and docs/data_quality_report.md "
                          "(default: write them to $ONTRACK_WORK_DIR/outputs, so the submitted files stay as they are)")
     args = ap.parse_args()
     if args.update_deliverables:
@@ -52,7 +52,7 @@ def main() -> int:
         ("L4 features, models, recommendations", "ontrack.l4_nba.run", []),
         ("Feedback loop: decisions + outcomes -> labels for retraining", "ontrack.feedback", []),
         ("L2 benchmark answers", "ontrack.l2_ask.run_benchmark",
-         ["--questions", questions, "--out", config.deliverable_path("benchmark/answers.csv").as_posix(), "--workers", "4"]),
+         ["--questions", questions, "--out", config.deliverable_path("submission/benchmark_answers.csv").as_posix(), "--workers", "4"]),
     ]
 
     results = []
