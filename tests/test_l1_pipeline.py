@@ -404,3 +404,17 @@ quality:
     assert con.execute("SELECT rule_id, observed, passed FROM gold._contract_results ORDER BY 1").fetchall() == [
         ("R1", 1.0, True), ("R2", 0.0, True), ("R3", 2.0, False)]
     con.close()
+
+
+def test_build_fails_when_the_contract_fails(monkeypatch):
+    """The contract says 'block build': build.main() must stop with an error (the DQ report is still written)."""
+    import pytest
+    from ontrack.l1_factory import build
+    ran = []
+    for name in ("silver", "identity", "probabilistic", "gold", "dq"):
+        monkeypatch.setattr(getattr(build, name), "main", lambda n=name: ran.append(n))
+    monkeypatch.setattr(build.contract_check, "main", lambda: False)
+    monkeypatch.setattr(build, "connect", lambda: type("C", (), {"execute": lambda *a: None, "close": lambda *a: None})())
+    with pytest.raises(SystemExit):
+        build.main()
+    assert ran[-1] == "dq"
