@@ -42,6 +42,27 @@ Top drivers of the self-cure model (mean |SHAP| on the test month): `bureau_deli
 
 The order is right (observed self-cure rises steadily from decile 1 to 10), but the calibrator fitted on 2026-06-01 over-predicts in every decile: by up to 8 points, 4.5 on average. That is the base-rate drift in this data (cases open on 2026-06-01 self-cured 32% of the time within 30 days, on 2026-07-01 23%, on 2026-08-29 10%). It is why the agent card's probabilities come from a calibrator fitted on 2026-08-29, the latest month with a complete outcome and the closest to today's open book, and why the ranker uses a relative threshold (3.5x the open book's rate) rather than a fixed one. Ranking quality (AUC) does not depend on calibration.
 
+### Payment within 7 days: what we tried to improve it (K12)
+
+| experiment (same months, same split) | AUC valid | AUC test | vs current (test) |
+|---|---|---|---|
+| current model | 0.6059 | 0.5831 | 0.0000 |
+| + response history (share of past outbound contacts followed by a payment in 7 days) | 0.6065 | 0.5765 | -0.0066 |
+| + link clicks and recency | 0.6036 | 0.5819 | -0.0012 |
+| + payday timing (days to the usual salary day) | 0.6030 | 0.5730 | -0.0101 |
+| + all new features | 0.6077 | 0.5868 | 0.0037 |
+| smaller trees (7 leaves, 400 cases per leaf) | 0.6075 | 0.5759 | -0.0072 |
+| only cases contacted in the window (will they pay if contacted?) | 0.5957 | 0.5955 | 0.0124 |
+
+Rule: replace the model only if test AUC improves by 0.03 or more, with K1 repeatability intact. No experiment came close, so the model stays as it is (`python -m ontrack.l4_nba.payment_experiments` reproduces the table). The reason is the label, not the features: in this data a payment is only recorded through a contact, and on 2026-07-01 36% of the open cases had no contact at all in the next 7 days:
+
+| window | cases | payment observed |
+|---|---|---|
+| no contact in the 7 days | 11,678 | 0.0000 |
+| at least one contact | 20,625 | 0.0479 |
+
+For those cases the label is 0 whatever the customer would have done, and when the bank contacts someone is the bank's choice, not something customer features can predict. The model is therefore used only as a 0.5x-2x responsiveness multiplier in the ranker, never as a decision on its own. The conditional question (will they pay if contacted?) is the right target for a next version, once contacts are randomised (champion / challenger cells) so it can be learned without selection bias.
+
 ## 2. Back-test against the bank's models, like with like
 
 Same cases, same date: every case open and unresolved on 2026-07-01, outcome after it. Our self-cure model vs the bank's `model_scores` (latest score on or before that date, `cure_30d`, `self_cure` and `roll_forward_30d` reversed). We do **not** compare cure rates by `nba_recommendation_last`: that column is tied to how cases ended (selection, not effect).
