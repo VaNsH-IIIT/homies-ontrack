@@ -5,7 +5,7 @@ CIBC Collections Hackathon, build phase. **Deadline 9:00 PM IST, 4 Oct 2026.** C
 > **AI recommends. Rules constrain. Humans decide. Outcomes improve the next recommendation.**
 
 Use case: **next best action (NBA)** for open collections cases, hardship-first, with a person in charge.
-Our submitted design is the base: [`docs/HOmiES_SystemDesign.pdf`](docs/HOmiES_SystemDesign.pdf). Keep to it; log any change in [What changed from the design](#what-changed-from-the-design).
+Our submitted design is the base: [`docs/HOmiES_SystemDesign.pdf`](docs/HOmiES_SystemDesign.pdf). Every change from it, and why, is in [What changed from the design](#what-changed-from-the-design).
 
 ---
 
@@ -22,6 +22,8 @@ Our submitted design is the base: [`docs/HOmiES_SystemDesign.pdf`](docs/HOmiES_S
 | Demo video (≤ 5 min) | _link added 4 Oct_ · script: [`docs/pitch/video_script.md`](docs/pitch/video_script.md) |
 | What changed from the design, and why | [below](#what-changed-from-the-design) (26 changes) |
 | AI tools used | [`AI_TOOLS.md`](AI_TOOLS.md) |
+| Layer 4 evaluation (generated: back-test vs the bank's model, business value, calibration, fairness) | [`src/ontrack/l4_nba/EVALUATION.md`](src/ontrack/l4_nba/EVALUATION.md) |
+| Layer 4 design notes and judge Q&A | [`DESIGN_NOTES.md`](src/ontrack/l4_nba/DESIGN_NOTES.md) · [`QA_NOTES.md`](src/ontrack/l4_nba/QA_NOTES.md) |
 
 Check the submission in one command: `python scripts/check_submission.py` (deliverables present, README links resolve, `answers.csv` in the template format, contract parses, no data or secrets in git).
 
@@ -29,11 +31,13 @@ Check the submission in one command: `python scripts/check_submission.py` (deliv
 
 | Layer | Result |
 |---|---|
-| 1 · Customer 360 | 1,015,637 golden customers for 1,000,000 people; probabilistic matching precision 99.8%, recall 99.4% on 5,000 known links; 0 people merged across birthdates; contract 8/8; 20 data issue types handled |
-| 2 · Ask | Benchmark dev 21/21; unseen rehearsals 21/21 and 29/29 (typos, French, comparisons, multi-part, tricky refusals); red-team 31/31 refused (incl. 5 prompt-injection attempts), 0 of 14 wrongly refused; SQL guard 10/10; answers identical across 3 fresh runs; 50 questions in 132 s with no cache |
+| 1 · Customer 360 | 1,015,637 golden customers for 1,000,000 people; probabilistic matching precision 99.8%, recall 99.4% on 5,000 known links; 0 people merged across birthdates; data contract 8/8 rules pass; 20 data issue types found and handled ([DQ report](docs/data_quality_report.md)) |
+| 2 · Ask | Benchmark dev 21/21; unseen rehearsals 21/21 and 29/29 (typos, French, comparisons, multi-part, tricky refusals); 31/31 out-of-scope or unsafe questions refused (incl. 5 prompt-injection attempts), 0 of 14 fair questions wrongly refused; 10/10 unsafe SQL blocked; answers identical across 3 fresh runs; 50 questions in 132 s with no cache ([answers](benchmark/answers.csv)) |
 | 3 · Features | Hardship recall 0.97 in notes, 1.00 in calls; every note and call scored; 8,883 open cases with hardship the case flag missed |
-| 4 · Next best action | Self-cure AUC 0.83 on an unseen month, against 0.72 for the bank's model on the same cases; every action within policy rules and call capacity; hardship and vulnerable customers to a person; about +$163K more expected payments per round of contacts than the bank's current recommendations (conservative: median payment, automated cases only); automated decisions within 5.5 points across protected groups |
-| Tests | `pytest tests/`: 208 unit tests across all layers, no dataset needed |
+| 4 · Next best action | Ranks who will pay without contact better than the bank's own model on an unseen month (AUC 0.83 vs 0.72, same cases); every action within policy rules and the day's call capacity; hardship and vulnerable customers go to a person; about +$160K more expected payments per round of contacts than the bank's current recommendations (conservative: median payment, automated cases only); automated decisions differ by at most 5.5 points across protected groups ([evaluation](src/ontrack/l4_nba/EVALUATION.md)) |
+| Tests | `pytest tests/`: 280+ unit tests across all layers (~10 s), no dataset needed |
+
+**No time for the 12 GB download?** Watch the demo video (link above) and read the generated evidence: [`EVALUATION.md`](src/ontrack/l4_nba/EVALUATION.md) (Layer 4) and [`data_quality_report.md`](docs/data_quality_report.md) (Layer 1). `pip install -r requirements.txt && pip install -e . && pytest tests/` needs no data (~10 s), and so does `python scripts/check_submission.py`. The app and the pipeline need the dataset (Setup §4).
 
 **Run it in four steps** (details in [Setup](#setup)):
 ```bash
@@ -44,34 +48,6 @@ python scripts/run_all.py --with-bronze --transcripts 0 && streamlit run src/ont
 ```
 **Everything runs without an API key.** Only Ask's document, call and "explain" answers (16 of the 35 benchmark questions) need Claude: `ANTHROPIC_API_KEY` in `.env`, or a logged-in Claude Code CLI. `--transcripts 0` sends nothing to Claude.
 **Your run never overwrites the submitted files:** it writes its benchmark answers and data quality report to `$ONTRACK_WORK_DIR/outputs/`. The committed [`benchmark/answers.csv`](benchmark/answers.csv) and [`docs/data_quality_report.md`](docs/data_quality_report.md) come from the full data (`run_all.py --update-deliverables`, and `run_benchmark --out benchmark/answers.csv`).
-
----
-
-## 👉 Start here (every teammate)
-
-Open Claude Code in an empty folder and paste **your** line:
-
-| Who | Paste this into Claude Code |
-|---|---|
-| **P1 Vansh** | `Clone or pull https://github.com/VaNsH-IIIT/homies-ontrack. I am P1 (Vansh, lead). Read README.md, CONTRIBUTING.md and TASKS.md, then do the tasks assigned to P1, one branch per task, only inside P1's folders.` |
-| **P2 Garv** | `Clone or pull https://github.com/VaNsH-IIIT/homies-ontrack. I am P2 (Garv). Read README.md, CONTRIBUTING.md and TASKS.md, then do the tasks assigned to P2, one branch per task, only inside P2's folders. Open a pull request for each task.` |
-| **P3 Kris** | `Clone or pull https://github.com/VaNsH-IIIT/homies-ontrack. I am P3 (Kris). Read README.md, CONTRIBUTING.md and TASKS.md, then do the tasks assigned to P3, one branch per task, only inside P3's folders. Open a pull request for each task.` |
-
-Then do the [Setup](#setup) once. Your tasks and their acceptance criteria are in [`TASKS.md`](TASKS.md).
-
----
-
-## Team and ownership
-
-Each person owns separate folders, so nobody edits anyone else's code. Shared interfaces are fixed in [Interfaces between parts](#interfaces-between-parts).
-
-| | Name | GitHub | Owns (only this person edits these) |
-|---|---|---|---|
-| **P1** (lead) | Vansh Jaiswal | [@VaNsH-IIIT](https://github.com/VaNsH-IIIT) | **Layer 1** `src/ontrack/l1_factory/`, `src/ontrack/db.py`, `src/ontrack/config.py`, `contracts/`, `docs/`, `scripts/`, `src/ontrack/app/main.py`, `src/ontrack/app/pages/1_*.py`, `README.md`, `TASKS.md` |
-| **P2** | Garv Pratap Singh | [@Gravity006](https://github.com/Gravity006) | **Layer 2** `src/ontrack/l2_ask/`, `benchmark/`, **Layer 3 text features** `src/ontrack/l3_features/text/`, `src/ontrack/app/pages/2_*.py` |
-| **P3** | Kris Jain | [@KJKris05](https://github.com/KJKris05) | **Layer 3 structured features + feature store** `src/ontrack/l3_features/structured/`, **Layer 4** `src/ontrack/l4_nba/`, `src/ontrack/app/pages/3_*.py` |
-
-Shared files: `requirements.txt` (append only; say what you added in your PR) and `AI_TOOLS.md` (add your rows).
 
 ---
 
@@ -111,7 +87,7 @@ cd D:/maple_data && tar -xf maple_collections_release.zip     # Windows 10/11 an
 ```
 Skip the voice zip: our design uses voice through transcripts only, with no acoustic features.
 
-**Low on disk or RAM?** Use the **dev sample** instead: a consistent 5% of people (all their accounts, cases, contacts and transcripts), about 350 MB, in exactly the same layout. Build it from the release in about 15 s: `python scripts/make_sample.py --pct 5 --out D:/maple_sample`, then set `MAPLE_DATA_DIR=D:/maple_sample`. Every command below works unchanged, and the whole `run_all.py --with-bronze` takes about 80 s. On the sample, the Agent card opens on the top hardship case, because the demo case `CS-2026-583749` exists only in the full data.
+**Low on RAM, or short of time?** Build the **dev sample** from the release once (it needs the full release once; afterwards you can delete it): a consistent 5% of people (all their accounts, cases, contacts and transcripts), about 350 MB, in exactly the same layout. Build it from the release in about 15 s: `python scripts/make_sample.py --pct 5 --out D:/maple_sample`, then set `MAPLE_DATA_DIR=D:/maple_sample`. Every command below works unchanged, and the whole `run_all.py --with-bronze` takes about 80 s. On the sample, the Agent card opens on the top hardship case, because the demo case `CS-2026-583749` exists only in the full data.
 
 ### 5. Check it works
 ```bash
@@ -127,7 +103,7 @@ Should print your release folder and `True`.
 |---|---|
 | **Your tasks** for today and their acceptance criteria | [`TASKS.md`](TASKS.md) |
 | How we work (branches, PRs, rules) | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
-| **Architecture diagram (build phase)** | [`docs/architecture/architecture.png`](docs/architecture/architecture.png) · [PDF](docs/architecture/architecture.pdf) · source `architecture.html` |
+| **Architecture diagram (build phase)** | [`docs/architecture/architecture.png`](docs/architecture/architecture.png) · [PDF](docs/architecture/architecture.pdf) · [source](docs/architecture/architecture.html) |
 | What we promised to build (our design, the base) | [`docs/HOmiES_SystemDesign.pdf`](docs/HOmiES_SystemDesign.pdf) |
 | Build-phase brief (deliverables, judging, rules) | [`docs/brief/build_phase_instructions.pdf`](docs/brief/build_phase_instructions.pdf) |
 | Design-phase brief | [`docs/brief/design_phase_problem_statement.pdf`](docs/brief/design_phase_problem_statement.pdf) |
@@ -141,35 +117,6 @@ Should print your release folder and `True`.
 | Policy documents (RAG, hardship rules) | `$MAPLE_DATA_DIR/files/docs/` |
 | Paths and settings in code | [`src/ontrack/config.py`](src/ontrack/config.py) (`DATA_DIR`, `WORK_DIR`, `PROTECTED_COLUMNS`) |
 | AI tools we used (required in submission) | [`AI_TOOLS.md`](AI_TOOLS.md) |
-
----
-
-## Interfaces between parts
-
-Everyone codes against these names, so the three parts connect without waiting for each other. One local DuckDB file per person: `$ONTRACK_WORK_DIR/ontrack.duckdb`, opened with `ontrack.db.connect()` (P1).
-
-| Schema.table | Built by | Read by | Minimum columns |
-|---|---|---|---|
-| `bronze.<table_name>` (one view per raw table, same names as the dataset) | P1 | all | as in the dataset |
-| `gold.customer_xref` | P1 | P2, P3 | `golden_id, source_system, source_key, match_method, match_confidence` |
-| `gold.c360_customer` | P1 | P2, P3 | `golden_id, primary_crm_customer_id, province_code, time_zone, preferred_language, consent_call, consent_sms, consent_email, consent_push, consent_autodialer, internal_do_not_call_flag, cease_communication_flag, insolvency_flag, deceased_flag, third_party_hold_flag, vulnerability_flag, products_held, total_exposure, total_overdue, max_dpd, open_case_count, match_confidence_min` |
-| `gold.c360_account` | P1 | P2, P3 | `account_id, golden_id, product_type, balance, credit_limit, past_due_amount, dpd, dpd_bucket, account_status` |
-| `gold.case_360` | P1 | P2, P3 | `case_id, golden_id, crm_customer_id` + cleaned `collections_cases` columns |
-| `gold.contact_timeline` | P1 | P2, P3 | `golden_id, case_id, contact_id, contact_ts_utc, channel, outcome_code, rpc_flag, payment_taken_flag, note_id, transcript_id` |
-| `features.text_signals` | P2 | P3 | `source_type ('note'/'transcript'), source_id, contact_id, case_id, crm_customer_id, event_ts, hardship_signal, hardship_confidence, evidence_quote, evidence_turn_index, stated_delay_reason, stated_payday, dispute_mentioned, model, prompt_version` |
-| `features.case_features` | P3 | P3 | `case_id, golden_id, as_of_date` + feature columns, built by **one** function used for both training and live scoring |
-| `gold.nba_recommendation` | P3 | P2 (Ask can query it) | `case_id, golden_id, as_of_ts, action, channel, time_window, score, reason_1, reason_2, reason_3, blocked_actions, hardship_flag, needs_human_review, model_version` |
-| decision log (human review / override) | P3 calls it from the agent card | P1 (demo), audit | **Write with `ontrack.app.common.record_decision(...)`**, read with `decisions(case_id)`. Stored in `$ONTRACK_WORK_DIR/decisions.duckdb` (table `decision_log`: `decision_id, case_id, golden_id, agent_id, recommended_action, agent_action ('accept'/'edit'/'reject'), final_action, reason_code, note, model_version, ts`), separate from the main DB so the app can write while the main DB stays read-only. Edit/reject without a reason code is refused. |
-
-**`gold.*` is ready on `main`:** run `python -m ontrack.l1_factory.bronze` once, then `python -m ontrack.l1_factory.build`. Read `gold.*` for customers, accounts, cases and contacts; read `bronze.*` for everything else (history tables, notes, transcripts, policies, benchmark).
-**Data quirks to know** (full list in [`docs/data_quality_report.md`](docs/data_quality_report.md)):
-- `call_transcripts.file_path` is relative to `$MAPLE_DATA_DIR/files/` (e.g. `transcripts/2022/11/10295.json` → `files/transcripts/2022/11/10295.json`).
-- `collections_cases.account_ids` comes in three shapes: JSON list, bare id, `;`-separated.
-- `contact_history.channel` may be empty where the upstream release moved it to `channel_v2`: use `gold.contact_timeline.channel` (already coalesced).
-- `NA` is a real outcome code, not null; IDs keep leading zeros (bronze keeps them as text).
-**Design rule:** `promises_to_pay` is out of scope for features, models and decisions (our design: 30 tables). **Decided 3 Oct (P1):** Ask (Layer 2) may read it read-only for aggregate answers, because 6 benchmark questions need it; PII columns stay blocked. `ONTRACK_ASK_BLOCK_PTP=1` restores the 30-table scope.
-**Never** read a column in `config.PROTECTED_COLUMNS` in features or decisions.
-**App pages (P2, P3):** add your page as `src/ontrack/app/pages/2_Ask.py` / `3_Agent_Card.py`; it appears in the sidebar automatically. Start it with `from ontrack.app.common import header, query` then `header("Ask", "...")`; `query(sql, params)` returns a DataFrame from a shared read-only connection (see `1_C360.py` for an example).
 
 ---
 
@@ -209,7 +156,7 @@ data/                local only, git-ignored
 | Extract text signals (notes model; Claude on the most recent transcripts, cached) | `python -m ontrack.l3_features.text.extract --max-transcripts 300` (`--skip-transcripts` = no LLM) | P2 |
 | Build features, train, recommend | `python -m ontrack.l4_nba.run` | P3 |
 | Feedback loop: decisions + later outcomes → labels for retraining (`features.decision_feedback`) | `python -m ontrack.feedback` | P1 |
-| Demo app (home, C360, Match review, Ask; Agent card when P3 merges) | `streamlit run src/ontrack/app/main.py` | P1 |
+| Demo app (Home, C360, Match review, Ask, Agent card) | `streamlit run src/ontrack/app/main.py` | P1 |
 | Unit tests (no dataset needed) | `pytest tests/` | all |
 
 ---
@@ -220,7 +167,7 @@ _Required by the brief. Add a row for every change and why._
 
 | Change | Why | Who |
 |---|---|---|
-| **Pipeline tooling:** plain DuckDB SQL in Python modules (`l1_factory/*.py`) instead of dbt + Dagster + Soda Core | Fewer moving parts for a 36-hour build; one command (`l1_factory.build`) runs in ~2.5 min on 1M customers. The SQL is portable to dbt later. | P1 |
+| **Pipeline tooling:** plain DuckDB SQL in Python modules (`l1_factory/*.py`) instead of dbt + Dagster + Soda Core | Fewer moving parts for a 36-hour build; one command (`l1_factory.build`) runs in ~10 min on 1M customers. The SQL is portable to dbt later. | P1 |
 | **Bronze is typed, not raw text:** every CSV column cast to its declared type from `schema.json` with `TRY_CAST`; failures counted, schema drift logged | Faster queries for everyone downstream, while still recording every value that didn't fit (DQ report §2). IDs stay text, so leading zeros survive. | P1 |
 | **Identity resolution, added a conflict guard:** two clusters whose CRM records share no date of birth are never merged (refused links logged) | Our design said a wrong merge costs more than a missed one. The guard removed all 587 wrong merges found in testing. | P1 |
 | **Identity resolution, per-system name parsing:** 3 card, 2 loan and 2 deposit name formats; surnames compared on letters only | Found in the data: 259K card names are `GIVEN SURNAME`, all-caps loan names are `SURNAME GIVEN`. Cut unlinked keys from 310K to 119K before Splink. | P1 |
@@ -250,3 +197,58 @@ _Required by the brief. Add a row for every change and why._
 ## AI tools used
 
 _Required by the brief. See [`AI_TOOLS.md`](AI_TOOLS.md)._
+
+---
+
+## For the team (not needed by judges)
+
+### 👉 Start here (every teammate)
+
+Open Claude Code in an empty folder and paste **your** line:
+
+| Who | Paste this into Claude Code |
+|---|---|
+| **P1 Vansh** | `Clone or pull https://github.com/VaNsH-IIIT/homies-ontrack. I am P1 (Vansh, lead). Read README.md, CONTRIBUTING.md and TASKS.md, then do the tasks assigned to P1, one branch per task, only inside P1's folders.` |
+| **P2 Garv** | `Clone or pull https://github.com/VaNsH-IIIT/homies-ontrack. I am P2 (Garv). Read README.md, CONTRIBUTING.md and TASKS.md, then do the tasks assigned to P2, one branch per task, only inside P2's folders. Open a pull request for each task.` |
+| **P3 Kris** | `Clone or pull https://github.com/VaNsH-IIIT/homies-ontrack. I am P3 (Kris). Read README.md, CONTRIBUTING.md and TASKS.md, then do the tasks assigned to P3, one branch per task, only inside P3's folders. Open a pull request for each task.` |
+
+Then do the [Setup](#setup) once. Your tasks and their acceptance criteria are in [`TASKS.md`](TASKS.md).
+
+### Team and ownership
+
+Each person owns separate folders, so nobody edits anyone else's code. Shared interfaces are fixed in [Interfaces between parts](#interfaces-between-parts).
+
+| | Name | GitHub | Owns (only this person edits these) |
+|---|---|---|---|
+| **P1** (lead) | Vansh Jaiswal | [@VaNsH-IIIT](https://github.com/VaNsH-IIIT) | **Layer 1** `src/ontrack/l1_factory/`, `src/ontrack/db.py`, `src/ontrack/config.py`, `contracts/`, `docs/`, `scripts/`, `src/ontrack/app/main.py`, `src/ontrack/app/pages/1_*.py`, `README.md`, `TASKS.md` |
+| **P2** | Garv Pratap Singh | [@Gravity006](https://github.com/Gravity006) | **Layer 2** `src/ontrack/l2_ask/`, `benchmark/`, **Layer 3 text features** `src/ontrack/l3_features/text/`, `src/ontrack/app/pages/2_*.py` |
+| **P3** | Kris Jain | [@KJKris05](https://github.com/KJKris05) | **Layer 3 structured features + feature store** `src/ontrack/l3_features/structured/`, **Layer 4** `src/ontrack/l4_nba/`, `src/ontrack/app/pages/3_*.py` |
+
+Shared files: `requirements.txt` (append only; say what you added in your PR) and `AI_TOOLS.md` (add your rows).
+
+### Interfaces between parts
+
+Everyone codes against these names, so the three parts connect without waiting for each other. One local DuckDB file per person: `$ONTRACK_WORK_DIR/ontrack.duckdb`, opened with `ontrack.db.connect()` (P1).
+
+| Schema.table | Built by | Read by | Minimum columns |
+|---|---|---|---|
+| `bronze.<table_name>` (one view per raw table, same names as the dataset) | P1 | all | as in the dataset |
+| `gold.customer_xref` | P1 | P2, P3 | `golden_id, source_system, source_key, match_method, match_confidence` |
+| `gold.c360_customer` | P1 | P2, P3 | `golden_id, primary_crm_customer_id, province_code, time_zone, preferred_language, consent_call, consent_sms, consent_email, consent_push, consent_autodialer, internal_do_not_call_flag, cease_communication_flag, insolvency_flag, deceased_flag, third_party_hold_flag, vulnerability_flag, products_held, total_exposure, total_overdue, max_dpd, open_case_count, match_confidence_min` |
+| `gold.c360_account` | P1 | P2, P3 | `account_id, golden_id, product_type, balance, credit_limit, past_due_amount, dpd, dpd_bucket, account_status` |
+| `gold.case_360` | P1 | P2, P3 | `case_id, golden_id, crm_customer_id` + cleaned `collections_cases` columns |
+| `gold.contact_timeline` | P1 | P2, P3 | `golden_id, case_id, contact_id, contact_ts_utc, channel, outcome_code, rpc_flag, payment_taken_flag, note_id, transcript_id` |
+| `features.text_signals` | P2 | P3 | `source_type ('note'/'transcript'), source_id, contact_id, case_id, crm_customer_id, event_ts, hardship_signal, hardship_confidence, evidence_quote, evidence_turn_index, stated_delay_reason, stated_payday, dispute_mentioned, model, prompt_version` |
+| `features.case_features` | P3 | P3 | `case_id, golden_id, as_of_date` + feature columns, built by **one** function used for both training and live scoring |
+| `gold.nba_recommendation` | P3 | P2 (Ask can query it) | `case_id, golden_id, as_of_ts, action, channel, time_window, score, reason_1, reason_2, reason_3, blocked_actions, hardship_flag, needs_human_review, model_version` |
+| decision log (human review / override) | P3 calls it from the agent card | P1 (demo), audit | **Write with `ontrack.app.common.record_decision(...)`**, read with `decisions(case_id)`. Stored in `$ONTRACK_WORK_DIR/decisions.duckdb` (table `decision_log`: `decision_id, case_id, golden_id, agent_id, recommended_action, agent_action ('accept'/'edit'/'reject'), final_action, reason_code, note, model_version, ts`), separate from the main DB so the app can write while the main DB stays read-only. Edit/reject without a reason code is refused. |
+
+**`gold.*` is ready on `main`:** run `python -m ontrack.l1_factory.bronze` once, then `python -m ontrack.l1_factory.build`. Read `gold.*` for customers, accounts, cases and contacts; read `bronze.*` for everything else (history tables, notes, transcripts, policies, benchmark).
+**Data quirks to know** (full list in [`docs/data_quality_report.md`](docs/data_quality_report.md)):
+- `call_transcripts.file_path` is relative to `$MAPLE_DATA_DIR/files/` (e.g. `transcripts/2022/11/10295.json` → `files/transcripts/2022/11/10295.json`).
+- `collections_cases.account_ids` comes in three shapes: JSON list, bare id, `;`-separated.
+- `contact_history.channel` may be empty where the upstream release moved it to `channel_v2`: use `gold.contact_timeline.channel` (already coalesced).
+- `NA` is a real outcome code, not null; IDs keep leading zeros (bronze keeps them as text).
+**Design rule:** `promises_to_pay` is out of scope for features, models and decisions (our design: 30 tables). **Decided 3 Oct (P1):** Ask (Layer 2) may read it read-only for aggregate answers, because 6 benchmark questions need it; PII columns stay blocked. `ONTRACK_ASK_BLOCK_PTP=1` restores the 30-table scope.
+**Never** read a column in `config.PROTECTED_COLUMNS` in features or decisions.
+**App pages (P2, P3):** add your page as `src/ontrack/app/pages/2_Ask.py` / `3_Agent_Card.py`; then add it to the page list in `src/ontrack/app/main.py`. Start it with `from ontrack.app.common import header, query` then `header("Ask", "...")`; `query(sql, params)` returns a DataFrame from a shared read-only connection (see `1_C360.py` for an example).

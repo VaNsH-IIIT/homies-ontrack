@@ -81,6 +81,8 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Pre-submission check")
     ap.add_argument("--questions", help="the questions file the answers must cover (any shape run_benchmark reads)")
     args = ap.parse_args(argv)
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")   # placeholders and names print correctly on a Windows console
     results = []
 
     for name, rel in DELIVERABLES.items():
