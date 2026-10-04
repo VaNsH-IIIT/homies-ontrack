@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 from dataclasses import dataclass, field
 
 from ontrack import config
@@ -29,6 +30,14 @@ PROMPT_VERSION = "ask-v12"
 MAX_TURNS = 14
 MAX_SQL_ERRORS = 6          # repair budget across the whole question (design: up to two per query)
 RESULT_PREVIEW_ROWS = 40
+LIVE_BUDGET_S = 25          # G21: the Ask page never waits longer than this for the LLM path
+_GENERIC = {"rate", "count", "total", "per", "amount", "share", "average"}   # too common to pick a fallback metric
+LIMIT_RE = re.compile(r"usage limit|rate.?limit|limit reached|quota|overloaded|\b429\b|\b529\b|credit balance", re.I)
+
+
+def _is_limit(e: Exception) -> bool:
+    """A usage / rate limit (or an overloaded API), as opposed to a bug or a timeout."""
+    return type(e).__name__ in ("RateLimitError", "OverloadedError") or bool(LIMIT_RE.search(str(e)))
 
 
 @dataclass
@@ -310,6 +319,7 @@ class Engine:
         self._context = None
         self._client = None
         self.on_step = None                             # optional progress callback(step, action, args)
+        self.on_thread = None                           # optional hook(thread) before a live agent thread starts
 
     @property
     def context(self) -> str:
@@ -422,7 +432,10 @@ class Engine:
         return explain.answer(self, question)
 
     def answer(self, question: str, as_of_date: str = config.SNAPSHOT_DATE, metric_id: str | None = None,
-               question_id: str = "", tolerance: str = "") -> Answer:
+               question_id: str = "", tolerance: str = "", budget_s: float | None = None) -> Answer:
+        """budget_s=None (runner): wait for the agent, errors raise so run_benchmark can retry.
+        budget_s=N (Ask page, G21): never wait more than N s for the LLM and never raise; a slow or failed LLM path
+        returns a clear message plus the closest certified answer, and a slow answer finishes into the cache."""
         v = scope.route(question)
         if v.refused:                                   # check 1: rules, before any SQL
             return Answer(f"Refuse: {v.reason} {v.alternative}".strip(), "", True, "refuse", reason=v.category)
@@ -438,21 +451,94 @@ class Engine:
             if a is not None:
                 return a
         if not llm.available():
+            if budget_s is not None:
+                return self.fallback(question, u, "unavailable")
             return Answer("Not answered: no LLM configured (ANTHROPIC_API_KEY) and not a certified-metric question",
                           "", False, "error", u.tokens())
 
         key = llm.cache_key(PROMPT_VERSION, llm.MODEL, question, as_of_date, metric_id, tolerance, question_id)
         final, sql_log = (None, [])
         cached = llm.cache_get("ask", key) if self.use_cache else None
+        args = (key, question, as_of_date, metric_id, question_id, tolerance)
         if cached:
             final, sql_log = cached["final"], cached["sql_log"]
+        elif budget_s is None:
+            final, sql_log = self._agent_cached(*args)
         else:
-            final, sql_log = self._agent(question, as_of_date, metric_id, question_id, tolerance)
-            if final is not None:
-                llm.cache_put("ask", key, {"question": question, "final": final, "sql_log": sql_log})
+            out: dict = {}
+
+            def work():
+                try:
+                    out["result"] = self._agent_cached(*args)
+                except Exception as e:  # noqa: BLE001 - reported to the page as a fallback
+                    out["error"] = e
+            t = threading.Thread(target=work, name="ask-live", daemon=True)
+            if self.on_thread:
+                self.on_thread(t)                       # the page attaches its script context (progress updates)
+            t.start()
+            t.join(budget_s)
+            if t.is_alive():                            # still working: it finishes into the cache
+                return self.fallback(question, u, "slow", budget_s=budget_s)
+            if "error" in out:
+                return self.fallback(question, u, "limit" if _is_limit(out["error"]) else "failed", out["error"])
+            final, sql_log = out["result"]
         if final is None:
+            if budget_s is not None:
+                return self.fallback(question, u, "failed")
             return Answer("Could not answer within the step budget.", "\n".join(sql_log[-1:]), False, "error")
-        return self._format(final)
+        try:
+            return self._format(final)
+        except Exception as e:  # noqa: BLE001
+            if budget_s is None:
+                raise
+            return self.fallback(question, u, "failed", e)
+
+    def _agent_cached(self, key, question, as_of_date, metric_id, question_id, tolerance):
+        final, sql_log = self._agent(question, as_of_date, metric_id, question_id, tolerance)
+        if final is not None:
+            llm.cache_put("ask", key, {"question": question, "final": final, "sql_log": sql_log})
+        return final, sql_log
+
+    # -- G21: live-question resilience -------------------------------------------------------------------------
+    def closest_certified(self, question: str, u: understand.Understood | None = None) -> Answer | None:
+        """The certified metric the question is closest to, answered without the LLM (or None)."""
+        u = u or understand.understand(question)
+        if not u.metric:
+            words = {w[:5] for w in re.findall(r"[a-z]{3,}", question.lower())}
+            best = max(((len({w[:5] for w in mid.split("_") if w not in _GENERIC} & words), mid)
+                        for mid in metrics.METRICS), default=(0, None))
+            if best[0] == 0:
+                return None
+            u = understand.Understood(metric=best[1])
+        m = metrics.METRICS.get(u.metric)
+        if m is None:                                   # roll_rate needs two month-ends: not a quick fallback
+            return None
+        return self.certified(understand.Understood(metric=u.metric, start=u.start, end=u.end, filters=list(u.filters),
+                                                    group_by=u.group_by if u.group_by in m.dims else None), question)
+
+    def fallback(self, question: str, u: understand.Understood | None, why: str, err: Exception | None = None,
+                 budget_s: float | None = None) -> Answer:
+        msg = {
+            "slow": f"The full answer is taking longer than {budget_s or LIVE_BUDGET_S:.0f} s. It keeps running in "
+                    f"the background: "
+                    f"ask the same question again in a minute and it comes back instantly from the cache.",
+            "limit": "The LLM is not available right now (usage limit reached).",
+            "unavailable": "No LLM is configured on this machine, and this is not a certified-metric question.",
+            "failed": "The LLM path could not finish this question"
+                      + (f" ({type(err).__name__})." if err is not None else "."),
+        }[why]
+        try:
+            closest = self.closest_certified(question, u)
+        except Exception:  # noqa: BLE001
+            closest = None
+        if closest is None:
+            return Answer(msg + " Certified metrics, case explanations (\"explain case CS-…\") and customer "
+                                "summaries (\"tell me about customer …\") still answer instantly without the LLM.",
+                          "", False, "fallback", {"fallback": why}, reason=why)
+        metric = closest.understood_as.get("certified_metric")
+        return Answer(f"{msg} Closest certified answer (no LLM): **{metric}**. It may not be exactly what you "
+                      f"asked.\n\n{closest.answer}", closest.sql_or_sources, False, "fallback",
+                      {**closest.understood_as, "fallback": why}, table=closest.table, sql=closest.sql, reason=why)
 
     def _format(self, final: dict) -> Answer:
         refused = bool(final.get("refused"))
