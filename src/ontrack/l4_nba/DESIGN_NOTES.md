@@ -3,6 +3,10 @@
 How Layer 3 structured features and Layer 4 (next best action) work after the fixes for #3, #5 and #7.
 Numbers are from the full data (snapshot 2026-09-28); `EVALUATION.md` has the detail.
 
+## Layer 4 at a glance
+
+_Summary by the Layer 4 lead (Anuj Kumar Tiwari)._
+
 ## Pipeline (`python -m ontrack.l4_nba.run`, ~90 s with training)
 
 ```
