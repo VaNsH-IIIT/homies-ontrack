@@ -1,71 +1,34 @@
-# Demo video: four voices, one story (≤ 5:00)
+# Demo video: four voices, one subtitled video (4:52)
 
-Decided 4 Oct 16:00: **each team member narrates their own part in their own voice**, over silent 1920×1080 screen clips
-(already recorded, no bounce at page ends). **Subtitles are burned in** (Clipchamp → Subtitles → Turn on auto subtitles,
-English, then fix any misheard word). Fallback only if a segment isn't recorded by 18:00: Clipchamp text-to-speech for
-that segment.
+Decided 4 Oct 17:00. P1-Claude recorded the whole video (silent, 1920×1080) on the submission laptop, with **every line
+burned in as a subtitle** and a "Layer N · presenter" tag. Each member records **only their voice**, reading the subtitles
+exactly while their part plays. The subtitles work as a teleprompter.
 
-**How to record your voice (10 min):** quiet room, phone or laptop mic 15–20 cm away. Open your clip in Clipchamp, press
-play, and read your lines with it (Clipchamp → Record & create → Audio, or Windows Voice Recorder). Speak at a calm pace;
-~2.3 words a second fits the timings below. Retakes are fine; export the audio as .m4a or .mp3, named `<you>_voice.m4a`.
+**Presenters:** Vansh: Layer 1 · Garv: Layer 2 · Kris: Layer 3 · Anuj: Layer 4. File: `D:/ontrack_work/video/OnTrack_demo_silent.webm`.
 
-| Time | Who | Clip (silent) | Length |
-|---|---|---|---|
-| 0:00–1:15 | **Vansh** | `P1_clipC_cover` (20 s) + `P1_clipA_L1` (trim to 55 s) | 75 s |
-| 1:15–2:15 | **Garv** | Garv's Ask clip | 60 s |
-| 2:15–3:30 | **Kris** | Kris's `K_clip1_agent_card` (72 s) | 75 s |
-| 3:30–5:00 | **Anuj** | Kris's `K_clip3_evaluation` (44 s) + `K_clip2_supervisor_queue` (18 s) + `P1_clipB_close` (28 s) | 90 s |
+**How:** open the video in Clipchamp, play your part, and record audio (Record → Audio) while reading the subtitle on screen.
+Start each line when its subtitle appears (times below). Speak calmly, and pause at the end of each line. Then place each voice under its
+part in one Clipchamp project, export 1080p, and upload as unlisted YouTube or Google Drive (anyone with the link).
 
----
+| Starts | Presenter | Line (exactly as on screen) |
+|---|---|---|
+| 0:01 | Vansh Jaiswal (Layer 1) | In collections, one customer's story is split across five systems. OnTrack joins it up, reads hardship out of notes and calls, and recommends the next best action, with a person always making the call. |
+| 0:20 | Vansh Jaiswal (Layer 1) | Layer one turns thirty-one raw tables into one trusted record per customer: a million people, matched blind at 99.8% precision, with eight contract rules and twenty data issues checked on every build. |
+| 0:41 | Vansh Jaiswal (Layer 1) | Here is one customer, linked across the card, loan, bank and CRM systems, each with its evidence and confidence. One open case, an auto loan six days late, and OnTrack already recommends a hardship referral. |
+| 1:02 | Vansh Jaiswal (Layer 1) | When the matcher is unsure, it doesn't guess. A data steward sees masked evidence and decides, and the next build learns from it. |
+| 1:17 | Garv Pratap Singh (Layer 2) | Layer two is Ask. Analysts ask in plain English, and certified metrics answer instantly, with the exact SQL that produced the answer. |
+| 1:32 | Garv Pratap Singh (Layer 2) | It also explains decisions. Why was this case referred? The answer comes from the recommendation itself, with its reasons, in under a second. |
+| 1:47 | Garv Pratap Singh (Layer 2) | Policy answers cite the section they come from, and they follow the current policy, not an old FAQ. |
+| 2:02 | Garv Pratap Singh (Layer 2) | And it refuses what it must: protected attributes, personal data and prompt injection. Twenty-one of twenty-one on our dev benchmark. |
+| 2:15 | Kris Jain (Layer 3) | Layer three turns conversations into features. Every note and every call is scored for hardship: 8,883 open cases show hardship that the case flag missed. |
+| 2:35 | Kris Jain (Layer 3) | This customer said on a call: my pay got cut in August. The quote is kept as evidence and checked against the transcript it came from. |
+| 2:53 | Kris Jain (Layer 3) | All structured features come from one point-in-time function, used for both training and live scoring, so the model never sees the future. |
+| 3:11 | Anuj Kumar Tiwari (Layer 4) | Layer four decides the next best action. Rules first: a policy gate with fifty-five tests removes anything not allowed. Then the model ranks what's left, with three plain-English reasons. |
+| 3:29 | Anuj Kumar Tiwari (Layer 4) | Blocked actions show the rule behind each one. For hardship there are no calls or texts: a person decides, within one business day. |
+| 3:45 | Anuj Kumar Tiwari (Layer 4) | We tested like with like: self-cure AUC 0.83 against 0.72 for the bank's own model, and more than 99% of the cases we'd act on now really didn't pay on their own. |
+| 4:03 | Anuj Kumar Tiwari (Layer 4) | On today's book, that's about 157 thousand dollars more in expected payments per round of contacts, valued conservatively. |
+| 4:17 | Anuj Kumar Tiwari (Layer 4) | Sixty-two percent of cases go to a person first, and the hardship team can reach every new referral within a business day, highest dollars at risk first. |
+| 4:33 | Anuj Kumar Tiwari (Layer 4) | Every decision and its outcome becomes a label for the next model. AI recommends, rules constrain, humans decide, and outcomes improve the next recommendation. |
+| 4:45 | Anuj Kumar Tiwari (Layer 4) | Thank you. We're Team HOmiES. |
 
-## Vansh: 0:00–1:15, the problem and Layer 1
-
-**0:00 (deck cover):** "In collections, one customer's story is split across five systems. OnTrack joins it up, reads
-hardship out of notes and calls, and recommends the next best action, with a person always making the call."
-
-**0:20 (Home):** "Thirty-one raw tables become one trusted record per customer: about one million golden customers.
-Matching is tested blind on five thousand known links, at 99.8% precision. A data contract of eight rules is checked on
-every build, and twenty data-quality issues are counted and handled."
-
-**0:40 (C360, VIB-8709):** "Here is one customer: a card, a loan, a bank account and the CRM record, each linked with
-its evidence and confidence. One open case: an auto loan, six days late. OnTrack already recommends a hardship
-referral, in the customer's own words."
-
-**1:00 (Match review):** "When the matcher is unsure, it doesn't guess. A data steward sees masked evidence, decides,
-and the next build learns from it."
-
-## Garv: 1:15–2:15, Ask
-
-Follow the "Say" column of `src/ontrack/l2_ask/VIDEO_ASK_SEGMENT.md` (0:00–0:58 on the clip): a certified question with
-its SQL, changing a token, the demo customer's call summary, a cited policy answer, and the refusal. Optional last line
-if there's room: "Judges can ask it anything live: twenty-one of twenty-one on our dev benchmark, and instant answers
-for questions like 'why was this case referred?'"
-
-## Kris: 2:15–3:30, the Agent card
-
-Follow the "Say" lines for **2:15–3:30** in `src/ontrack/l4_nba/VIDEO_AGENT_CARD_SEGMENT.md`: next best action for
-every open case; the customer's own words; three plain-English reasons; blocked actions with the rule behind each; the
-call queue by dollars at risk; and the agent's decision, logged with a reason.
-
-## Anuj: 3:30–5:00, does it work, does it pay, can people run it?
-
-**3:30 (EVALUATION §2):** "We tested like with like: the same cases on the first of July, outcomes measured after that
-date. Our self-cure model scores 0.83 against 0.72 for the bank's own model. Of the cases it says need action now, more
-than 99% really did not pay on their own. Of the cases it would leave alone, 53% cured by themselves."
-
-**3:50 (§2b):** "On today's book, that's about 157 thousand dollars more in expected payments per round of contacts,
-valued conservatively: median payment, automated cases only."
-
-**4:14 (supervisor view):** "Sixty-two percent of cases go to a person first, so can people cope? The hardship team has
-336 agent-hours a day, about 2,200 first contacts, against 490 new referrals. Every new case is reached within a
-business day, highest dollars at risk first."
-
-**4:32 (Home → feedback loop → one command):** "Every decision, and what happened next, becomes a label for the next
-model: 264,285 past decisions already have one. One command rebuilds everything. AI recommends, rules constrain, humans
-decide, and outcomes improve the next recommendation."
-
----
-
-**Stitch (Clipchamp, ~30 min):** clips in the order above, each person's audio under their clips; trim to the times;
-auto subtitles; export 1080p; upload as **unlisted YouTube or Google Drive ("anyone with the link")**; paste the link in
-the README and the form. Every number above is from the submission build (`docs/pitch/talk_track.md`, `EVALUATION.md`).
+Recorder: `p1_tools/record_full.py` (P1). Numbers are from the submission build.
