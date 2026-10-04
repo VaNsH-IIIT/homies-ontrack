@@ -91,6 +91,7 @@ python -m venv .venv
 pip install -r requirements.txt
 pip install -e .                  # makes `import ontrack` work everywhere
 ```
+If a newer library release ever breaks the install, `pip install -r requirements-lock.txt` gives the exact versions we built and tested with.
 
 ### 3. Configure
 Copy `.env.example` to `.env` and fill it in:
