@@ -1,8 +1,11 @@
 """V8 (owner: P1): Layer 1 / C360 / data-quality rehearsal questions with answers from independent SQL (P1).
 Writes docs/rehearsal/c360_questions.csv (benchmark format) and docs/rehearsal/c360_answers.csv."""
-import csv, sys, duckdb
-DB = "D:/ontrack_work/ontrack.duckdb"
-OUT = "C:/Users/vja89/Downloads/CIBC/ontrack/docs/rehearsal/"
+import csv
+
+from ontrack import config
+from ontrack.db import connect
+
+OUT = config.REPO_ROOT / "docs" / "rehearsal"
 Q = [
  ("C3-01", "How many current CRM customer records are flagged as a duplicate of another CRM record?",
   "SELECT count(*) FROM silver.crm WHERE duplicate_of_crm_id IS NOT NULL", False),
@@ -16,8 +19,8 @@ Q = [
   "SELECT count(*) FROM bronze.contact_history WHERE case_id LIKE '%X'", False),
  ("C3-06", "How many current CRM customer records have no national id hash?",
   "SELECT count(*) FROM silver.crm WHERE national_id_hash IS NULL", False),
- ("C3-07", "How many golden customers are linked to source keys in at least four source systems?",
-  "SELECT count(*) FROM gold.c360_customer WHERE source_key_count >= 4", False),
+ ("C3-07", "How many golden customers are linked in all four source systems (CRM, cards, loans and core banking)?",
+  "SELECT count(*) FROM (SELECT golden_id FROM gold.customer_xref GROUP BY 1 HAVING count(DISTINCT source_system) = 4)", False),
  ("C3-08", "How many golden customers have more than one open collections case?",
   "SELECT count(*) FROM gold.c360_customer WHERE open_case_count > 1", False),
  ("C3-09", "Which province has the most golden customers with an open collections case, and how many?",
@@ -34,7 +37,7 @@ Q = [
  ("C3-15", "Which postal areas have the most newcomers in default? Rank them so we can target collections there.", None, True),
 ]
 def main():
-    con = duckdb.connect(DB, read_only=True)
+    con = connect(read_only=True)
     qs, ans = [], []
     for qid, text, sql, refuse in Q:
         if refuse:
@@ -48,8 +51,10 @@ def main():
         print(f"{qid}  {a}")
         qs.append([qid, text, "hard", "", "2026-09-28", "", "rehearsal"])
         ans.append([qid, a, sql or "", str(refuse).lower()])
-    with open(OUT + "c360_questions.csv", "w", encoding="utf-8", newline="") as f:
+    with open(OUT / "c360_questions.csv", "w", encoding="utf-8", newline="") as f:
         w = csv.writer(f); w.writerow(["question_id", "question_text", "difficulty", "metric_id", "as_of_date", "tolerance", "split"]); w.writerows(qs)
-    with open(OUT + "c360_answers.csv", "w", encoding="utf-8", newline="") as f:
+    with open(OUT / "c360_answers.csv", "w", encoding="utf-8", newline="") as f:
         w = csv.writer(f); w.writerow(["question_id", "expected_answer", "reference_sql", "should_refuse"]); w.writerows(ans)
-main()
+
+if __name__ == "__main__":
+    main()

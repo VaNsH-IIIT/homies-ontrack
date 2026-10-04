@@ -116,10 +116,10 @@ quality:                                     # every rule is checked on each loa
     threshold: 0
     on_failure: block publication; steward review
   - id: Q7
-    name: No protected attribute or direct PII column in the product
+    name: No protected attribute or direct PII column in any gold table
     sql: >-
       SELECT count(*) FROM information_schema.columns
-      WHERE table_schema = 'gold' AND table_name = 'c360_customer' AND column_name IN (
+      WHERE table_schema = 'gold' AND column_name IN (
         'gender_code','marital_status','citizenship_status','household_size','dependants_count',
         'newcomer_program_flag','newcomer_arrival_date','accessibility_needs_flag','accessibility_type',
         'vulnerability_type','ccb_deposit_flag','customer_accent_region','age',

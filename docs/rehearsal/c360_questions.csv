@@ -5,7 +5,7 @@ C3-03,How many card accounts have a negative balance?,hard,,2026-09-28,,rehearsa
 C3-04,How many collections cases store account_ids as something other than a JSON list?,hard,,2026-09-28,,rehearsal
 C3-05,How many contact history rows have a case_id ending in a stray letter X?,hard,,2026-09-28,,rehearsal
 C3-06,How many current CRM customer records have no national id hash?,hard,,2026-09-28,,rehearsal
-C3-07,How many golden customers are linked to source keys in at least four source systems?,hard,,2026-09-28,,rehearsal
+C3-07,"How many golden customers are linked in all four source systems (CRM, cards, loans and core banking)?",hard,,2026-09-28,,rehearsal
 C3-08,How many golden customers have more than one open collections case?,hard,,2026-09-28,,rehearsal
 C3-09,"Which province has the most golden customers with an open collections case, and how many?",hard,,2026-09-28,,rehearsal
 C3-10,What is the average number of products held by golden customers who have an open collections case?,hard,,2026-09-28,,rehearsal

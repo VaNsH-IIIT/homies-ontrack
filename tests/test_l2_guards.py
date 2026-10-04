@@ -5,7 +5,7 @@ No dataset or LLM needed: the SQL guard runs on a hand-made allow-list, template
 import pytest
 import sqlglot
 
-from ontrack.l2_ask import metrics, scope, understand
+from ontrack.l2_ask import metrics, scope, sql_guard, understand
 from ontrack.l2_ask.redteam import RED_TEAM
 from ontrack.l2_ask.sql_guard import GuardError, Schema, check
 
@@ -49,15 +49,14 @@ def test_guard_allows_and_caps_rows():
 
 
 def test_guard_allows_harmless_columns_with_pii_like_names(monkeypatch):
-    # With the data dictionary's tags (normal case), consent_email is not PII even though its name contains "email".
-    from ontrack.l2_ask import sql_guard
-    monkeypatch.setattr(sql_guard, "_TAGGED", {"email", "first_name", "primary_phone_e164"})
+    # With the data dictionary (schema/schema.json) its tags decide: consent_email is not tagged Direct PII.
+    # Patched so the test is the same with or without the dataset on the machine.
+    monkeypatch.setattr(sql_guard, "_TAGGED", {"first_name", "primary_phone_e164", "gender_code"})
     check("SELECT count(*) FROM bronze.customers WHERE consent_email", SCHEMA, min_group=0)
 
 
-def test_guard_falls_back_to_name_pattern_without_dictionary(monkeypatch):
-    # Without schema.json (fresh clone, no dataset) the name pattern is the safety net: PII-looking names are blocked.
-    from ontrack.l2_ask import sql_guard
+def test_guard_fallback_is_stricter_without_the_dictionary(monkeypatch):
+    # Without schema.json the name pattern is the fallback and blocks anything that looks like PII (safe side).
     monkeypatch.setattr(sql_guard, "_TAGGED", set())
     with pytest.raises(GuardError):
         check("SELECT count(*) FROM bronze.customers WHERE consent_email", SCHEMA, min_group=0)

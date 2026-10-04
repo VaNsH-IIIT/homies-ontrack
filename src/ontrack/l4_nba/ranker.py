@@ -346,6 +346,27 @@ def action_values_text(values: dict) -> str | None:
     return "; ".join(parts + ["do_nothing: $0.00"])
 
 
+def allocate_calls(rows: list[dict], call_capacity: int) -> None:
+    """Give the day's call slots to the call candidates with the most dollars at risk (ties: case_id), in place.
+
+    Candidates inside the capacity get a call (``call_reason`` 'best_channel' if a call was already their best
+    action, else 'no_response'). A candidate whose best action was a call but who is over capacity falls back to
+    the best other allowed channel with positive value, or waits ('do_nothing'), with path 'call_queue_full'.
+    """
+    cands = sorted((r for r in rows if r["call_candidate"]), key=lambda r: (-r["expected_loss"], r["case_id"]))
+    for rank, r in enumerate(cands):
+        if rank < call_capacity:
+            r["call_reason"] = "best_channel" if r["action"] == "call" else "no_response"
+            r["action"] = "call"
+        elif r["action"] == "call":   # over capacity: best other channel, or first in line tomorrow
+            others = {a: v for a, v in r["values"].items() if a != "call" and v > 0}
+            r["action"] = max(others, key=others.get) if others else "do_nothing"
+            r["path"] = "call_queue_full"
+    for r in rows:
+        r.setdefault("call_reason", None)
+    assert sum(r["action"] == "call" for r in rows) <= call_capacity, "call capacity exceeded"
+
+
 def _pct(p: float) -> str:
     return "under 1%" if p < 0.005 else "over 99%" if p > 0.995 else f"{p:.0%}"
 
@@ -465,20 +486,7 @@ def build_recommendations(con, routed: pd.DataFrame, as_of: str = config.SNAPSHO
         r["shap_i"] = i
         rows.append(r)
 
-    # Call capacity: the day's call slots go to the candidates with the most dollars at risk
-    call_capacity = econ["call"]["capacity"]
-    cands = sorted((r for r in rows if r["call_candidate"]), key=lambda r: (-r["expected_loss"], r["case_id"]))
-    for rank, r in enumerate(cands):
-        if rank < call_capacity:
-            r["call_reason"] = "best_channel" if r["action"] == "call" else "no_response"
-            r["action"] = "call"
-        elif r["action"] == "call":   # over capacity: best other channel, or first in line tomorrow
-            others = {a: v for a, v in r["values"].items() if a != "call" and v > 0}
-            r["action"] = max(others, key=others.get) if others else "do_nothing"
-            r["path"] = "call_queue_full"
-    for r in rows:
-        r.setdefault("call_reason", None)
-    assert sum(r["action"] == "call" for r in rows) <= call_capacity, "call capacity exceeded"
+    allocate_calls(rows, econ["call"]["capacity"])
 
     out = []
     for r in rows:

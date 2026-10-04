@@ -119,8 +119,9 @@ r = clean(query("""
 # ---- The card ----
 st.divider()
 st.markdown(f"### {r['case_id']} · {r['golden_id']}")
+n_open = int(r.get('open_case_count') or 0)
 st.caption(f"{str(r.get('primary_product') or '').replace('_', ' ').capitalize()} · opened {str(r.get('case_open_date') or '')[:10]} · "
-           f"province {r.get('province_code') or '?'} · {r.get('open_case_count') or 0} open case(s) · "
+           f"province {r.get('province_code') or '?'} · {n_open} open case{'' if n_open == 1 else 's'} · "
            f"model {r.get('model_version')}")
 
 if r.get("hardship_flag"):

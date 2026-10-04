@@ -41,10 +41,13 @@ CATEGORIES = [
 
 
 def _truthy(v) -> bool:
+    """True only for a real true value; None, NaN and pandas NA are false (bool(pd.NA) would raise)."""
     try:
-        return bool(v) and not pd.isna(v)
-    except (TypeError, ValueError):
-        return bool(v)
+        if pd.isna(v):
+            return False
+    except (TypeError, ValueError):   # list-like values: pd.isna returns an array
+        pass
+    return bool(v)
 
 
 def _num(v, default=0.0) -> float:

@@ -33,7 +33,11 @@ if gid.empty:
     st.stop()
 gid = gid.golden_id.iloc[0]
 
-cust = query("SELECT * FROM gold.c360_customer WHERE golden_id = ?", [gid]).iloc[0]
+cust = query("SELECT * FROM gold.c360_customer WHERE golden_id = ?", [gid])
+if cust.empty:
+    st.warning(f"{gid} is linked but has no golden record in this build; rebuild Layer 1.")
+    st.stop()
+cust = cust.iloc[0]
 st.markdown(f"## {gid}")
 m = st.columns(6)
 m[0].metric("Products", int(cust.products_held))
@@ -43,10 +47,21 @@ m[3].metric("Max DPD", int(cust.max_dpd))
 m[4].metric("Open cases", int(cust.open_case_count))
 m[5].metric("Lowest match confidence", f"{cust.match_confidence_min:.2f}")
 
+def shown(df, money=()):
+    """For display: money as $1,234.56, empty cells blank instead of None, dates without a time."""
+    df = df.copy()
+    for c in df.columns:
+        if str(df[c].dtype).startswith("datetime"):
+            df[c] = df[c].dt.strftime("%Y-%m-%d")
+    for c in money:
+        df[c] = df[c].map(lambda v: "" if v is None or v != v else f"${v:,.2f}")
+    return df.astype(object).where(df.notna(), "").astype(str)
+
+
 def chip(ok: bool, yes: str, no: str) -> str:
     return f"🟢 {yes}" if ok else f"🔴 {no}"
 
-st.markdown(" · ".join([
+st.markdown(" · ".join(c for c in [
     chip(cust.consent_call, "call OK", "no call consent"),
     chip(cust.consent_sms, "SMS OK", "no SMS consent"),
     chip(cust.consent_email, "email OK", "no email consent"),
@@ -55,7 +70,7 @@ st.markdown(" · ".join([
     chip(not cust.insolvency_flag, "no insolvency", "insolvency hold"),
     chip(not cust.third_party_hold_flag, "no third-party hold", "third-party hold"),
     "🟠 vulnerable: specialist only" if cust.vulnerability_flag else "",
-]))
+] if c))
 st.caption(f"Province {cust.province_code} · time zone {cust.time_zone} · language {cust.preferred_language} · "
            f"data quality: {cust._dq_status} · loaded {cust._loaded_at:%Y-%m-%d %H:%M}")
 
@@ -66,15 +81,20 @@ st.dataframe(query("""SELECT source_system AS system, source_key AS "source key"
              hide_index=True, width="stretch")
 
 st.markdown("#### Accounts")
-st.dataframe(query("""SELECT account_id, product_type, round(balance, 2) AS balance, round(credit_limit, 2) AS "limit",
-                             round(past_due_amount, 2) AS past_due, dpd, dpd_bucket, account_status, snapshot_date
-                      FROM gold.c360_account WHERE golden_id = ? ORDER BY dpd DESC NULLS LAST""", [gid]),
+st.dataframe(shown(query("""SELECT account_id, product_type, balance, credit_limit AS "limit", past_due_amount AS past_due,
+                                    dpd, dpd_bucket_derived AS dpd_bucket,
+                                    CASE WHEN bucket_conflict THEN 'source bucket ' || coalesce(dpd_bucket, 'missing') ELSE '' END
+                                        AS "data quality",
+                                    account_status, snapshot_date
+                             FROM gold.c360_account WHERE golden_id = ? ORDER BY dpd DESC NULLS LAST""", [gid]),
+                   money=["balance", "limit", "past_due"]),
              hide_index=True, width="stretch")
 
 st.markdown("#### Collections cases")
-st.dataframe(query("""SELECT case_id, case_status, primary_product, current_bucket, current_dpd, total_overdue,
-                             current_treatment, hardship_flag, outcome, case_open_date
-                      FROM gold.case_360 WHERE golden_id = ? ORDER BY case_open_date DESC""", [gid]),
+st.dataframe(shown(query("""SELECT case_id, case_status, primary_product, current_bucket_derived AS current_bucket,
+                                    current_dpd, total_overdue, current_treatment, hardship_flag, outcome, case_open_date
+                             FROM gold.case_360 WHERE golden_id = ? ORDER BY case_open_date DESC""", [gid]),
+                   money=["total_overdue"]),
              hide_index=True, width="stretch")
 
 if table_exists("gold", "nba_recommendation"):
