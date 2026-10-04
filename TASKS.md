@@ -11,7 +11,7 @@ Judging: technical quality and working demo (incl. benchmark and **live unseen q
 
 | ID | Who | Task | Done when | By |
 |---|---|---|---|---|
-| G20 | **Garv's Claude** | Deterministic "explain case <id>" and "tell me about customer <id>" in Ask (from gold + nba, SQL shown, no PII, no LLM), example buttons, tests | < 1 s, 0 LLM calls; tests pass | 15:00 |
+| ✅ G20 | **Garv's Claude** (#42) | Deterministic "explain case <id>" and "tell me about customer <id>" in Ask (from gold + nba, SQL shown, no PII, no LLM), example buttons, tests | < 1 s, 0 LLM calls; tests pass | 15:00 |
 | G21 | **Garv's Claude** | Live-question resilience: LLM slow or failing → clear message and the closest certified answer, never a traceback or a long spinner | Tests for timeout and usage limit | 15:30 |
 | G22 | **Garv's Claude** | `src/ontrack/l2_ask/QA_NOTES.md`: judge Q&A for Layers 2/3 | One page, numbers checked | 15:30 |
 | K24 | **Kris's Claude** | `$` escaping on the Agent card (as in #41) | Email/SMS cases render dollars correctly | 14:00 |
