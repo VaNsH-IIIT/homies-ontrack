@@ -5,7 +5,7 @@ CIBC Collections Hackathon, build phase. **Deadline 9:00 PM IST, 4 Oct 2026.** C
 > **AI recommends. Rules constrain. Humans decide. Outcomes improve the next recommendation.**
 
 Use case: **next best action (NBA)** for open collections cases, hardship-first, with a person in charge.
-Our submitted design is the base: [`docs/HOmiES_SystemDesign.pdf`](docs/HOmiES_SystemDesign.pdf). Every change from it, and why, is in [What changed from the design](#what-changed-from-the-design).
+Our submitted design is the base: [`docs/HOmiES_SystemDesign.pdf`](docs/HOmiES_SystemDesign.pdf) (architecture designed by Anuj Kumar Tiwari, who led the team in the design phase). Every change from it, and why, is in [What changed from the design](#what-changed-from-the-design).
 
 ---
 
@@ -208,9 +208,10 @@ Four people, one repo, one plan. Every change went through a pull request, a wri
 | **Layer 1 · Customer 360** | **Vansh Jaiswal** (lead) | Customer 360: identity resolution, data contract, data quality report, steward review; integration, verifying and merging every pull request |
 | **Layer 2 · Ask** | **Garv Pratap Singh** | Ask: certified metrics, guarded SQL, refusals, benchmark runner; hardship and dispute signals from notes and calls for Layer 3 |
 | **Layer 3 · Feature store** | **Kris Jain** | Point-in-time feature store (one function for training and scoring); Layer 4 engine code: policy gate, models, ranker, agent card |
-| **Layer 4 · Next best action** | **Anuj Kumar Tiwari** | Hardship routing and capacity; evaluation and business case (back-test, fairness, dollar value); the feedback loop from decisions to retraining labels; question rehearsals and red-team sets |
+| **Layer 4 · Next best action** | **Anuj Kumar Tiwari** (design lead) | Designed the four-layer architecture in the design phase; hardship routing and capacity; evaluation and business case (back-test, fairness, dollar value); the feedback loop from decisions to retraining labels; question rehearsals and red-team sets |
 
 **How the four of us worked together:**
+- Anuj led the design phase: he designed the four-layer architecture and the interfaces between the layers in `docs/HOmiES_SystemDesign.pdf`. Vansh led the build, starting from that design.
 - Garv, Kris and Vansh each built their layer on a branch, against fixed table interfaces (below), so no one waited on anyone else.
 - Anuj tested the latest `main` on all three machines through the team's Claude Code sessions. He rehearsed unseen and adversarial questions, checked Layer 4 against the policy documents, and reported what he found in the team issue.
 - Vansh verified each pull request on the full data and merged it.
@@ -245,13 +246,13 @@ Each person owns separate folders, so nobody edits anyone else's code. Shared in
 | **P1** (lead) | Vansh Jaiswal | [@VaNsH-IIIT](https://github.com/VaNsH-IIIT) | **Layer 1** `src/ontrack/l1_factory/`, `src/ontrack/db.py`, `src/ontrack/config.py`, `contracts/`, `docs/`, `scripts/`, `src/ontrack/app/main.py`, `src/ontrack/app/pages/1_*.py`, `README.md`, `TASKS.md` |
 | **P2** | Garv Pratap Singh | [@Gravity006](https://github.com/Gravity006) | **Layer 2** `src/ontrack/l2_ask/`, `benchmark/`, **Layer 3 text features** `src/ontrack/l3_features/text/`, `src/ontrack/app/pages/2_*.py` |
 | **P3** | Kris Jain | [@KJKris05](https://github.com/KJKris05) | **Layer 3 structured features + feature store** `src/ontrack/l3_features/structured/`, **Layer 4 engine** `src/ontrack/l4_nba/` policy gate, models, ranker (`policy_gate.py`, `models.py`, `ranker.py`, `run.py`), `src/ontrack/app/pages/3_*.py` |
-| **P4** | Anuj Kumar Tiwari | [@RDT556](https://github.com/RDT556) | **Layer 4 lead** (next best action): hardship routing and capacity `src/ontrack/l4_nba/hardship.py`, `capacity.py`; evaluation and business case `evaluation.py`, `EVALUATION.md`, `QA_NOTES.md`; **feedback loop** `src/ontrack/feedback.py`; live-question rehearsals `scripts/make_live_rehearsal.py`, `docs/rehearsal/live_*` (with P2) |
+| **P4** | Anuj Kumar Tiwari | [@RDT556](https://github.com/RDT556) **Design lead** (the four-layer architecture in `docs/HOmiES_SystemDesign.pdf`) and **Layer 4 lead** (next best action): hardship routing and capacity `src/ontrack/l4_nba/hardship.py`, `capacity.py`; evaluation and business case `evaluation.py`, `EVALUATION.md`, `QA_NOTES.md`; **feedback loop** `src/ontrack/feedback.py`; live-question rehearsals `scripts/make_live_rehearsal.py`, `docs/rehearsal/live_*` (with P2) |
 
 Shared files: `requirements.txt` (append only) and `AI_TOOLS.md`.
 
 ### Interfaces between parts
 
-Everyone codes against these names, so the four layers connect without waiting for each other. One local DuckDB file per person: `$ONTRACK_WORK_DIR/ontrack.duckdb`, opened with `ontrack.db.connect()` (P1).
+The interfaces come from the design (P4, design lead). Everyone codes against these names, so the four layers connect without waiting for each other. One local DuckDB file per person: `$ONTRACK_WORK_DIR/ontrack.duckdb`, opened with `ontrack.db.connect()` (P1).
 
 | Schema.table | Built by | Read by | Minimum columns |
 |---|---|---|---|
