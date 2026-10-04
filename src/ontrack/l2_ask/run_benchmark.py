@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import argparse
 import csv
+import io
 import json
+import re
 import sys
 import threading
 import time
@@ -29,10 +31,39 @@ FAILED_PREFIXES = ("Could not answer", "Not answered", "Could not run")
 
 
 def read_questions(path: Path) -> list[dict]:
-    with open(path, encoding="utf-8-sig", newline="") as f:
-        rows = list(csv.DictReader(f))
-    if not rows or "question_id" not in rows[0] or "question_text" not in rows[0]:
-        raise SystemExit(f"{path}: expected columns question_id, question_text")
+    """Read a questions file in whatever shape it arrives (G10): UTF-8 with or without BOM, or Windows-1252 (Excel's
+    plain CSV save); comma, semicolon or tab delimited; CRLF; header names with spaces or capitals; any column order,
+    extra or missing optional columns; blank lines. Duplicate ids are answered once (first wins, with a warning)."""
+    raw = Path(path).read_bytes()
+    for enc in ("utf-8-sig", "cp1252", "latin-1"):
+        try:
+            text = raw.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    text = text.lstrip("﻿")
+    header = next((ln for ln in text.splitlines() if ln.strip()), "")
+    delim = max([",", ";", "\t", "|"], key=header.count) if header else ","
+    reader = csv.reader(io.StringIO(text, newline=""), delimiter=delim)
+    rows_raw = [r for r in reader if any(c.strip() for c in r)]
+    if not rows_raw:
+        raise SystemExit(f"{path}: no rows")
+    names = [re.sub(r"\s+", "_", h.strip().lstrip("﻿").lower()) for h in rows_raw[0]]
+    if "question_id" not in names or "question_text" not in names:
+        raise SystemExit(f"{path}: expected columns question_id, question_text (found {names})")
+    rows, seen = [], set()
+    for r in rows_raw[1:]:
+        rec = {n: (r[i].strip() if i < len(r) else "") for i, n in enumerate(names)}
+        qid = rec["question_id"]
+        if not qid:
+            continue
+        if not rec["question_text"]:                 # keep the id: every id the organisers send gets a row
+            print(f"  WARNING: question_id {qid} has no question text: written as 'Not answered'", flush=True)
+        if qid in seen:
+            print(f"  WARNING: duplicate question_id {qid}: answered once (first occurrence kept)", flush=True)
+            continue
+        seen.add(qid)
+        rows.append(rec)
     return rows
 
 
@@ -74,7 +105,10 @@ def main(argv: list[str] | None = None) -> int:
         qid = q["question_id"]
         t0 = time.time()
         a = None
-        for attempt in range(1 + args.retries):          # an LLM hiccup must not cost a question
+        if not q.get("question_text"):
+            a = ask.Answer(answer="Not answered: the question text is empty", sql_or_sources="", refused=False,
+                           route="error")
+        for attempt in range(0 if a else 1 + args.retries):   # an LLM hiccup must not cost a question
             try:
                 a = engine.answer(q["question_text"], as_of_date=q.get("as_of_date") or config.SNAPSHOT_DATE,
                                   metric_id=q.get("metric_id") or None, question_id=qid,
