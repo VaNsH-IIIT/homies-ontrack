@@ -22,6 +22,7 @@ Our submitted design is the base: [`docs/HOmiES_SystemDesign.pdf`](docs/HOmiES_S
 | Demo video (≤ 5 min) | _link added 4 Oct_ · script: [`docs/pitch/video_script.md`](docs/pitch/video_script.md) |
 | What changed from the design, and why | [below](#what-changed-from-the-design) (30 changes) |
 | AI tools used | [`AI_TOOLS.md`](AI_TOOLS.md) |
+| How we worked as a team (numbers, reviews, ownership) | [below](#how-we-worked-teamwork) |
 | Layer 4 evaluation (generated: back-test vs the bank's model, business value, calibration, fairness) | [`src/ontrack/l4_nba/EVALUATION.md`](src/ontrack/l4_nba/EVALUATION.md) |
 | Layer 4 design notes and judge Q&A | [`DESIGN_NOTES.md`](src/ontrack/l4_nba/DESIGN_NOTES.md) · [`QA_NOTES.md`](src/ontrack/l4_nba/QA_NOTES.md) |
 
@@ -197,6 +198,26 @@ _Required by the brief. Add a row for every change and why._
 | **Pre-submission check and 19:00 safety:** `scripts/check_submission.py`, `scripts/normalize_questions.py --append-released`, backup runner (`l2_ask/backup_run.py`) | The extra questions arrive 2 hours before the deadline in an unknown file shape; the checks make sure every question gets exactly one generated answer and the released 35 are never lost. | P1, P2 |
 | **Roll-forward vs charge-off split by DPD:** `p_roll_forward` for cases up to 150 DPD, `p_charge_off_risk` for 151–180 DPD (4,000 cases) | Every charge-off in the data happened at 181 DPD, so a case past 150 can't roll to a worse bucket, only charge off. The source `current_bucket` label is stale for ~4% of cases, so the split uses DPD. Lists tie-break on the raw model score (`model_risk_rank`). | P3 |
 | **Repeatable training:** fixed seeds, deterministic LightGBM, fixed row order, rounded inputs, deterministic tie-breaks | Two runs from scratch give identical AUCs and identical recommendations for all 96,000 cases, so every number in the deck can be reproduced. | P3 |
+
+## How we worked (teamwork)
+
+Three owners, one repo, a lead who verifies before merging. Numbers from GitHub on 4 Oct, 13:40 IST:
+
+| | Vansh (P1, lead) | Garv (P2) | Kris (P3) | Total |
+|---|---|---|---|---|
+| Commits (excluding merges) | 112 | 73 | 46 | 231 |
+| Pull requests merged | 4 | 10 | 20 | 34 |
+| Comments on PRs and the team issue (#13) | 71 | 27 | 51 | 149 |
+
+- **Every PR was tested on the full data before merging:** pytest, the affected pipeline steps, and the pages. `main` is protected, so only the lead merges, after a written check on the PR. A refactor had to prove "no change" by comparing all 96,000 recommendations column by column.
+- **Peer reviews found real problems,** each fixed with a test:
+  - non-standard province codes in Layer 1 (P2's rehearsal → DQ issue 20);
+  - a judge's run overwriting the submitted answers (P3's fresh-clone test);
+  - a 19:00 path that could drop the 35 released answers (P3's dry run);
+  - dollar signs rendered as LaTeX on screen (P2);
+  - a check that misread reordered question files, a data-contract failure that didn't stop the build, and a stale-bucket label in the risk lists (P3).
+- **One plan, visible to all:** tasks with "done when" criteria in [`TASKS.md`](TASKS.md); decisions, results and requests logged in issue #13; every change from the design in [What changed](#what-changed-from-the-design).
+- **Clear ownership:** each person changed only their own folders, and shared files (benchmark answers, README, contract) changed only through their owner.
 
 ## AI tools used
 
