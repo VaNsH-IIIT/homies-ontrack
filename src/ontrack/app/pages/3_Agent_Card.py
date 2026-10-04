@@ -3,6 +3,8 @@
 Search a case_id or golden_id (demo case CS-2026-583749), or pick from the queue.
 Accept / edit / reject is written with common.record_decision() (edit and reject need a reason code).
 """
+import re
+
 import pandas as pd
 import streamlit as st
 
@@ -49,13 +51,15 @@ with st.expander("Queue overview for supervisors: what the book gets, and who go
                                round(sum(score)) AS "dollars at risk", round(avg(p_cure_30d) * 100, 1) AS "avg self-cure %"
                         FROM gold.nba_recommendation GROUP BY 1 ORDER BY cases DESC""")
         st.bar_chart(book.set_index("action")["cases"], horizontal=True, height=260)
-        st.dataframe(book, hide_index=True, width="stretch")
+        shown = book.assign(cases=book["cases"].map("{:,.0f}".format),
+                            **{"dollars at risk": book["dollars at risk"].map("${:,.0f}".format)})
+        st.dataframe(shown, hide_index=True, width="stretch")
     with o2:
         st.markdown("**Human-only queue, by first reason**")
         hq = query("""SELECT routing_category AS reason, count(*) AS cases,
                              round(100.0 * count(*) / sum(count(*)) OVER (), 1) AS "% of queue"
                       FROM gold.nba_recommendation WHERE needs_human_review GROUP BY 1 ORDER BY cases DESC""")
-        st.dataframe(hq, hide_index=True, width="stretch")
+        st.dataframe(hq.assign(cases=hq["cases"].map("{:,.0f}".format)), hide_index=True, width="stretch")
         st.caption("Hardship first (case flag, then the customer's own words, then income shock); holds, cease, "
                    "disputes, complaints and vulnerability need a person by policy.")
 
@@ -89,11 +93,15 @@ else:
         where.append("needs_human_review = ?"); params.append(queue_f == "Human-only")
     if cat_f != "All":
         where.append("routing_category = ?"); params.append(cat_f)
-    top = query(f"""SELECT case_id, action, round(score) AS dollars_at_risk, round(p_cure_30d, 2) AS self_cure,
-                           routing_category FROM gold.nba_recommendation WHERE {' AND '.join(where)}
+    top = query(f"""SELECT case_id, action, round(score) AS dollars_at_risk,
+                           CASE WHEN p_cure_30d < 0.005 THEN 'under 1%'
+                                ELSE CAST(round(p_cure_30d * 100) AS INT) || '%' END AS self_cure,
+                           coalesce(routing_category, 'automated') AS routing
+                    FROM gold.nba_recommendation WHERE {' AND '.join(where)}
                     ORDER BY score DESC LIMIT 200""", params)
     st.caption("Highest dollars at risk first (overdue x chance it stays unpaid).")
-    st.dataframe(top, hide_index=True, width="stretch", height=240)
+    st.dataframe(top.assign(dollars_at_risk=top["dollars_at_risk"].map("${:,.0f}".format)),
+                 hide_index=True, width="stretch", height=240)
     if top.empty:
         st.stop()
     case_ids = [st.selectbox("Open case", top["case_id"].tolist())]
@@ -111,12 +119,16 @@ r = clean(query("""
 # ---- The card ----
 st.divider()
 st.markdown(f"### {r['case_id']} · {r['golden_id']}")
-st.caption(f"{str(r.get('primary_product') or '').replace('_', ' ').capitalize()} · opened {r.get('case_open_date')} · "
+st.caption(f"{str(r.get('primary_product') or '').replace('_', ' ').capitalize()} · opened {str(r.get('case_open_date') or '')[:10]} · "
            f"province {r.get('province_code') or '?'} · {r.get('open_case_count') or 0} open case(s) · "
            f"model {r.get('model_version')}")
 
 if r.get("hardship_flag"):
-    st.error(f"**Hardship: human decision required.** {r.get('routing_reasons') or ''}", icon="🤝")
+    banner = r.get("routing_reasons") or ""
+    if r.get("text_evidence"):   # the quote is shown right below: don't repeat it in the banner
+        banner = re.sub(r'Customer described hardship in the last 90 days: ".*?"(?=;|$)',
+                        "the customer described it in their own words (below)", banner)
+    st.error(f"**Hardship: human decision required.** {banner}", icon="🤝")
     if r.get("text_evidence"):
         st.markdown(f"> *\"{r['text_evidence']}\"*  \n> — {r.get('text_source') or 'note / call'}")
 elif r.get("needs_human_review"):

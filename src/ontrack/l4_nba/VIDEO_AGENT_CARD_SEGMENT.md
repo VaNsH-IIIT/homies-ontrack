@@ -4,6 +4,38 @@ For `docs/pitch/video_script.md` (P1 owns it; these replace the two `[TBD-P3]` l
 full data, snapshot 2026-09-28, after the fixes for #3 / #5 / #7. Search by **case id** `CS-2026-583749`.
 Every claim below is checked against the build with stable golden_ids (commit 1fd561b): see "Fact check" at the end.
 
+## One-take recording card (K14) · for Kris at 16:00
+
+Checked in a real browser (Edge, headless, 1920×1080 at 110% zoom) on the full data: every step below renders,
+with the measured time from click to finished screen. Total target **≤ 2:00**.
+
+**Before you press record (about 5 minutes)**
+1. `cd C:\dev\homies-ontrack` → `git checkout main` → `git pull`
+2. `.venv\Scripts\python -m ontrack.l4_nba.run --score-only` (about 60 s; the card then matches `main`)
+3. Old test decisions show up in the history table: if you see any, close the app and delete
+   `D:\ontrack_work\decisions.duckdb` (local file, recreated empty)
+4. `.venv\Scripts\streamlit run src/ontrack/app/main.py --client.toolbarMode minimal` (hides the "Deploy" button)
+5. Browser: open `http://localhost:8501/Agent_Card`, press **F11** (full screen, 1920×1080), zoom **110%** (Ctrl + `+`),
+   wait until the case card is shown. Second tab: `EVALUATION.md` on GitHub (sections 2, 2b and 5)
+6. Windows: notifications off (Do not disturb), close other apps; record with **Win+Alt+R** (mic: **Win+Alt+M**)
+
+**The take**
+
+| Time | Do exactly this | You should see | Render |
+|---|---|---|---|
+| 2:15 | Start on the loaded page, don't scroll yet | Metrics row: 96,000 · 59,9xx human-only (62%) · 46,2xx · 5,037 calls (= daily capacity); case **CS-2026-583749** | already loaded (1.2 s) |
+| 2:30 | Scroll down slowly to the red banner | "Hardship: human decision required. Case flagged for hardship (reduced income); the customer described it in their own words (below)" and the quote *"I can't pay the whole thing. My pay got cut in Aug."* — transcript:4510675 | instant |
+| 2:45 | Keep scrolling a little | **Hardship referral** · Channel: human queue · When: within 1 business day; 3 reasons; "↪ Automated contact resumes only after a person has reviewed the hardship…" | instant |
+| 2:55 | Click **"Blocked actions (3) and the rule behind each"** | call and sms: "Hardship/vulnerability flagged — must route to specialist"; push_notification: "No consent push from customer" | 0.9 s |
+| 3:05 | Scroll up, click the search box, select all, delete, press **Enter**; then **Action** dropdown → **call** | Queue table, highest dollars at risk first: **CS-2026-759035 · $11,581**; scroll down to its card: "Call: 96% chance the $12,030 stays unpaid without action; contact in the last 30 days brought no payment…" | 0.7 s + 0.8 s |
+| 3:15 | Type **CS-2026-583749** in the search box, **Enter**; scroll to **Your decision**: click **edit**, *Action to take* → **specialist_agent**, *Reason code* → **customer_hardship**, click **Submit decision** | Green "Logged EDIT → specialist_agent", and the decision history table below | 1.3 s |
+| 3:30 | Scroll to the top, click **"Queue overview for supervisors"** | Right-hand table: hardship_case_flag ~34,9xx · hardship_text ~8,9xx · hardship_income ~2,4xx, plus vulnerability, dispute, holds… (left: the action mix) | 0.9 s |
+| 3:45 | Switch to the GitHub tab: EVALUATION **section 2**, then **2b** | §2 `cure_30d` row: AUC 0.717 vs 0.83; act-now 0.99x · §2b: "+$16x,xxx" expected payments per round | — |
+| 4:00 | Scroll to **section 5** | "Largest gap between groups" table: automated-case gaps of a few points | — |
+
+*Exact counts on your screen can differ by a few cases from the deck (your build vs P1's); the voice-over uses
+rounded numbers that hold on both.* If a click lands wrong, keep talking and redo the step: Vansh cuts the best take.
+
 ## 2:15-3:30 · Agent card (`streamlit run src/ontrack/app/main.py` -> Agent card)
 
 | Time | On screen | Voice-over |
@@ -19,7 +51,7 @@ Every claim below is checked against the build with stable golden_ids (commit 1f
 
 | Time | On screen | Voice-over |
 |---|---|---|
-| 3:30 | EVALUATION section 4: queue split | "62% of the open book goes to a person first: about 46,000 hardship cases, nearly 9,000 of them found only in what customers said in notes and calls, and about 2,500 only in their salary deposits, plus vulnerability, disputes, complaints and legal holds." |
+| 3:30 | Agent card → open "Queue overview for supervisors" (same numbers as EVALUATION section 4) | "62% of the open book goes to a person first: about 46,000 hardship cases, nearly 9,000 of them found only in what customers said in notes and calls, and about 2,500 only in their salary deposits, plus vulnerability, disputes, complaints and legal holds." |
 | 3:45 | EVALUATION sections 2 and 2b: back-test table, then the dollar table | "We tested like with like: the same cases on 1 July, outcomes after that date. Our self-cure model scores 0.83 AUC against 0.72 for the bank's current model, and of the cases it says need action now, more than 99% really did not pay on their own. On today's book that is about 160 thousand dollars more in expected payments per round of contacts than the bank's current recommendations, counted conservatively." |
 | 4:00 | EVALUATION section 5: fairness summary | "Fairness is tested offline across gender, age, citizenship, newcomer and accessibility groups: protected attributes are never inputs, and for the cases the model decides alone the gaps stay within a few points." |
 
