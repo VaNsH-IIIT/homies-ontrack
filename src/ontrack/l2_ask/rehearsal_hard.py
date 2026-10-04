@@ -118,6 +118,31 @@ HARD = [
          facts=["hour|heure"], cite=["N-|note"]),
 ]
 
+# Layer 1 / customer-360 / data-quality questions (G12 preparation; the 19:00 extras may cover Layer 1).
+L1SET = [
+    dict(id="L01", kind="numbers", tol="exact", q="How many golden customers have more than one CRM record?",
+         sql="SELECT count(*) FROM gold.c360_customer WHERE crm_record_count > 1"),
+    dict(id="L02", kind="table", tol="exact",
+         q="How many source keys were linked by each match method in identity resolution?",
+         sql="SELECT match_method, count(*) AS keys FROM gold.customer_xref GROUP BY 1 ORDER BY 1"),
+    dict(id="L03", kind="numbers", tol="exact", q="How many source keys did probabilistic matching (Splink) link?",
+         sql="SELECT count(*) FROM gold.customer_xref WHERE match_method = 'splink'"),
+    dict(id="L04", kind="table", tol="exact", q="How many source keys does each source system contribute to the C360?",
+         sql="SELECT source_system, count(*) AS keys FROM gold.customer_xref GROUP BY 1 ORDER BY 1"),
+    dict(id="L05", kind="numbers", tol="exact",
+         q="How many contact_history rows have an empty channel but a value in channel_v2?",
+         sql="SELECT count(*) FROM bronze.contact_history WHERE channel IS NULL AND channel_v2 IS NOT NULL"),
+    dict(id="L06", kind="numbers", tol="exact",
+         q="How many golden customers have not consented to any contact channel (call, SMS, email or push)?",
+         sql="SELECT count(*) FROM gold.c360_customer WHERE NOT (consent_call OR consent_sms OR consent_email OR "
+             "consent_push)"),
+    dict(id="L07", kind="numbers", tol="exact", q="How many uncertain matches are waiting for a data steward?",
+         sql="SELECT count(*) FROM gold.match_review_queue"),
+    dict(id="L08", kind="numbers", tol="exact",
+         q="How many collections cases have a current bucket that does not match their days past due?",
+         sql="SELECT count(*) FROM gold.case_360 WHERE bucket_conflict"),
+]
+
 QUESTIONS = config.WORK_DIR / "rehearsal_hard_questions.csv"
 ANSWERS = config.WORK_DIR / "rehearsal_hard_answers.csv"
 # "36,230" is one number; "46,96000" (two CSV cells) is two.
@@ -146,22 +171,22 @@ def check_numbers(expected: list[float], answer: str, tol: str) -> tuple[bool, s
     return (not missing), (f"missing numbers {missing}" if missing else "")
 
 
-def write_questions() -> None:
+def write_questions(items) -> None:
     with open(QUESTIONS, "w", encoding="utf-8", newline="") as f:
         w = csv.writer(f, lineterminator="\n")
         w.writerow(["question_id", "question_text", "difficulty", "metric_id", "as_of_date", "tolerance", "split"])
-        for r in HARD:
+        for r in items:
             w.writerow([r["id"], r["q"], "hard", "", config.SNAPSHOT_DATE, r.get("tol", ""), "rehearsal"])
 
 
-def score() -> int:
+def score(items) -> int:
     from ontrack.db import connect
     from ontrack.l2_ask.ask import format_table
     from ontrack.l2_ask.score_dev import score_table
     con = connect(read_only=True)
     ans = {r["question_id"]: r for r in csv.DictReader(open(ANSWERS, encoding="utf-8", newline=""))}
     hits = 0
-    for r in HARD:
+    for r in items:
         a = ans.get(r["id"], {"answer": "", "sql_or_sources": "", "refused": "false"})
         refused = a["refused"] == "true"
         both = a["answer"] + " " + a["sql_or_sources"]
@@ -186,7 +211,7 @@ def score() -> int:
         hits += ok
         first = a["answer"].replace("\n", " / ")[:110]
         print(f"  {'OK  ' if ok else 'MISS'} {r['id']} {r['kind']:8s} {why.strip()[:90]:90s} | {first}")
-    print(f"Hard rehearsal: {hits}/{len(HARD)} correct")
+    print(f"Hard rehearsal: {hits}/{len(items)} correct")
     return 0
 
 
@@ -194,12 +219,14 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--score", action="store_true")
     ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--set", choices=["hard", "l1"], default="hard", help="hard (29 questions) or l1 (Layer 1 / DQ)")
     args = ap.parse_args(argv)
+    items = HARD if args.set == "hard" else L1SET
     if not args.score:
         from ontrack.l2_ask import run_benchmark
-        write_questions()
+        write_questions(items)
         run_benchmark.main(["--questions", str(QUESTIONS), "--out", str(ANSWERS), "--workers", str(args.workers)])
-    return score()
+    return score(items)
 
 
 if __name__ == "__main__":

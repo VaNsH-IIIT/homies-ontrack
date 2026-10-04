@@ -160,3 +160,22 @@ SQL that does not use our templates; key facts + citation for documents and call
 | BQ-025 | certified formula (outbound attempts / distinct cases in contact_history). Alternative "per open case incl. zero attempts" would be lower (1-30: 1.16 vs 1.50) | ✅ (definition risk noted) |
 | BQ-027 | `sum(contact_cost_cad)/count(*)` by channel, system events excluded, channel_v2 coalesced | ✅ |
 | BQ-030 | dialer outage INC-0923, ~60% capacity cut, calls 3,044 / 3,126 vs ~7,300 | ✅ |
+
+## Backup runner (Garv's machine) (G13): if Vansh's laptop or account fails at 19:00
+
+On Garv's machine (own Claude Code login), one command; target: full `answers.csv` within 15 minutes.
+
+```bash
+git pull                                              # latest main
+python -m ontrack.l2_ask.backup_run --questions <released + extra csv> --out benchmark/answers.csv
+```
+
+It checks the data folder, database (bronze + gold), search index (builds it if missing), LLM access (one test
+call) and that the questions file is readable; runs `run_benchmark --workers 4`; re-runs only failed questions up to
+3 rounds with fewer workers; validates one row per unique id, no failed rows, `refused` true/false; prints the git
+steps (branch + PR, main is protected). Exit 0 only when the file is complete.
+
+Tested 4 Oct on the **released 35** from the cache: 35 rows, 0 errors, 2 s, `score_dev` **21/21**, and the file is
+byte-identical to the committed `benchmark/answers.csv`. Also 50 questions (35 released + 15 mock extras) in 50 s, exit 0; with the LLM broken the preflight stops
+at the test call (exit 2), and with `--skip-llm-check` only the failed id is retried and reported (exit 1), while
+certified-metric questions still answer without any LLM.
