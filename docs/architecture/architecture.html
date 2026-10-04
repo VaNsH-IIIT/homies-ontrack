@@ -40,7 +40,7 @@ code { font-family: Consolas, monospace; font-size: 9.6px; color: #7a2e17; }
 <div class="top">
   <div><h1>OnTrack · collections intelligence · architecture (build phase)</h1>
   <div style="color:#5b6472">Team HOmiES · CIBC Collections Hackathon · Maple Bank synthetic data, snapshot 28 Sep 2026 · use case: next best action, hardship-first</div></div>
-  <div style="text-align:right;font-size:10px"><b>Vansh Jaiswal</b> (P1) · <b>Garv Pratap Singh</b> (P2) · <b>Kris Jain</b> (P3)</div>
+  <div style="text-align:right;font-size:10px"><b>Vansh Jaiswal</b> (Layer 1) · <b>Garv Pratap Singh</b> (Layer 2) · <b>Kris Jain</b> (Layer 3) · <b>Anuj Kumar Tiwari</b> (Layer 4)</div>
 </div>
 <div class="motto"><b>AI recommends.</b> Rules constrain. <b>Humans decide.</b> Outcomes improve the next recommendation.</div>
 <div class="key"><span class="ai">AI</span> AI or ML used · <span class="hu">HUMAN</span> a person reviews or decides · <span class="tag">BATCH</span> / <span class="tag">REAL-TIME</span> when it runs · numbers in red are measured on the full dataset</div>
@@ -50,7 +50,7 @@ CRM <code>customers</code> · cards <code>card_accounts</code> · lending <code>
 <div class="arrow">▼</div>
 
 <div class="lay">
-  <span class="owner">P1</span><span class="lname">LAYER 1 · DATA PRODUCT FACTORY: raw → curated → golden C360</span> <span class="tag">BATCH · nightly, ~13 min full</span>
+  <span class="owner">Vansh</span><span class="lname">LAYER 1 · DATA PRODUCT FACTORY: raw → curated → golden C360</span> <span class="tag">BATCH · nightly, ~13 min full</span>
   <div class="tools">Python · DuckDB · Parquet · Splink · data contract in ODCS YAML (executable) · one command: <code>python -m ontrack.l1_factory.build</code></div>
   <div class="steps">
     <div class="step"><b>Bronze</b><br>All 31 tables typed from <code>schema.json</code>; IDs keep leading zeros; <code>NA</code> outcome kept. Row counts <span class="num">31/31 match</span>; cast failures and schema drift logged.</div>
@@ -66,19 +66,19 @@ CRM <code>customers</code> · cards <code>card_accounts</code> · lending <code>
 
 <div class="row">
   <div class="lay" style="flex:1">
-    <span class="owner">P2</span><div class="lname">LAYER 2 · INSIGHT &amp; NLP</div>
+    <span class="owner">Garv</span><div class="lname">LAYER 2 · INSIGHT &amp; NLP</div>
     <div><span class="tag">REAL-TIME · seconds</span></div>
     <div class="tools">Claude (Anthropic API or Claude Code CLI) · certified metrics from <code>metric_definitions</code> · sqlglot validator · read-only DuckDB · cited search over notes and policies · Streamlit</div>
     <ul>
       <li><span class="ai">AI</span> Scope guard: data / document / both / <b>refuse</b></li>
       <li>Certified metrics as templated SQL; LLM writes the rest over gold</li>
       <li>Validator: SELECT-only, allow-list, protected columns blocked, minimum group size</li>
-      <li>Every answer shows its <b>SQL or sources</b>; one command answers the whole benchmark file: <span class="num">dev 21/21</span>, red-team <span class="num">26/26 refused</span>, 0 false refusals</li>
+      <li>Every answer shows its <b>SQL or sources</b>; one command answers the whole benchmark file: <span class="num">dev 21/21</span>, red-team <span class="num">31/31 refused</span>, 0 false refusals</li>
       <li><span class="hu">HUMAN</span> user edits the understood question; refusals logged</li>
     </ul>
   </div>
   <div class="lay" style="flex:1">
-    <span class="owner">P2 text · P3 structured</span><div class="lname">LAYER 3 · FEATURE STORE</div>
+    <span class="owner">Kris (structured) · Garv (text)</span><div class="lname">LAYER 3 · FEATURE STORE</div>
     <div><span class="tag">BATCH · daily</span> <span class="tag">EVENT · per contact</span></div>
     <div class="tools">one function <code>build_case_features(con, as_of_date)</code> for training and live scoring · Claude with JSON schema for text</div>
     <ul>
@@ -89,7 +89,7 @@ CRM <code>customers</code> · cards <code>card_accounts</code> · lending <code>
     </ul>
   </div>
   <div class="lay" style="flex:1">
-    <span class="owner">P3</span><div class="lname">LAYER 4 · NEXT BEST ACTION</div>
+    <span class="owner">Anuj · Kris</span><div class="lname">LAYER 4 · NEXT BEST ACTION</div>
     <div><span class="tag">BATCH · daily</span> <span class="tag">EVENT · re-score</span></div>
     <div class="tools">policy gate (rules, 55 unit tests) · LightGBM + SHAP · ranker · decision log · Streamlit agent card</div>
     <ol style="margin:2px 0 0;padding-left:15px">

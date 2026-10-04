@@ -1,4 +1,4 @@
-# Layer 4: likely judge questions, short answers (P3, Kris)
+# Layer 4: likely judge questions, short answers (Layer 4 lead: Anuj Kumar Tiwari, with Kris Jain)
 
 Numbers are rounded so they hold on the submission build; exact values and methods are in `EVALUATION.md` (section in brackets).
 

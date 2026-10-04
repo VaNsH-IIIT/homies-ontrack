@@ -1,6 +1,6 @@
 # How we work
 
-1. **Stay in your folders.** Each person owns separate folders (README → "Team and ownership"). Never edit another person's files. If you need something from another part, ask them (or open a GitHub issue); don't patch it yourself.
+1. **Stay in your folders.** Each person owns separate folders or a layer (README → "Team, ownership and interfaces": Vansh Layer 1, Garv Layer 2, Kris Layer 3, Anuj Layer 4). Never edit another person's files. If you need something from another part, ask them (or open a GitHub issue); don't patch it yourself.
 2. **Code against the interfaces** in README → "Interfaces between parts" (table names and columns). If an interface must change, the owner changes it and tells the others.
 3. **Branch per task**, named after the task ID: `p2/P2-T3-nl-to-sql`, `p3/P3-T2-policy-gate`. Never push to `main` yourself; P1 merges.
 4. **Commit small and often** with clear messages (`L2: add SQL validator with allow-list`). Commit history is evidence for the 15% team-work score. Commits after 9:00 PM IST on 4 Oct are not considered.
