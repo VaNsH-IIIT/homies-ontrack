@@ -5,6 +5,27 @@ Status: `[ ]` to do · `[~]` in progress · `[x]` merged to `main`. Update your 
 
 **Tasks say what must work, not how.** The "Done when" column and the interfaces in the README are fixed; the approach inside your folders is yours: choose libraries, prompts, features and models, and experiment. Fixed regardless: the table names and columns in the interfaces, the hackathon rules (no protected attributes, a plain-English reason for every decision, human review, hardship flagged), and the design as the base (log any change and why).
 
+## 🎯 Final hardening until 16:00 (posted 4 Oct, 06:15 IST): read this first
+
+All code tasks so far are merged (#15–#28; 231 tests). Until **16:00** we close the remaining risks; deck, PDF and video come **after 16:00**, all together.
+
+| ID | Who | Task | Done when | By |
+|---|---|---|---|---|
+| V8 | **Vansh** | **C360 / data-quality question set:** ~15 questions a judge may ask about Layer 1 (golden customers, matching, duplicates, DQ counts, contract), each with the correct answer from independent SQL. Saved as `benchmark/rehearsal_c360.csv` (+ answers) and posted in #13 | 15 questions + verified answers on `main` | 11:00 |
+| G12 | **Garv** | Run V8's set through Ask; fix every miss in `l2_ask/` with tests; score posted on the PR | 15/15 (or each miss explained); dev still 21/21 | 14:00 |
+| V9 | **Vansh** | **19:00 dress rehearsal** by hand on cached questions: normalise → `run_benchmark` → `score_dev` → commit (to a test branch). Checklist from P1-Claude | Runs from the checklist alone, 0 errors, < 10 min | 13:00 |
+| G13 | **Garv** | **Backup runner** for 19:00: same steps ready on Garv's machine with his own Claude access, tested on cached questions | Garv can produce a full `answers.csv` within 15 min of a failure | 16:00 |
+| V10 | **Vansh** | **Browser click-through** of the whole demo path (`docs/pitch/video_script.md`): fix list of anything slow, confusing or ugly, posted in #13 | List posted; P1 pages fixed by P1-Claude, P2/P3 items routed to Garv/Kris | 12:00 |
+| K12 | **Kris** | **Payment-within-7-days model, time-boxed 2 h:** try to lift AUC 0.58 (behaviour after past contacts, link opens, payday timing). Merge only if test AUC +0.03 or more, K1 determinism holds, no other number moves unexpectedly; else document why in `EVALUATION.md` | PR with before/after, or a documented "tried, kept" | 12:00 |
+| K13 | **Kris** | **Judge Q&A note** `src/ontrack/l4_nba/QA_NOTES.md`: why AUC 0.83 and not higher, calibration drift, the separated-group fairness gap, why calls stay a policy, what "+$163K per round" means and doesn't | One page; reviewed and approved by Vansh (V11) | 15:00 |
+| V11 | **Vansh** | **Lead review:** read and approve K13 and G12 (P1-Claude prepares the full-data checks) | Both approved on GitHub by Vansh | 15:00 |
+| V12 | **Vansh** | Decide judge access to the private repo; Anuj on the deck cover | Decisions in #13 | 09:00 |
+| V13 | **Vansh** | Rehearse the P1 voice-overs (0:00–1:15, 4:15–5:00), no recording yet | Read through twice, timed | 16:00 |
+| C1 | **P1-Claude** | Full end-to-end run on `main` with all merges (app stopped): run_all, pytest, every page, demo path | All OK, or each break fixed / routed | 08:00 |
+| C2 | **P1-Claude** | Repo hygiene: no secrets, data or large files; `.gitignore`, requirements | Clean, or fixed | 08:30 |
+
+**After 16:00 (everyone):** recordings (G4, K4, Vansh's segments) → stitch → deck final numbers + PDF → 19:00 benchmark → 20:00 freeze → submit by 20:30.
+
 ## ☀️ 4 Oct plan from P1: read this first (updated 4 Oct, 00:45 IST)
 
 **State:** PRs #15 and #17 (Kris: K1 repeatable training, K2 video facts, K3 edge cases, "Why this channel" card, fairness by group) are verified on full data and merged. Checks: pytest 197, `run_all --skip-l1` all OK, dev 21/21, all 5 pages load. Open: **#16 (K5)** and Garv's branch `p2/P2-G-polish` (G2, G3), which has no PR yet.
