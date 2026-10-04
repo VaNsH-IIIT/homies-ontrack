@@ -1,7 +1,7 @@
 """Collections 360: look up one customer's golden record (owner: P1)."""
 import streamlit as st
 
-from ontrack.app.common import header, query
+from ontrack.app.common import header, query, table_exists
 
 header("Collections 360", "One customer, one golden_id: every source system resolved, with match confidence and lineage.")
 
@@ -76,6 +76,15 @@ st.dataframe(query("""SELECT case_id, case_status, primary_product, current_buck
                              current_treatment, hardship_flag, outcome, case_open_date
                       FROM gold.case_360 WHERE golden_id = ? ORDER BY case_open_date DESC""", [gid]),
              hide_index=True, width="stretch")
+
+if table_exists("gold", "nba_recommendation"):
+    nba = query("""SELECT case_id, action, needs_human_review AS person_decides, hardship_flag AS hardship,
+                          reason_1, text_evidence AS customer_said
+                   FROM gold.nba_recommendation WHERE golden_id = ? ORDER BY case_id""", [gid])
+    if not nba.empty:
+        st.markdown("#### Next best action for the open cases (Layer 4)")
+        st.dataframe(nba, hide_index=True, width="stretch")
+        st.caption("Full reasons, blocked actions and accept / edit / reject: search the case id on the Agent card page.")
 
 st.markdown("#### Contact timeline (latest 25)")
 st.dataframe(query("""SELECT contact_ts_utc, channel, direction, outcome_code, rpc_flag, payment_taken_flag,
