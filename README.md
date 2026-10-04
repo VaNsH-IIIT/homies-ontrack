@@ -24,7 +24,7 @@ Our submitted design is the base: [`docs/HOmiES_SystemDesign.pdf`](docs/HOmiES_S
 | AI tools used | [`AI_TOOLS.md`](AI_TOOLS.md) |
 | How we worked as a team (numbers, reviews, ownership) | [below](#how-we-worked-teamwork) |
 | Layer 4 evaluation (generated: back-test vs the bank's model, business value, calibration, fairness) | [`src/ontrack/l4_nba/EVALUATION.md`](src/ontrack/l4_nba/EVALUATION.md) |
-| Judge Q&A, Layer 1 | [`docs/QA_L1.md`](docs/QA_L1.md) |
+| Judge Q&A (short answers to likely questions) | Layer 1 [`docs/QA_L1.md`](docs/QA_L1.md) · Layers 2–3 [`QA_NOTES.md`](src/ontrack/l2_ask/QA_NOTES.md) · Layer 4 [`QA_NOTES.md`](src/ontrack/l4_nba/QA_NOTES.md) |
 | Layer 4 design notes and judge Q&A | [`DESIGN_NOTES.md`](src/ontrack/l4_nba/DESIGN_NOTES.md) · [`QA_NOTES.md`](src/ontrack/l4_nba/QA_NOTES.md) |
 
 Check the submission in one command: `python scripts/check_submission.py` (deliverables present, README links resolve, `answers.csv` in the template format, contract parses, no data or secrets in git).

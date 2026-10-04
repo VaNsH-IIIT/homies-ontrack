@@ -13,7 +13,7 @@ Judging: technical quality and working demo (incl. benchmark and **live unseen q
 |---|---|---|---|---|
 | ✅ G20 | **Garv's Claude** (#42) | Deterministic "explain case <id>" and "tell me about customer <id>" in Ask (from gold + nba, SQL shown, no PII, no LLM), example buttons, tests | < 1 s, 0 LLM calls; tests pass | 15:00 |
 | ✅ G21 | **Garv's Claude** (#43) | Live-question resilience: LLM slow or failing → clear message and the closest certified answer, never a traceback or a long spinner | Tests for timeout and usage limit | 15:30 |
-| G22 | **Garv's Claude** | `src/ontrack/l2_ask/QA_NOTES.md`: judge Q&A for Layers 2/3 | One page, numbers checked | 15:30 |
+| ✅ G22 | **Garv's Claude** (#44) | `src/ontrack/l2_ask/QA_NOTES.md`: judge Q&A for Layers 2/3 | One page, numbers checked | 15:30 |
 | K24 | **Kris's Claude** | `$` escaping on the Agent card (as in #41) | Email/SMS cases render dollars correctly | 14:00 |
 | K25 | **Kris's Claude** | "62% go to a person: can agents cope?": human queue by reason and dollars, priority order, workload vs capacity, 1-business-day feasibility (EVALUATION + supervisor view + QA_NOTES) | Generated section + card line | 15:30 |
 | K26 | **Kris's Claude** | Run P1's live-question set through Ask on Kris's allowance; misses to Garv | Score table posted | 15:30 |
