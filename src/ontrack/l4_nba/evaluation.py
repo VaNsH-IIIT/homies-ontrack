@@ -1,4 +1,4 @@
-"""Evaluation for Layer 4: models, like-with-like back-test, action mix, human queue, fairness (owner: P3).
+"""Evaluation for Layer 4: models, like-with-like back-test, action mix, human queue, fairness (owner: P4 Anuj, with P3).
 
     python -m ontrack.l4_nba.evaluation        # writes src/ontrack/l4_nba/EVALUATION.md
 

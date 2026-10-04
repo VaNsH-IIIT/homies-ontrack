@@ -1,4 +1,4 @@
-"""Feedback loop: decisions plus the outcomes that followed become labels for the next model (owner: P1).
+"""Feedback loop: decisions plus the outcomes that followed become labels for the next model (owner: P4 Anuj).
 
     python -m ontrack.feedback          (run by scripts/run_all.py after Layer 4)
 

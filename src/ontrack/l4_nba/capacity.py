@@ -1,4 +1,4 @@
-"""Can people work the human-only queue? Capacity of the hardship team against OnTrack's referrals (owner: P3, K25).
+"""Can people work the human-only queue? Capacity of the hardship team against OnTrack's referrals (owner: P4 Anuj, with P3).
 
 Measured from the data: the hardship team's worked hours per business day (``agent_shifts``, queue
 ``hardship_specialist``, last 4 weeks, absences excluded), its handle time (``agents.avg_handle_time_sec``, active

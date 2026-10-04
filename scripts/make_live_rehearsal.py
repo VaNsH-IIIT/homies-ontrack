@@ -1,4 +1,4 @@
-"""V14 (owner: P1): judge-style live questions across all layers, answers from independent SQL.
+"""V14 (owner: P4 Anuj, with P2): judge-style live questions across all layers, answers from independent SQL.
 
 Writes docs/rehearsal/live_questions.csv (benchmark format) and docs/rehearsal/live_answers.csv
 (question_id, expected_answer, reference_sql, kind). kind: number / table / contains / refuse / document.
