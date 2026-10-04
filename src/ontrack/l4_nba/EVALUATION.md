@@ -81,7 +81,7 @@ Same open book, same day: what OnTrack recommends against the bank's last recomm
 
 | lever | bank's last recommendation | OnTrack | difference | unit |
 |---|---|---|---|---|
-| 1. Expected payments within 7 days from the recommended contact (automated cases) | $124,523 (1,737 payments) | $281,070 (3,921 payments) | +$156,548 | per round of contacts |
+| 1. Expected payments within 7 days from the recommended contact (automated cases) | $124,523 (1,737 payments) | $281,070 (3,921 payments) | +$156,547 | per round of contacts |
 | 2. Contact spend on customers who paid on their own anyway (the 20% each would leave alone) | $4,947 (4,911 contacts) found | $6,944 (6,225 contacts) found | +$1,997 | per month (2026-07-01 back-test) |
 | 3. Calls that fit the day's call capacity | 34,326 calls (6.8 days of capacity) | 5,037 calls (1 day) | 29,289 fewer calls | capacity 5,037 calls a day |
 
@@ -196,6 +196,33 @@ Every signal, counted wherever it appears:
 
 Hardship comes first (`hardship_case_flag` > `hardship_text` > `hardship_income`); text-only hardship is what notes and calls add on top of the case flag. Holds (insolvency, deceased, third-party), cease requests, disputes, complaints and vulnerability need a person by policy, without hardship.
 
+## 4b. Can people work the human queue? (capacity)
+
+Human-only queue by first reason, with what is at stake (dollars at risk = overdue x chance it stays unpaid):
+
+| first_reason | cases | dollars_at_risk | avg_overdue |
+|---|---|---|---|
+| hardship_case_flag | 34,872 | 24,465,321 | 716 |
+| hardship_text | 8,883 | 5,297,725 | 657 |
+| hold | 6,101 | 3,889,959 | 673 |
+| vulnerability | 4,515 | 2,457,836 | 575 |
+| hardship_income | 2,480 | 2,002,169 | 826 |
+| dispute | 1,385 | 819,078 | 647 |
+| cease | 1,021 | 572,811 | 607 |
+| complaint | 685 | 409,305 | 649 |
+
+**Hardship team** (`agent_shifts`, queue `hardship_specialist`, business days of the last 28 days, absences excluded): **336 agent-hours a business day**; handle time 6.9 minutes (`agents.avg_handle_time_sec`, active hardship specialists); 75% of worked time on cases (assumed). **New hardship referrals:** 490 a business day (cases opened in the last 28 days that OnTrack routes to hardship).
+
+| handle time per first contact | first contacts per business day | new hardship referrals per business day | new cases reached within 1 business day | business days to reach today's backlog |
+|---|---|---|---|---|
+| 6.9 min (measured) | 2,199 | 490 | True | 27 |
+| 20 min (full assessment, assumed) | 757 | 490 | True | 173 |
+
+- **New cases are reached within a business day**, even if a full assessment takes 20 minutes.
+- **Today's 46,235 hardship referrals are a backlog,** not one day's work: about 27 business days to give every case a first contact at the measured handle time, about 173 at 20 minutes. The queue is worked highest dollars at risk first: the first week reaches 8,540 cases holding **57% of the hardship dollars at risk**. The 'within 1 business day' on the card is the target for new referrals; the backlog is worked in that order.
+- The other 13,707 human-only cases (vulnerability, holds, disputes, complaints, cease requests) go to the existing specialist and stage teams, who also gain time: the bank's engine recommends more calls than the day's capacity (section 2b, lever 3), OnTrack recommends exactly the capacity.
+- Not modelled: overtime, re-contacts after the first conversation, and which agent holds which case (`max_concurrent_cases`).
+
 ## 5. Fairness check (offline only)
 
 Recommended-action rates by protected group on the open book. Protected attributes are joined here only, from `bronze.customers`, and are never features or decision inputs. Groups under 100 cases are not shown.
@@ -275,7 +302,7 @@ Self-cure model on the 2026-07-01 test cases (overall AUC 0.828), split by prote
 | attribute | groups | lowest AUC | highest AUC | AUC gap | over-prediction gap |
 |---|---|---|---|---|---|
 | gender_code | 3 | 0.823 | 0.834 | 0.011 | 0.011 |
-| marital_status | 7 | 0.812 | 0.844 | 0.033 | 0.047 |
+| marital_status | 7 | 0.812 | 0.844 | 0.032 | 0.047 |
 | citizenship_status | 4 | 0.814 | 0.832 | 0.018 | 0.022 |
 | newcomer_program_flag | 2 | 0.801 | 0.831 | 0.030 | 0.022 |
 | accessibility_needs_flag | 2 | 0.828 | 0.846 | 0.018 | 0.008 |
