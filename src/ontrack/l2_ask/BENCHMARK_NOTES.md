@@ -41,7 +41,7 @@ R = refuse · D = data (SQL) · Doc = documents · T = transcript. Tables are da
 | BQ-003 | dev | D | **promises_to_pay** | broken rate by `least(prior_broken_ptp_count,3)`; denominator = resolved promises |
 | BQ-004 | dev | D | collections_cases | open = `outcome IS NULL`; `avg(current_dpd)` by `queue` |
 | BQ-005 | dev | Doc | POL-COLL-001 §5.3, FAQ Q2 | National DNCL = telemarketing only |
-| BQ-006 | dev | D | contact_history | `dispute_raised_flag`, 15–22 Sep vs 7–14 Sep on `contact_ts_local`; spike after INC-0914 |
+| BQ-006 | dev | D | contact_history | `dispute_raised_flag`, 15–22 Sep vs 7–14 Sep on `contact_ts_local`; spike after INC-0914. Deterministic since G24 (`dispute_window.py`) |
 | BQ-007 | dev | D | **promises_to_pay**, agents | `coalesce(site,'self_serve')`; due 1 Jul–28 Sep |
 | BQ-008 | test | D | collections_cases | cure within 30 days of open for July 2026 opens (`cure_flag`, `days_to_cure`) |
 | BQ-009 | test | Doc | POL-COLL-004 / POL-COLL-001 | consumer proposal → insolvency hold, stop collection, refer |
@@ -87,6 +87,28 @@ It is one switch: `ontrack.l2_ask.sql_guard.BLOCKED_TABLES`. **P1 decides.**
 4. Rates exclude open / cancelled promises from the denominator; randomised comparisons use `assignment_method = 'random'`.
 5. Mixed date formats in `account_monthly_snapshot.month_end_date`.
 6. Protected columns and proxies (FSA, postal area) are refused, not answered with a caveat.
+7. **Qualifier vs dataset definition (G24).** "Late-fee disputes raised" = every contact with
+   `contact_history.dispute_raised_flag`. The contact data has no subject field, so the qualifier can't narrow it.
+   Case `dispute_type` describes a case's open dispute, not when one was raised. A fresh run on 4 Oct read "late-fee"
+   literally (`dispute_type = 'late_fee'`: 29 vs 9, not 875 vs 566). BQ-006-style questions now take a deterministic
+   route (`dispute_window.py`, no LLM), and the prompt states the rule for other qualifiers ("billing complaints").
+8. "Outside permitted calling hours" = `NOT within_permitted_hours_flag` (never recomputed from hours); "in the
+   12 months to D" = the day after D minus 12 months through D, inclusive (G24, pins BQ-010 / BQ-015 as answered).
+
+### G24 scan: released questions where a qualifier could be read against the dataset's definition
+
+Routes with the LLM switched off: 20 of the 35 are deterministic (certified, templates, refusals, BQ-006 now). The
+15 on the LLM path, with their risk:
+
+| id | wording that could be misread | dataset definition (pinned by) | risk now |
+|---|---|---|---|
+| BQ-006 | "late-fee disputes raised" | all `dispute_raised_flag` contacts | **none** (deterministic) |
+| BQ-010 | "outside permitted calling hours", "customer province" | `within_permitted_hours_flag`; province from the case | low (prompt rules) |
+| BQ-014 | "randomised pilot", "certified for vulnerable customers", "30-day cure" | `case_assignment_history.assignment_method = 'randomised_pilot'`; direction "Yes" under every cure definition | low (G1 rule) |
+| BQ-015 | "card and loan accounts", "12 months to 28 Sep" | `chargeoff_date` in `card_accounts` + `loan_accounts` (one row per account), 29 Sep 2025 – 28 Sep 2026 | low (prompt rule; test split, hand-checked) |
+| BQ-030 | "outbound call volume" | calls = `coalesce(channel_v2, channel) = 'call'`, outbound | low |
+| BQ-001/002/005/009/019/020/026/033 | policy wording ("mid-stage account", "in a week", "grace period") | current policy wins over FAQ / superseded versions | low (document answers cite doc + section) |
+| BQ-016/021/022 | "most recent recorded call" | latest `call_start_ts` for the case | low (`case_calls` tool) |
 
 ## Dev error analysis (P2-T9)
 
