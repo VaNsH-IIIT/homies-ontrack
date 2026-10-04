@@ -55,8 +55,10 @@ def read_questions(path: Path) -> list[dict]:
     for r in rows_raw[1:]:
         rec = {n: (r[i].strip() if i < len(r) else "") for i, n in enumerate(names)}
         qid = rec["question_id"]
-        if not qid or not rec["question_text"]:
+        if not qid:
             continue
+        if not rec["question_text"]:                 # keep the id: every id the organisers send gets a row
+            print(f"  WARNING: question_id {qid} has no question text: written as 'Not answered'", flush=True)
         if qid in seen:
             print(f"  WARNING: duplicate question_id {qid}: answered once (first occurrence kept)", flush=True)
             continue
@@ -103,7 +105,10 @@ def main(argv: list[str] | None = None) -> int:
         qid = q["question_id"]
         t0 = time.time()
         a = None
-        for attempt in range(1 + args.retries):          # an LLM hiccup must not cost a question
+        if not q.get("question_text"):
+            a = ask.Answer(answer="Not answered: the question text is empty", sql_or_sources="", refused=False,
+                           route="error")
+        for attempt in range(0 if a else 1 + args.retries):   # an LLM hiccup must not cost a question
             try:
                 a = engine.answer(q["question_text"], as_of_date=q.get("as_of_date") or config.SNAPSHOT_DATE,
                                   metric_id=q.get("metric_id") or None, question_id=qid,

@@ -88,3 +88,17 @@ def test_duplicate_id_answered_once(tmp_path, monkeypatch):
     rows = list(csv.DictReader(open(out, encoding="utf-8")))
     assert [r["question_id"] for r in rows] == IDS                         # one row per unique id
     assert len(FakeEngine.asked) == 3
+
+
+def test_blank_question_text_still_gets_a_row(tmp_path, monkeypatch):
+    p = tmp_path / "blank.csv"
+    p.write_text(render(HEADER, ROWS + [["BQ-104", "", "", "", "", "", ""]]), encoding="utf-8")
+    out = tmp_path / "answers.csv"
+    monkeypatch.setattr(run_benchmark, "connect", lambda read_only=True: None)
+    monkeypatch.setattr(run_benchmark.ask, "Engine", FakeEngine)
+    monkeypatch.setattr(run_benchmark.config, "WORK_DIR", tmp_path)
+    FakeEngine.asked = []
+    assert run_benchmark.main(["--questions", str(p), "--out", str(out), "--workers", "2"]) == 0
+    rows = {r["question_id"]: r["answer"] for r in csv.DictReader(open(out, encoding="utf-8"))}
+    assert list(rows) == IDS + ["BQ-104"] and rows["BQ-104"].startswith("Not answered")
+    assert len(FakeEngine.asked) == 3                                       # the blank one never reaches the engine
