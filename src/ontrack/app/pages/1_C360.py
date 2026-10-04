@@ -107,10 +107,11 @@ if table_exists("gold", "nba_recommendation"):
         st.caption("Full reasons, blocked actions and accept / edit / reject: search the case id on the Agent card page.")
 
 st.markdown("#### Contact timeline (latest 25)")
-st.dataframe(query("""SELECT contact_ts_utc, channel, direction, outcome_code, rpc_flag, payment_taken_flag,
-                             case_id, note_id, transcript_id
-                      FROM gold.contact_timeline WHERE golden_id = ?
-                      ORDER BY contact_ts_utc DESC LIMIT 25""", [gid]),
+st.dataframe(shown(query("""SELECT strftime(contact_ts_utc, '%Y-%m-%d %H:%M') AS contact_utc, channel, direction,
+                                    outcome_code, rpc_flag AS right_party, payment_taken_flag AS paid,
+                                    case_id, note_id, transcript_id
+                             FROM gold.contact_timeline WHERE golden_id = ?
+                             ORDER BY contact_ts_utc DESC LIMIT 25""", [gid])),
              hide_index=True, width="stretch")
 st.caption("Names, dates of birth and contact details are excluded from gold (restricted PII schema); "
            "an agent sees them only for cases assigned to them.")
