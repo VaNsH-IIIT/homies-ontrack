@@ -24,7 +24,9 @@ All code tasks so far are merged (#15–#28; 231 tests). Until **16:00** we clos
 | G14 | **Garv's Claude** | Recording card for Garv's 16:00 take (clicks, screens, time stamps, pre-flight); warm_demo covers every question shown | Card in `VIDEO_ASK_SEGMENT.md`, step times tested | 10:00 |
 | G15 | **Garv's Claude** | Final regression on `main` after all merges: dev 35 + hard 29 + L1 8 + V8 + mock extras | Scores posted, 0 errors | 10:30 |
 | ✅ K14 | **Kris's Claude** (#32 merged) | Recording card for Kris's 16:00 take; every voice-over number checked on `main`; screens fit 1920×1080 | Card in `VIDEO_AGENT_CARD_SEGMENT.md` | 10:00 |
-| K15 | **Kris's Claude** | Judge fresh-clone re-test on the latest `main` (K9 again) | All OK, `git status` clean | 10:30 |
+| K15 | **Kris's Claude** | Judge fresh-clone re-test on the latest `main` (K9 again), now and again after the 20:00 freeze | All OK, `git status` clean, check_submission passes | 07:30 |
+| K16 | **Kris's Claude** | Peer review of today's P1 changes (app router, C360, Match review, check_submission, deliverable_path, V8 generator) | Findings posted in #13; P1-Claude fixes | 09:00 |
+| K17 | **Kris's Claude** | Test gaps in L4 / L3-structured (coverage); add tests for the important untested functions, no behaviour change | PR with coverage before/after | 10:30 |
 | ✅ C1 | **P1-Claude** (all OK, 06:25) | Full end-to-end run on `main` with all merges (app stopped): run_all, pytest, every page, demo path | All OK, or each break fixed / routed | 08:00 |
 | ✅ C2 | **P1-Claude** (clean; requirements-lock.txt added) | Repo hygiene: no secrets, data or large files; `.gitignore`, requirements | Clean, or fixed | 08:30 |
 
