@@ -1,0 +1,82 @@
+direction: right
+
+title: |md
+  # OnTrack · Collections intelligence
+
+  Team HOmiES · next best action, hardship-first · AI recommends, rules constrain, humans decide
+| {near: top-center}
+
+classes: {
+  layer: {style: {fill: "#F7F9FC"; stroke: "#B8C4D6"; border-radius: 10; font-size: 20; bold: true}}
+  step: {style: {fill: "#FFFFFF"; stroke: "#9AA9BD"; border-radius: 6; font-size: 16}}
+  ai: {style: {fill: "#EAF2FF"; stroke: "#3B6FD8"; border-radius: 6; font-size: 16}}
+  human: {shape: person; width: 70; height: 70; style: {fill: "#FFF4E5"; stroke: "#D98C1F"; font-size: 16}}
+  store: {shape: cylinder; style: {fill: "#F2F2F2"; stroke: "#8C8C8C"; font-size: 16}}
+}
+
+sources: "Maple Bank data\n31 tables · 5 systems\n1M customers" {class: store}
+
+l1: "Layer 1 · Data Product Factory\nVansh · nightly batch" {
+  class: layer
+  grid-columns: 1
+  grid-gap: 12
+  bronze: "Bronze · typed raw tables\nPython · DuckDB" {class: step}
+  silver: "Silver · clean + standardise\nDuckDB SQL" {class: step}
+  match: "Identity resolution\nrules + Splink" {class: ai}
+  gold: "Gold C360\none ID per customer" {class: store}
+  contract: "Data contract (YAML)\n+ quality report" {class: step}
+}
+
+l2: "Layer 2 · Ask\nGarv · real time" {
+  class: layer
+  grid-columns: 1
+  grid-gap: 12
+  guard: "Scope guard · refuse unsafe\nred-team 31/31 refused" {class: step}
+  llm: "Certified SQL templates\n+ Claude (Anthropic)" {class: ai}
+  safe: "SQL guard (sqlglot)\nBM25 search (DuckDB)" {class: step}
+}
+
+l3: "Layer 3 · Feature Store\nKris · Garv · daily" {
+  class: layer
+  grid-columns: 1
+  grid-gap: 12
+  structured: "Structured features\none point-in-time function" {class: step}
+  text: "Text signals (hardship)\nscikit-learn + Claude" {class: ai}
+}
+
+l4: "Layer 4 · Next Best Action\nAnuj · Kris · daily" {
+  class: layer
+  grid-columns: 1
+  grid-gap: 12
+  gate: "Policy gate\nrules, not ML" {class: step}
+  route: "Hardship → a person" {class: step}
+  models: "Models\nLightGBM (calibrated)" {class: ai}
+  rank: "Rank + explain\n3 reasons from SHAP" {class: ai}
+}
+
+people: "People decide" {
+  class: layer
+  grid-columns: 1
+  grid-gap: 12
+  steward: "Data steward" {class: human}
+  analyst: "Analyst" {class: human}
+  agent: "Collections agent\nAgent card (Streamlit)" {class: human}
+}
+
+log: "Decision log\n+ outcomes" {class: store}
+
+sources -> l1
+l1 -> l2
+l1 -> l3
+l3 -> l4
+l4 -> people: "recommendation + reasons"
+l2 -> people: "answer + SQL"
+l1 -> people: "uncertain matches"
+people -> log
+log -> l3: "retraining labels" {style.stroke-dash: 3}
+
+footer: |md
+  **Governance in every layer:** no protected attributes · no personal data in gold · humans review · every decision logged · fairness tested
+
+  **Built with:** Python · DuckDB · Parquet · Splink · scikit-learn · LightGBM · SHAP · sqlglot · Claude · Streamlit · pytest
+| {near: bottom-center}
