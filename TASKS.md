@@ -22,7 +22,7 @@ All code tasks so far are merged (#15–#28; 231 tests). Until **16:00** we clos
 | V12 | **Vansh, after 11:00** | Decide judge access to the private repo | Decisions in #13 | 09:00 |
 | V13 | **Vansh, after 11:00** | Rehearse the P1 voice-overs (0:00–1:15, 4:15–5:00), no recording yet | Read through twice, timed | 16:00 |
 | G14 | **Garv's Claude** | Recording card for Garv's 16:00 take (clicks, screens, time stamps, pre-flight); warm_demo covers every question shown | Card in `VIDEO_ASK_SEGMENT.md`, step times tested | 10:00 |
-| G15 | **Garv's Claude** | Final regression on `main` after all merges: dev 35 + hard 29 + L1 8 + V8 + mock extras | Scores posted, 0 errors | 10:30 |
+| G15 → K21 | **Garv's Claude** | Final regression on `main` after all merges: dev 35 + hard 29 + L1 8 + V8 + mock extras | Scores posted, 0 errors | 10:30 |
 | ✅ G16 | **Kris's Claude** (#37; 343 pass with and without data) | `test_l2_guards.py`: the PII-name test passes with and without the dataset (monkeypatch `sql_guard._TAGGED`; Kris's finding) | `pytest` all pass on a clone with no `.env` and with full data | 10:00 |
 | ✅ K14 | **Kris's Claude** (#32 merged) | Recording card for Kris's 16:00 take; every voice-over number checked on `main`; screens fit 1920×1080 | Card in `VIDEO_AGENT_CARD_SEGMENT.md` | 10:00 |
 | ✅ K15 | **Kris's Claude** | Judge fresh-clone re-test on the latest `main` (K9 again), now and again after the 20:00 freeze | All OK, `git status` clean, check_submission passes | 07:30 |
@@ -30,7 +30,7 @@ All code tasks so far are merged (#15–#28; 231 tests). Until **16:00** we clos
 | ✅ K17 | **Kris's Claude** (#34: ranker 49%→95%) | Test gaps in L4 / L3-structured (coverage); add tests for the important untested functions, no behaviour change | PR with coverage before/after | 10:30 |
 | ✅ K18 | **Kris's Claude** | README as a judge reads it: find each deliverable / result / quick start in 30 s; stale or jargon lines; concrete edits posted for P1 | Suggestions in #13; P1 edits | 09:00 |
 | ✅ K19 | **Kris's Claude** (#35: policy gate 100%, 31/31 mutations) | Coverage for `l3_features/structured` and `policy_gate.py`; tests only, 96,000-row diff proves no behaviour change | PR with coverage before/after | 10:30 |
-| K20 | **Kris's Claude** | Test gaps in P1 code (`l1_factory`, `feedback`), tests only, authorised by P1; bugs posted for P1 to fix | PR with coverage before/after | 11:00 |
+| ✅ K20 | **Kris's Claude** | Test gaps in P1 code (`l1_factory`, `feedback`), tests only, authorised by P1; bugs posted for P1 to fix | PR with coverage before/after | 11:00 |
 | ✅ C1 | **P1-Claude** (all OK, 06:25) | Full end-to-end run on `main` with all merges (app stopped): run_all, pytest, every page, demo path | All OK, or each break fixed / routed | 08:00 |
 | ✅ C2 | **P1-Claude** (clean; requirements-lock.txt added) | Repo hygiene: no secrets, data or large files; `.gitignore`, requirements | Clean, or fixed | 08:30 |
 
