@@ -204,12 +204,12 @@ _Required by the brief. Add a row for every change and why._
 
 Four people, one repo, one plan. Every change went through a pull request, a written check on the full data, and a merge by the lead.
 
-| Member | Role |
-|---|---|
-| **Vansh Jaiswal** (lead) | Layer 1 data product (customer 360, identity resolution, contract, data quality); integration, verification and merging; the problem and data story |
-| **Garv Pratap Singh** | Layer 2 Ask (benchmark runner, SQL guard, refusals, live-question templates); Layer 3 text signals |
-| **Kris Jain** | Layer 3 structured features and Layer 4 next best action (policy gate, models, ranker, agent card, evaluation) |
-| **Anuj Kumar Tiwari** | Worked across all three layers through the team's Claude Code sessions on every machine: testing, rehearsals and reviews; the business story (evaluation, business value, capacity) in the demo video and the pitch |
+| Presents | Member | Work |
+|---|---|---|
+| **Layer 1 · Customer 360** | **Vansh Jaiswal** (lead) | Layer 1 data product (identity resolution, contract, data quality); integration, verification and merging |
+| **Layer 2 · Ask** | **Garv Pratap Singh** | Ask: benchmark runner, SQL guard, refusals, live-question templates; text signals for Layer 3 |
+| **Layer 3 · Feature store** | **Kris Jain** | Point-in-time structured features and the Layer 4 engine (policy gate, models, ranker, agent card, evaluation) |
+| **Layer 4 · Next best action** | **Anuj Kumar Tiwari** | Worked across all layers through the team's Claude Code sessions on every machine (testing, rehearsals, reviews); the Layer 4 and business story in the demo and the pitch |
 
 **Team totals on GitHub** (4 Oct): 230+ commits, 40+ merged pull requests, 150+ review and coordination comments. Commits show the GitHub account of the machine they were made on.
 
