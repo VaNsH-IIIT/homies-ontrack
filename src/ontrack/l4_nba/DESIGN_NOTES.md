@@ -5,7 +5,13 @@ Numbers are from the full data (snapshot 2026-09-28); `EVALUATION.md` has the de
 
 ## Layer 4 at a glance
 
-_Summary by the Layer 4 lead (Anuj Kumar Tiwari)._
+How Layer 4 decides, in five steps (summary by the Layer 4 lead, Anuj Kumar Tiwari):
+
+1. **Rules first.** The policy gate (`policy_gate.py`) removes every action the rules forbid (consent, cease, do-not-call, holds, disputes, contact caps, holidays) before any model runs.
+2. **Who needs a person.** Hardship routing (`hardship.py`) sends financial hardship to the human-only queue, using the case flag, an income shock or the customer's own words in notes and calls. Vulnerability, disputes, complaints and holds also go to a person.
+3. **Models rank what is left.** LightGBM self-cure and payment models, trained on point-in-time snapshots, score each allowed action. The ranker picks the best one within the day's call capacity (`capacity.py`) and gives three plain-English reasons.
+4. **A person decides.** The agent accepts, edits or rejects on the agent card. Every decision and its 30-day outcome becomes a label for the next model (`feedback.py`).
+5. **Checked like with like.** `evaluation.py` compares OnTrack with the bank's own engine on the same cases and date, and checks fairness across protected groups.
 
 ## Pipeline (`python -m ontrack.l4_nba.run`, ~90 s with training)
 
