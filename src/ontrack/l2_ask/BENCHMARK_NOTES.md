@@ -185,7 +185,7 @@ SQL that does not use our templates; key facts + citation for documents and call
 
 ## Backup runner (Garv's machine) (G13, G17): if Vansh's laptop or account fails at 19:00
 
-On Garv's machine (own Claude Code login). Same three steps as `docs/rehearsal/1900_checklist.md`; target: full
+On Garv's machine (own Claude Code login). Same steps as the runbook above; target: full
 answers within 15 minutes. **Nothing touches `submission/benchmark_answers.csv` until step 4.**
 
 ```bash

@@ -245,7 +245,7 @@ Each person owns separate folders, so nobody edits anyone else's code. Shared in
 | **P1** (lead) | Vansh Jaiswal | [@VaNsH-IIIT](https://github.com/VaNsH-IIIT) | **Layer 1** `src/ontrack/l1_factory/`, `src/ontrack/db.py`, `src/ontrack/config.py`, `contracts/`, `docs/`, `scripts/`, `src/ontrack/app/main.py`, `src/ontrack/app/pages/1_*.py`, `README.md`, `TASKS.md` |
 | **P2** | Garv Pratap Singh | [@Gravity006](https://github.com/Gravity006) | **Layer 2** `src/ontrack/l2_ask/`, `benchmark/`, **Layer 3 text features** `src/ontrack/l3_features/text/`, `src/ontrack/app/pages/2_*.py` |
 | **P3** | Kris Jain | [@KJKris05](https://github.com/KJKris05) | **Layer 3 structured features + feature store** `src/ontrack/l3_features/structured/`, **Layer 4 code** `src/ontrack/l4_nba/` (with P4), `src/ontrack/app/pages/3_*.py` |
-| **P4** | Anuj Kumar Tiwari | — | **Layer 4 lead** (next best action): evaluation and business case `src/ontrack/l4_nba/EVALUATION.md`, `src/ontrack/l4_nba/QA_NOTES.md` (with P3); policy gate rules checked against the policy documents; live-question rehearsals and red-team sets `docs/rehearsal/live_*` (with P2); cross-layer testing on all three machines |
+| **P4** | Anuj Kumar Tiwari | [@RDT556](https://github.com/RDT556) | **Layer 4 lead** (next best action): evaluation and business case `src/ontrack/l4_nba/EVALUATION.md`, `src/ontrack/l4_nba/QA_NOTES.md` (with P3); policy gate rules checked against the policy documents; live-question rehearsals and red-team sets `docs/rehearsal/live_*` (with P2); cross-layer testing on all three machines |
 
 Shared files: `requirements.txt` (append only) and `AI_TOOLS.md`.
 
