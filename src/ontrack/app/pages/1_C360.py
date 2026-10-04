@@ -46,6 +46,9 @@ m[5].metric("Lowest match confidence", f"{cust.match_confidence_min:.2f}")
 def shown(df, money=()):
     """For display: money as $1,234.56, empty cells blank instead of None, dates without a time."""
     df = df.copy()
+    for c in df.columns:
+        if str(df[c].dtype).startswith("datetime"):
+            df[c] = df[c].dt.strftime("%Y-%m-%d")
     for c in money:
         df[c] = df[c].map(lambda v: "" if v is None or v != v else f"${v:,.2f}")
     return df.astype(object).where(df.notna(), "").astype(str)
@@ -54,7 +57,7 @@ def shown(df, money=()):
 def chip(ok: bool, yes: str, no: str) -> str:
     return f"🟢 {yes}" if ok else f"🔴 {no}"
 
-st.markdown(" · ".join([
+st.markdown(" · ".join(c for c in [
     chip(cust.consent_call, "call OK", "no call consent"),
     chip(cust.consent_sms, "SMS OK", "no SMS consent"),
     chip(cust.consent_email, "email OK", "no email consent"),
@@ -63,7 +66,7 @@ st.markdown(" · ".join([
     chip(not cust.insolvency_flag, "no insolvency", "insolvency hold"),
     chip(not cust.third_party_hold_flag, "no third-party hold", "third-party hold"),
     "🟠 vulnerable: specialist only" if cust.vulnerability_flag else "",
-]))
+] if c))
 st.caption(f"Province {cust.province_code} · time zone {cust.time_zone} · language {cust.preferred_language} · "
            f"data quality: {cust._dq_status} · loaded {cust._loaded_at:%Y-%m-%d %H:%M}")
 
