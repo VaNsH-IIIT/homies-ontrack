@@ -431,6 +431,11 @@ class Engine:
         from ontrack.l2_ask import explain
         return explain.answer(self, question)
 
+    def template(self, question: str) -> Answer | None:
+        """G23: strict templates for short live data questions over gold (live_templates.py)."""
+        from ontrack.l2_ask import live_templates
+        return live_templates.answer(self, question)
+
     def answer(self, question: str, as_of_date: str = config.SNAPSHOT_DATE, metric_id: str | None = None,
                question_id: str = "", tolerance: str = "", budget_s: float | None = None) -> Answer:
         """budget_s=None (runner): wait for the agent, errors raise so run_benchmark can retry.
@@ -450,6 +455,9 @@ class Engine:
             a = self.certified(u, question)
             if a is not None:
                 return a
+        tpl = self.template(question)                   # G23: common live data questions over gold, no LLM
+        if tpl is not None:
+            return tpl
         if not llm.available():
             if budget_s is not None:
                 return self.fallback(question, u, "unavailable")
