@@ -245,7 +245,7 @@ Each person owns separate folders, so nobody edits anyone else's code. Shared in
 
 | | Name | GitHub | Owns (only this person edits these) |
 |---|---|---|---|
-| **P1** (lead) | Vansh Jaiswal | [@VaNsH-IIIT](https://github.com/VaNsH-IIIT) | **Layer 1** `src/ontrack/l1_factory/`, `src/ontrack/db.py`, `src/ontrack/config.py`, `contracts/`, `docs/`, `scripts/`, `src/ontrack/app/main.py`, `src/ontrack/app/pages/1_*.py`, `README.md`, `TASKS.md` |
+| **P1** (lead) | Vansh Jaiswal | [@VaNsH-IIIT](https://github.com/VaNsH-IIIT) | **Layer 1** `src/ontrack/l1_factory/`, `src/ontrack/db.py`, `src/ontrack/config.py`, `contracts/`, `docs/`, `scripts/`, `src/ontrack/app/main.py`, `src/ontrack/app/pages/1_*.py`, `README.md` |
 | **P2** | Garv Pratap Singh | [@Gravity006](https://github.com/Gravity006) | **Layer 2** `src/ontrack/l2_ask/`, `benchmark/`, **Layer 3 text features** `src/ontrack/l3_features/text/`, `src/ontrack/app/pages/2_*.py` |
 | **P3** | Kris Jain | [@KJKris05](https://github.com/KJKris05) | **Layer 3 structured features + feature store** `src/ontrack/l3_features/structured/`, **Layer 4 engine** `src/ontrack/l4_nba/` policy gate, models, ranker (`policy_gate.py`, `models.py`, `ranker.py`, `run.py`), `src/ontrack/app/pages/3_*.py` |
 | **P4** | Anuj Kumar Tiwari | [@RDT556](https://github.com/RDT556) | **Design lead** (the four-layer architecture in `docs/HOmiES_SystemDesign.pdf`) and **Layer 4 lead** (next best action): hardship routing and capacity `src/ontrack/l4_nba/hardship.py`, `capacity.py`; evaluation and business case `evaluation.py`, `EVALUATION.md`, `QA_NOTES.md`; **feedback loop** `src/ontrack/feedback.py`; live-question rehearsals `scripts/make_live_rehearsal.py`, `docs/rehearsal/live_*` (with P2) |

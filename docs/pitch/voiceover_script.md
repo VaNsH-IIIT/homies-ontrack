@@ -1,14 +1,6 @@
-# Demo video: four voices, one subtitled video (4:52)
+# Demo video script (4:51)
 
-Decided 4 Oct 17:00. P1-Claude recorded the whole video (silent, 1920×1080) on the submission laptop, with **every line
-burned in as a subtitle** and a "Layer N · presenter" tag. Each member records **only their voice** while their part plays. The subtitle is the short version on screen; **say the
-"Say" column in a pitching tone, in your own words if you like**, in the same time window.
-
-**Presenters:** Vansh: Layer 1 · Garv: Layer 2 · Kris: Layer 3 · Anuj: Layer 4. File: `D:/ontrack_work/video/OnTrack_demo_silent.webm`.
-
-**How:** open the video in Clipchamp, play your part, and record audio (Record → Audio) while reading the subtitle on screen.
-Start each line when its subtitle appears (times below). Speak calmly, and pause at the end of each line. Then place each voice under its
-part in one Clipchamp project, export 1080p, and upload as unlisted YouTube or Google Drive (anyone with the link).
+Narration for the demo video: four presenters, one per layer (Vansh: Layer 1 · Garv: Layer 2 · Kris: Layer 3 · Anuj: Layer 4). The video shows each line as a subtitle with a "Layer N · presenter" tag; figures are from the submission build (snapshot 28 Sep 2026).
 
 | Starts | Presenter | On screen (subtitle) | Say (pitch it, in your own voice) |
 |---|---|---|---|
@@ -31,4 +23,3 @@ part in one Clipchamp project, export 1080p, and upload as unlisted YouTube or G
 | 4:33 | Anuj Kumar Tiwari (Layer 4) | Every decision and its outcome becomes a label for the next model. AI recommends, rules constrain, humans decide, and outcomes improve the next recommendation. | And every decision feeds back. What the agent chose, and what happened next, becomes training data for the next model. AI recommends, rules constrain, humans decide. |
 | 4:45 | Anuj Kumar Tiwari (Layer 4) | Thank you. We're Team HOmiES. | Thank you. We're Team HOmiES. |
 
-Recorder: `p1_tools/record_full.py` (P1). Numbers are from the submission build.
