@@ -1,6 +1,6 @@
 """Code .zip for the submission form (owner: P1): exactly the committed files of a git ref, nothing else.
 
-    python scripts/make_submission_zip.py                 # main -> ../HOmiES_OnTrack_code.zip
+    python scripts/make_submission_zip.py                 # fetches, then origin/main -> ../HOmiES_OnTrack_code.zip
     python scripts/make_submission_zip.py --ref HEAD --out D:/HOmiES_OnTrack_code.zip
 
 Uses `git archive`, so data, DuckDB files, .env and anything git-ignored can never end up in the zip. Prints the size
@@ -21,10 +21,12 @@ FORBIDDEN = (".env", ".duckdb", ".parquet")
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Build the code zip for the submission form")
-    ap.add_argument("--ref", default="main")
+    ap.add_argument("--ref", default="origin/main", help="git ref to archive (default: what is on GitHub)")
     ap.add_argument("--out", default=str(REPO.parent / "HOmiES_OnTrack_code.zip"))
     args = ap.parse_args(argv)
     out = Path(args.out)
+    if args.ref.startswith("origin/"):
+        subprocess.run(["git", "fetch", "-q", "origin"], cwd=REPO, check=True)   # the zip matches GitHub, not a stale branch
     subprocess.run(["git", "archive", "--format=zip", f"--prefix=homies-ontrack/", "-o", str(out), args.ref],
                    cwd=REPO, check=True)
     names = zipfile.ZipFile(out).namelist()

@@ -103,7 +103,7 @@ All code tasks so far are merged (#15–#28; 231 tests). Until **16:00** we clos
 | **P2 Garv** | Record the Ask segment (1:15–2:15) at 1080p: `python -m ontrack.l2_ask.warm_demo` first. Send the file (Drive link) to P1 | 4 Oct, by 14:00 |
 | **P3 Kris** | Record the Agent card + evaluation segment (2:15–4:15) at 1080p. Search by `CS-2026-583749`. Send the file to P1 | 4 Oct, by 14:00 |
 | **P1 Vansh** | Clear test decisions; record P1 segments (0:00–1:15, 4:15–5:00); stitch the video to ≤ 5:00; deck → PDF; README: video link, final check | 4 Oct, 14:00–18:30 |
-| **P1 Vansh** (+ Garv on call) | **19:00: final benchmark** with the extra questions: `run_benchmark` on Vansh's laptop (runbook in `BENCHMARK_NOTES.md`), commit `benchmark/answers.csv` exactly as generated | 4 Oct, 19:00–19:45 |
+| **P1 Vansh** (+ Garv on call) | **19:00: final benchmark** with the extra questions: `run_benchmark` on Vansh's laptop (runbook in `BENCHMARK_NOTES.md`), commit `submission/benchmark_answers.csv` exactly as generated | 4 Oct, 19:00–19:45 |
 | **All** | Code freeze 20:00; final `run_all` + submission by **20:30** (30 min buffer before 21:00) | 4 Oct |
 
 ### ✨ Polish tasks: make every part work perfectly (3 Oct night → 4 Oct 14:00)
