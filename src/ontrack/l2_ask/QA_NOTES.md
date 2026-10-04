@@ -68,7 +68,7 @@ Yes, with no LLM, in under a second.
 
 **10. How is hardship found in notes and calls, and how do you know it's right?**
 - **Coverage:** every note and call is scored. Character n-gram logistic regression models are trained on the 500 public labels for notes and 500 for calls: 292,365 notes and 15,003 calls in about 5 minutes. On calls, Claude's result replaces the model's for 787 transcripts. Its evidence quote is kept only if it is found word for word in the cited turn (or in another turn of the same call); otherwise the quote is dropped.
-- **Notes accuracy (5-fold CV):** hardship precision 0.97, recall 0.98. Delay-reason accuracy 0.84.
+- **Notes accuracy (5-fold CV):** hardship precision 0.97, recall 0.97, F1 0.97 (submission build; other builds measure 0.96–0.97 / 0.97–0.98). Delay-reason accuracy 0.84.
 - **Calls accuracy:** the model scores precision 1.00, recall 0.99 (5-fold CV). Claude scores precision 0.98, recall 1.00 on 80 labelled calls, and 98% of its quotes are found in their turn.
 - **Design gate:** recall of at least 0.90 before a text feature ships.
 - **Traceability:** each row records which model produced it and its evidence.
