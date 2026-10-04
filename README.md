@@ -188,10 +188,10 @@ _Required by the brief. Add a row for every change and why._
 | **"Explain" answers** (one-sentence conclusion + supporting table + SQL) for why / does-X-beat-Y questions | Tables alone lost the conclusion (BQ-030 incident, BQ-014 direction of effect) | P2 |
 | **Training rows are point-in-time snapshots** (cases open at monthly `as_of` dates, labels after `as_of`) | The first version leaked (AUC 0.96 / 0.997). Now self-cure AUC 0.83, above the bank's own model (0.72) on the same cases. | P3 |
 | **Channel response measured from contact history, not uplift models** | The no-contact holdout still received contacts, so clean per-channel uplift can't be estimated. Measured response and unit costs are used, and likely self-cures are left alone. | P3 |
-| **Call capacity is a hard limit** (5,037 a day from `channel_capacity`) | Payment links convert ~4x better per contact at a fraction of the cost. Calls go to the most dollars at risk where contact hasn't worked. | P3 |
-| **Hardship separated from human review** | Financial hardship gets `hardship_referral`. Vulnerability, disputes, complaints, holds and cease requests need a person but aren't hardship. Disputes from notes and calls are routed even without hardship. | P3 |
+| **Call capacity is a hard limit** (5,037 a day from `channel_capacity`) | Payment links convert ~4x better per contact at a fraction of the cost. Calls go to the most dollars at risk where contact hasn't worked. | P3, P4 |
+| **Hardship separated from human review** | Financial hardship gets `hardship_referral`. Vulnerability, disputes, complaints, holds and cease requests need a person but aren't hardship. Disputes from notes and calls are routed even without hardship. | P4 |
 | **Template reasons from SHAP contributions**, not LLM narration | Fast, deterministic and auditable. Whole numbers, and never contradicting their own value. | P3 |
-| **Language of service and autodialer consent don't block calls** | They change who calls and how. Blocking would treat customers differently. | P3 |
+| **Language of service and autodialer consent don't block calls** | They change who calls and how. Blocking would treat customers differently. | P4 |
 | **Province codes standardised in silver** (`Ont.`, `B.C.`, `Alta.`, `Quebec`, `PQ`, … → 2-letter codes) | Found by P2's Ask rehearsal on 4 Oct: 10,657 CRM records used non-standard forms, so province groupings undercounted. Fixed at the source and counted as DQ issue 20. | P1 |
 | **Contract rule Q7 covers every gold table**, not only `c360_customer` | A protected or direct-PII column copied upstream into any gold table now fails the build (suggested in P3's review). | P1 |
 | **A run never overwrites the submitted files unless asked** (`run_all --update-deliverables`) | A judge's run on the sample or without an LLM would otherwise replace `submission/benchmark_answers.csv` and the DQ report in their clone (found in P3's fresh-clone test). | P1 |
@@ -205,12 +205,18 @@ Four people, one repo, one plan. Every change went through a pull request, a wri
 
 | Presents | Member | Work |
 |---|---|---|
-| **Layer 1 · Customer 360** | **Vansh Jaiswal** (lead) | Layer 1 data product (identity resolution, contract, data quality); integration, verification and merging |
-| **Layer 2 · Ask** | **Garv Pratap Singh** | Ask: benchmark runner, SQL guard, refusals, live-question templates; text signals for Layer 3 |
-| **Layer 3 · Feature store** | **Kris Jain** | Point-in-time structured features and the Layer 4 engine (policy gate, models, ranker, agent card, evaluation) |
-| **Layer 4 · Next best action** | **Anuj Kumar Tiwari** | Worked across all layers through the team's Claude Code sessions on every machine (testing, rehearsals, reviews); the Layer 4 and business story in the demo and the pitch |
+| **Layer 1 · Customer 360** | **Vansh Jaiswal** (lead) | Customer 360: identity resolution, data contract, data quality report, steward review; integration, verifying and merging every pull request |
+| **Layer 2 · Ask** | **Garv Pratap Singh** | Ask: certified metrics, guarded SQL, refusals, benchmark runner; hardship and dispute signals from notes and calls for Layer 3 |
+| **Layer 3 · Feature store** | **Kris Jain** | Point-in-time feature store (one function for training and scoring); Layer 4 engine code: policy gate, models, ranker, agent card |
+| **Layer 4 · Next best action** | **Anuj Kumar Tiwari** | Layer 4 evaluation and business case (back-test, fairness, dollar value, capacity); policy gate rules checked against the policy documents; question rehearsals and red-team sets |
 
-**Team totals on GitHub** (4 Oct): 230+ commits, 40+ merged pull requests, 150+ review and coordination comments. Commits show the GitHub account of the machine they were made on.
+**How the four of us worked together:**
+- Garv, Kris and Vansh each built their layer on a branch, against fixed table interfaces (below), so no one waited on anyone else.
+- Anuj tested the latest `main` on all three machines through the team's Claude Code sessions. He rehearsed unseen and adversarial questions, checked Layer 4 against the policy documents, and reported what he found in the team issue.
+- Vansh verified each pull request on the full data and merged it.
+- Before any number went into the deck or the video, a second member re-checked it.
+
+**Team totals on GitHub** (4 Oct): 230+ commits, 40+ merged pull requests, 150+ review and coordination comments. Commits show the GitHub account of the machine they were made on. Anuj worked on the other members' machines, so his work appears under their accounts.
 
 - **Every PR was tested on the full data before merging:** pytest, the affected pipeline steps, and the pages. `main` is protected, so only the lead merges, after a written check on the PR. A refactor had to prove "no change" by comparing all 96,000 recommendations column by column.
 - **Cross-reviews found real problems,** each fixed with a test:
@@ -239,7 +245,7 @@ Each person owns separate folders, so nobody edits anyone else's code. Shared in
 | **P1** (lead) | Vansh Jaiswal | [@VaNsH-IIIT](https://github.com/VaNsH-IIIT) | **Layer 1** `src/ontrack/l1_factory/`, `src/ontrack/db.py`, `src/ontrack/config.py`, `contracts/`, `docs/`, `scripts/`, `src/ontrack/app/main.py`, `src/ontrack/app/pages/1_*.py`, `README.md`, `TASKS.md` |
 | **P2** | Garv Pratap Singh | [@Gravity006](https://github.com/Gravity006) | **Layer 2** `src/ontrack/l2_ask/`, `benchmark/`, **Layer 3 text features** `src/ontrack/l3_features/text/`, `src/ontrack/app/pages/2_*.py` |
 | **P3** | Kris Jain | [@KJKris05](https://github.com/KJKris05) | **Layer 3 structured features + feature store** `src/ontrack/l3_features/structured/`, **Layer 4 code** `src/ontrack/l4_nba/` (with P4), `src/ontrack/app/pages/3_*.py` |
-| **P4** | Anuj Kumar Tiwari | — | **Layer 4 lead** (next best action): presents and explains Layer 4 (policy gate, models, evaluation, business value, capacity); worked across all layers through the team's Claude Code sessions (testing, rehearsals, reviews) |
+| **P4** | Anuj Kumar Tiwari | — | **Layer 4 lead** (next best action): evaluation and business case `src/ontrack/l4_nba/EVALUATION.md`, `src/ontrack/l4_nba/QA_NOTES.md` (with P3); policy gate rules checked against the policy documents; live-question rehearsals and red-team sets `docs/rehearsal/live_*` (with P2); cross-layer testing on all three machines |
 
 Shared files: `requirements.txt` (append only) and `AI_TOOLS.md`.
 
