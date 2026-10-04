@@ -7,7 +7,7 @@ from datetime import date
 import duckdb
 import pytest
 
-from ontrack.l1_factory.silver import STEPS, dob, phone10, postal6, ALL_DOB_FORMATS
+from ontrack.l1_factory.silver import STEPS, dob, phone10, postal6, province, ALL_DOB_FORMATS
 
 
 @pytest.fixture()
@@ -72,3 +72,13 @@ def test_phone_and_postal_normalisation():
     assert duckdb.sql(f"SELECT {phone10(repr('+1 (416) 555-0199'))}").fetchone()[0] == "4165550199"
     assert duckdb.sql(f"SELECT {postal6(repr('k1a 0b1'))}").fetchone()[0] == "K1A0B1"
     assert duckdb.sql(f"SELECT {postal6(repr(''))}").fetchone()[0] is None
+
+
+@pytest.mark.parametrize("raw,code", [("Ont.", "ON"), ("B.C.", "BC"), ("Alta.", "AB"), ("Quebec", "QC"), ("PQ", "QC"),
+                                      ("Man.", "MB"), ("N.S.", "NS"), (" on ", "ON"), ("YT", "YT")])
+def test_province_variants_become_two_letter_codes(raw, code):
+    assert duckdb.sql(f"SELECT {province(repr(raw))}").fetchone()[0] == code
+
+
+def test_province_null_stays_null():
+    assert duckdb.sql(f"SELECT {province('NULL')}").fetchone()[0] is None

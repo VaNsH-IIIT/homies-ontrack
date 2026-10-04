@@ -33,7 +33,11 @@ if gid.empty:
     st.stop()
 gid = gid.golden_id.iloc[0]
 
-cust = query("SELECT * FROM gold.c360_customer WHERE golden_id = ?", [gid]).iloc[0]
+cust = query("SELECT * FROM gold.c360_customer WHERE golden_id = ?", [gid])
+if cust.empty:
+    st.warning(f"{gid} is linked but has no golden record in this build; rebuild Layer 1.")
+    st.stop()
+cust = cust.iloc[0]
 st.markdown(f"## {gid}")
 m = st.columns(6)
 m[0].metric("Products", int(cust.products_held))

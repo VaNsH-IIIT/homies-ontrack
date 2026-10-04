@@ -9,7 +9,7 @@ On a call they said **"My pay got cut in Aug."** (transcript 4510675).
 | Time | Who | Show | Say |
 |---|---|---|---|
 | 0:00–0:20 | P1 | Deck cover, then the home page | "In collections, one customer's story is split across five systems. OnTrack joins it up, reads hardship out of notes and calls, and recommends the next best action, with a person always making the call." |
-| 0:20–0:40 | P1 | **Home**: 1,015,637 golden customers, Splink precision 99.8% / recall 99.4%, contract 8/8, 19 data issues handled | "Thirty-one raw tables become one trusted customer record. Matching is tested blind on five thousand known links, and the data contract is checked on every build." |
+| 0:20–0:40 | P1 | **Home**: 1,015,637 golden customers, Splink precision 99.8% / recall 99.4%, contract 8/8, 20 data issues handled | "Thirty-one raw tables become one trusted customer record. Matching is tested blind on five thousand known links, and the data contract is checked on every build." |
 | 0:40–1:00 | P1 | **C360** → search `VIB-8709`: 4 source keys with match method and confidence; accounts; the open case | "Here is one customer: a card, a loan, a bank account and the CRM record, each linked with its evidence and confidence. One open case: an auto loan, six days late." |
 | 1:00–1:15 | P1 | **Match review**: pick a grey-zone match, show the masked evidence, approve with a reason | "When the matcher is unsure, it doesn't guess. A data steward sees the evidence, decides, and the next build learns from it." |
 | 1:15–2:15 | P2 | **Ask**: `src/ontrack/l2_ask/VIDEO_ASK_SEGMENT.md` | (Garv's voice-over: certified metric + SQL, change a token, RPC by hour, cited policy answer, refusal) |

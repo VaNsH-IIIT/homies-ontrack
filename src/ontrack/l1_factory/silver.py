@@ -24,6 +24,16 @@ def postal6(expr: str) -> str:
     return f"nullif(upper(regexp_replace({expr}, '[^A-Za-z0-9]', '', 'g')), '')"
 
 
+PROVINCE_VARIANTS = {"ONT.": "ON", "B.C.": "BC", "ALTA.": "AB", "QUEBEC": "QC", "PQ": "QC", "MAN.": "MB", "N.S.": "NS",
+                     "SASK.": "SK", "N.B.": "NB", "NFLD.": "NL", "P.E.I.": "PE"}
+
+
+def province(expr: str) -> str:
+    """Province as the 2-letter code: 'Ont.' -> ON, 'B.C.' -> BC, 'Quebec' / 'PQ' -> QC, ... (DQ issue 20)."""
+    cases = " ".join(f"WHEN '{k}' THEN '{v}'" for k, v in PROVINCE_VARIANTS.items())
+    return f"(CASE upper(trim({expr})) {cases} ELSE upper(trim({expr})) END)"
+
+
 def dob(expr: str, *formats: str) -> str:
     tries = ", ".join(f"try_strptime({expr}, '{f}')" for f in formats)
     return f"CAST(coalesce({tries}) AS DATE)"
@@ -45,7 +55,7 @@ BUREAU_POSTAL = r"regexp_extract(subject_address_reported, '([A-Za-z][0-9][A-Za-
 STEPS = {
     # ---------- CRM: current, non-deleted records (a person may have two CRM records) ----------
     "crm": f"""
-        SELECT c.*,
+        SELECT c.* REPLACE ({province('c.province_code')} AS province_code),
                {norm('last_name')} AS surname_std,
                {norm("split_part(trim(first_name), ' ', 1)")} AS given_std,
                coalesce(date_of_birth, {dob('dob_raw', *ALL_DOB_FORMATS)}) AS dob,
@@ -130,6 +140,12 @@ DQ_CHECKS = [
     ("CRM duplicate person records (duplicate_of_crm_id set)", "customers",
      "SELECT count(*) FROM silver.crm WHERE duplicate_of_crm_id IS NOT NULL",
      "Kept; linked to the surviving record in identity resolution (tier 1)"),
+    ("CRM province written in non-standard forms ('Ont.', 'B.C.', 'Alta.', 'Quebec', 'PQ', 'Man.', 'N.S.')", "customers",
+     "SELECT count(*) FROM bronze.customers WHERE coalesce(is_deleted,false) = false "
+     "AND (effective_to_ts IS NULL OR effective_to_ts >= TIMESTAMP '9999-01-01') "
+     "AND province_code IS NOT NULL AND province_code NOT IN "
+     "('ON','QC','BC','AB','MB','SK','NS','NB','NL','PE','NT','YT','NU')",
+     "Standardised to the 2-letter code in silver.crm (province(), silver.py); found by P2's Ask rehearsal (G12)"),
     ("CRM records without national_id_hash", "customers",
      "SELECT count(*) FROM silver.crm WHERE national_id_hash IS NULL",
      "Matched on name, DOB, phone and postal instead"),

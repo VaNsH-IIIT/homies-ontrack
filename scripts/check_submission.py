@@ -28,6 +28,8 @@ DELIVERABLES = {
     "README": "README.md",
 }
 ANSWER_COLUMNS = ["question_id", "answer", "sql_or_sources", "refused"]
+BLANK_QUESTION_ANSWER = "Not answered: the question text is empty"
+PLACEHOLDERS = re.compile(r"_link added[^_]*_|\[TBD|TBD|TODO")
 TRACKED_FORBIDDEN = re.compile(r"(^|/)\.env$|\.(duckdb|parquet|zip|pkl|joblib)$|^data/")
 
 
@@ -60,7 +62,9 @@ def check_answers(path: Path, question_ids: list[str] | None = None) -> list[str
     empty = [r["question_id"] for r in rows if not r["answer"].strip()]
     if empty:
         problems.append(f"empty answers for {empty}")
-    not_answered = [r["question_id"] for r in rows if r["answer"].startswith("Not answered")]
+    # "Not answered: the question text is empty" is written on purpose for a blank question in the file (G10).
+    not_answered = [r["question_id"] for r in rows
+                    if r["answer"].startswith("Not answered") and r["answer"] != BLANK_QUESTION_ANSWER]
     if not_answered:
         problems.append(f"'Not answered' rows (no LLM or a failure) for {not_answered}")
     if question_ids is not None:
@@ -87,11 +91,15 @@ def main(argv: list[str] | None = None) -> int:
     broken = [t for t in readme_links(readme) if not (REPO / t).exists()]
     results.append((f"README links resolve ({len(readme_links(readme))} relative links)"
                     + (f"; broken: {broken}" if broken else ""), not broken))
+    left = sorted(set(PLACEHOLDERS.findall(readme)))
+    results.append(("README has no placeholders left (TBD, TODO, '_link added …_')"
+                    + (f": {left}" if left else ""), not left))
 
     qids = None
     if args.questions:
-        with open(args.questions, encoding="utf-8-sig", errors="replace", newline="") as f:
-            qids = [r[0].strip() for r in list(csv.reader(f))[1:] if r and r[0].strip()]
+        # the same reader run_benchmark uses: any encoding, delimiter and column order (G10)
+        from ontrack.l2_ask.run_benchmark import read_questions
+        qids = [q["question_id"] for q in read_questions(Path(args.questions))]
     problems = check_answers(REPO / "benchmark" / "answers.csv", qids)
     results.append(("benchmark/answers.csv matches the template" + (f": {'; '.join(problems)}" if problems else ""),
                     not problems))
@@ -102,9 +110,12 @@ def main(argv: list[str] | None = None) -> int:
     except yaml.YAMLError as e:
         results.append((f"data contract YAML parses: {e}", False))
 
-    tracked = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True, text=True).stdout.splitlines()
-    leaked = [t for t in tracked if TRACKED_FORBIDDEN.search(t)]
-    results.append(("no secrets or data files tracked by git" + (f": {leaked}" if leaked else ""), not leaked))
+    try:
+        tracked = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True, text=True).stdout.splitlines()
+        leaked = [t for t in tracked if TRACKED_FORBIDDEN.search(t)]
+        results.append(("no secrets or data files tracked by git" + (f": {leaked}" if leaked else ""), not leaked))
+    except FileNotFoundError:
+        results.append(("no secrets or data files tracked by git: skipped (git not available)", True))
 
     for label, ok in results:
         print(f"  {'OK  ' if ok else 'FAIL'}  {label}")

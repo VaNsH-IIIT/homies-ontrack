@@ -29,7 +29,7 @@ Check the submission in one command: `python scripts/check_submission.py` (deliv
 
 | Layer | Result |
 |---|---|
-| 1 · Customer 360 | 1,015,637 golden customers for 1,000,000 people; probabilistic matching precision 99.8%, recall 99.4% on 5,000 known links; 0 people merged across birthdates; contract 8/8; 19 data issue types handled |
+| 1 · Customer 360 | 1,015,637 golden customers for 1,000,000 people; probabilistic matching precision 99.8%, recall 99.4% on 5,000 known links; 0 people merged across birthdates; contract 8/8; 20 data issue types handled |
 | 2 · Ask | Benchmark dev 21/21; unseen rehearsals 21/21 and 29/29 (typos, French, comparisons, multi-part, tricky refusals); red-team 31/31 refused (incl. 5 prompt-injection attempts), 0 of 14 wrongly refused; SQL guard 10/10; answers identical across 3 fresh runs; 50 questions in 132 s with no cache |
 | 3 · Features | Hardship recall 0.97 in notes, 1.00 in calls; every note and call scored; 8,883 open cases with hardship the case flag missed |
 | 4 · Next best action | Self-cure AUC 0.83 on an unseen month, against 0.72 for the bank's model on the same cases; every action within policy rules and call capacity; hardship and vulnerable customers to a person; about +$163K more expected payments per round of contacts than the bank's current recommendations (conservative: median payment, automated cases only); automated decisions within 5.5 points across protected groups |
