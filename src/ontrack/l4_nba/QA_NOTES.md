@@ -23,8 +23,11 @@ It means: for the same open cases on the same day, OnTrack's recommended contact
 **7. Why does 62% of the open book go to a person?**
 Hardship first: the bank's flag, the customer's own words in notes and calls (nearly 9,000 cases the flag missed), or a payroll income shock. Holds (insolvency, deceased, third-party), cease requests, disputes, complaints and vulnerability also need a person by policy. Each case stores the reason; the split is in §4.
 
-**8. How do you know nothing leaks or drifts between runs?**
+**8. Can agents actually cope with that queue?**
+For new cases, yes. The hardship team works about 336 agent-hours a business day (`agent_shifts`), which is about 2,200 first contacts at the measured 7-minute handle time, or about 760 if a full assessment takes 20 minutes. About 490 new hardship referrals arrive each business day, so new cases are reached within a business day. Today's 46,000 referrals are a one-off backlog: about 27 business days to reach them all at the measured pace. They're worked highest dollars at risk first, so the first week reaches 18% of the cases, holding 57% of the hardship dollars at risk. The other human-only cases go to the existing specialist and stage teams. Those teams gain time because OnTrack recommends only the day's 5,037 calls, where the bank's engine recommends far more than capacity. Not modelled: overtime and repeat contacts. (§4b)
+
+**9. How do you know nothing leaks or drifts between runs?**
 Point-in-time tests on a synthetic database check the population, label windows and the as_of cut-off. Two runs from scratch give identical AUCs and identical recommendations for all 96,000 cases (fixed seeds, ordered inputs, deterministic tie-breaks). (DESIGN_NOTES)
 
-**9. What would you do next?**
+**10. What would you do next?**
 Learn "will they pay if contacted?" from randomised contacts (the champion / challenger cells), so channels get a true uplift; retrain from agents' accept / edit / reject decisions and outcomes; move scoring from daily batch to events.

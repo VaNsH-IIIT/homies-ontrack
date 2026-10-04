@@ -8,7 +8,8 @@ import re
 import pandas as pd
 import streamlit as st
 
-from ontrack.app.common import REASON_CODES, decisions, header, query, record_decision, table_exists
+from ontrack.app.common import REASON_CODES, decisions, get_con, header, query, record_decision, table_exists
+from ontrack.l4_nba.capacity import capacity_sentence, human_capacity
 
 header("Agent card", "Next best action for an open collections case: AI recommends, rules constrain, you decide.")
 
@@ -29,6 +30,15 @@ def md(text) -> str:
     """Free text shown through markdown: Streamlit reads `$...$` as LaTeX, so "the $10,538 stays unpaid ... (calls 3%
     at $2.40)" lost both dollar signs and set the text between them as maths. Escape them (as the Ask page does)."""
     return str(text).replace("$", "\\$")
+
+
+@st.cache_data(show_spinner=False)
+def capacity_line() -> str | None:
+    """Can the hardship team work the queue? (EVALUATION section 4b; None if the shift data is not loaded)."""
+    try:
+        return capacity_sentence(human_capacity(get_con().cursor()))
+    except Exception:
+        return None
 
 
 def clean(row: pd.Series) -> dict:
@@ -63,11 +73,17 @@ with st.expander("Queue overview for supervisors: what the book gets, and who go
     with o2:
         st.markdown("**Human-only queue, by first reason**")
         hq = query("""SELECT routing_category AS reason, count(*) AS cases,
-                             round(100.0 * count(*) / sum(count(*)) OVER (), 1) AS "% of queue"
+                             round(100.0 * count(*) / sum(count(*)) OVER (), 1) AS "% of queue",
+                             round(sum(score)) AS "dollars at risk"
                       FROM gold.nba_recommendation WHERE needs_human_review GROUP BY 1 ORDER BY cases DESC""")
-        st.dataframe(hq.assign(cases=hq["cases"].map("{:,.0f}".format)), hide_index=True, width="stretch")
+        st.dataframe(hq.assign(cases=hq["cases"].map("{:,.0f}".format),
+                               **{"dollars at risk": hq["dollars at risk"].map("${:,.0f}".format)}),
+                     hide_index=True, width="stretch")
         st.caption("Hardship first (case flag, then the customer's own words, then income shock); holds, cease, "
                    "disputes, complaints and vulnerability need a person by policy.")
+        cap = capacity_line()
+        if cap:
+            st.caption(md(cap))
 
 # ---- Find a case ----
 # The demo case exists on the full data; on a smaller dataset (e.g. the 5% dev sample) open the top hardship case
