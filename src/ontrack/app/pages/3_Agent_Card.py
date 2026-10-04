@@ -115,15 +115,18 @@ else:
         where.append("needs_human_review = ?"); params.append(queue_f == "Human-only")
     if cat_f != "All":
         where.append("routing_category = ?"); params.append(cat_f)
+    # numbers stay numbers (formatted by column_config), so clicking a column header sorts by value, not as text
     top = query(f"""SELECT case_id, action, round(score) AS dollars_at_risk,
-                           CASE WHEN p_cure_30d < 0.005 THEN 'under 1%'
-                                ELSE CAST(round(p_cure_30d * 100) AS INT) || '%' END AS self_cure,
+                           round(p_cure_30d * 100, 1) AS self_cure,
                            coalesce(routing_category, 'automated') AS routing
                     FROM gold.nba_recommendation WHERE {' AND '.join(where)}
-                    ORDER BY score DESC LIMIT 200""", params)
-    st.caption("Highest dollars at risk first (overdue x chance it stays unpaid).")
-    st.dataframe(top.assign(dollars_at_risk=top["dollars_at_risk"].map("${:,.0f}".format)),
-                 hide_index=True, width="stretch", height=240)
+                    ORDER BY score DESC, case_id LIMIT 200""", params)
+    st.caption(f"The {len(top):,} cases with the most dollars at risk (overdue x chance it stays unpaid), highest first. "
+               "Click a column header to re-sort them; use the filters above to change which cases are listed.")
+    st.dataframe(top, hide_index=True, width="stretch", height=240, column_config={
+        "dollars_at_risk": st.column_config.NumberColumn("dollars at risk ($)", format="localized"),
+        "self_cure": st.column_config.NumberColumn("self-cure chance (%)", format="%.1f",
+                                                   help="Chance the customer pays without contact within 30 days")})
     if top.empty:
         st.stop()
     case_ids = [st.selectbox("Open case", top["case_id"].tolist())]
