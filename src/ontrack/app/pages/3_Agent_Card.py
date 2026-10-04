@@ -25,6 +25,12 @@ LABEL = {"call": "📞 Call", "sms": "💬 SMS payment link", "email": "✉️ E
 DEMO_CASE = "CS-2026-583749"
 
 
+def md(text) -> str:
+    """Free text shown through markdown: Streamlit reads `$...$` as LaTeX, so "the $10,538 stays unpaid ... (calls 3%
+    at $2.40)" lost both dollar signs and set the text between them as maths. Escape them (as the Ask page does)."""
+    return str(text).replace("$", "\\$")
+
+
 def clean(row: pd.Series) -> dict:
     """NA-safe row: pandas NA / NaN become None, so truth tests never raise."""
     return row.astype(object).where(row.notna(), None).to_dict()
@@ -129,11 +135,11 @@ if r.get("hardship_flag"):
     if r.get("text_evidence"):   # the quote is shown right below: don't repeat it in the banner
         banner = re.sub(r'Customer described hardship in the last 90 days: ".*?"(?=;|$)',
                         "the customer described it in their own words (below)", banner)
-    st.error(f"**Hardship: human decision required.** {banner}", icon="🤝")
+    st.error(f"**Hardship: human decision required.** {md(banner)}", icon="🤝")
     if r.get("text_evidence"):
-        st.markdown(f"> *\"{r['text_evidence']}\"*  \n> — {r.get('text_source') or 'note / call'}")
+        st.markdown(f"> *\"{md(r['text_evidence'])}\"*  \n> — {r.get('text_source') or 'note / call'}")
 elif r.get("needs_human_review"):
-    st.warning(f"**Human review required.** {r.get('routing_reasons') or ''}", icon="🧑‍⚖️")
+    st.warning(f"**Human review required.** {md(r.get('routing_reasons') or '')}", icon="🧑‍⚖️")
 
 left, mid, right = st.columns([1.1, 1.6, 1])
 with left:
@@ -142,14 +148,14 @@ with left:
     st.write(f"Channel: **{r.get('channel') or '-'}**")
     st.write(f"When: **{r.get('time_window') or '-'}**")
     if r.get("service_notes"):
-        st.info(r["service_notes"])
+        st.info(md(r["service_notes"]))
 with mid:
     st.markdown("**Why**")
     for k in ("reason_1", "reason_2", "reason_3"):
         if r.get(k):
-            st.markdown(f"- {r[k]}")
+            st.markdown(f"- {md(r[k])}")
     if r.get("counterfactual"):
-        st.caption(f"↪ {r['counterfactual']}")
+        st.caption(f"↪ {md(r['counterfactual'])}")
 with right:
     st.markdown("**Numbers**")
     st.metric("Overdue now", f"${(r.get('overdue_now') or 0):,.0f}")
@@ -161,7 +167,7 @@ with st.expander(f"Blocked actions ({len((r.get('blocked_actions') or '').split(
     if r.get("blocked_reasons"):
         for item in r["blocked_reasons"].split("; "):
             a, _, why = item.partition(": ")
-            st.markdown(f"- **{a}**: {why}")
+            st.markdown(f"- **{a}**: {md(why)}")
     else:
         st.write("Nothing is blocked for this case.")
     st.caption(f"Allowed: {r.get('allowed_actions')}")
