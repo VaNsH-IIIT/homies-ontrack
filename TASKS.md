@@ -30,6 +30,7 @@ All code tasks so far are merged (#15–#28; 231 tests). Until **16:00** we clos
 | ✅ K17 | **Kris's Claude** (#34: ranker 49%→95%) | Test gaps in L4 / L3-structured (coverage); add tests for the important untested functions, no behaviour change | PR with coverage before/after | 10:30 |
 | ✅ K18 | **Kris's Claude** | README as a judge reads it: find each deliverable / result / quick start in 30 s; stale or jargon lines; concrete edits posted for P1 | Suggestions in #13; P1 edits | 09:00 |
 | ✅ K19 | **Kris's Claude** (#35: policy gate 100%, 31/31 mutations) | Coverage for `l3_features/structured` and `policy_gate.py`; tests only, 96,000-row diff proves no behaviour change | PR with coverage before/after | 10:30 |
+| K20 | **Kris's Claude** | Test gaps in P1 code (`l1_factory`, `feedback`), tests only, authorised by P1; bugs posted for P1 to fix | PR with coverage before/after | 11:00 |
 | ✅ C1 | **P1-Claude** (all OK, 06:25) | Full end-to-end run on `main` with all merges (app stopped): run_all, pytest, every page, demo path | All OK, or each break fixed / routed | 08:00 |
 | ✅ C2 | **P1-Claude** (clean; requirements-lock.txt added) | Repo hygiene: no secrets, data or large files; `.gitignore`, requirements | Clean, or fixed | 08:30 |
 
