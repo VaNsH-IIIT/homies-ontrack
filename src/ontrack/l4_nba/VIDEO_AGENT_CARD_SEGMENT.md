@@ -14,7 +14,7 @@ with the measured time from click to finished screen. Total target **≤ 2:00**.
 2. `.venv\Scripts\python -m ontrack.l4_nba.run --score-only` (about 60 s; the card then matches `main`)
 3. Old test decisions show up in the history table: if you see any, close the app and delete
    `D:\ontrack_work\decisions.duckdb` (local file, recreated empty)
-4. `.venv\Scripts\streamlit run src/ontrack/app/main.py --client.toolbarMode minimal` (hides the "Deploy" button)
+4. `.venv\Scripts\streamlit run src/ontrack/app/main.py --client.toolbarMode viewer` (hides the "Deploy" button; same flag as the rest of the video)
 5. Browser: open `http://localhost:8501/Agent_Card`, press **F11** (full screen, 1920×1080), zoom **110%** (Ctrl + `+`),
    wait until the case card is shown. Second tab: `EVALUATION.md` on GitHub (sections 2, 2b and 5)
 6. Windows: notifications off (Do not disturb), close other apps; record with **Win+Alt+R** (mic: **Win+Alt+M**)
