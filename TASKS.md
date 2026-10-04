@@ -17,9 +17,9 @@ Judging: technical quality and working demo (incl. benchmark and **live unseen q
 | K24 | **Kris's Claude** | `$` escaping on the Agent card (as in #41) | Email/SMS cases render dollars correctly | 14:00 |
 | K25 | **Kris's Claude** | "62% go to a person: can agents cope?": human queue by reason and dollars, priority order, workload vs capacity, 1-business-day feasibility (EVALUATION + supervisor view + QA_NOTES) | Generated section + card line | 15:30 |
 | K26 | **Kris's Claude** | Run P1's live-question set through Ask on Kris's allowance; misses to Garv | Score table posted | 15:30 |
-| V14 | **P1-Claude** | Live-question set (~30 judge-style questions, all layers, answers from independent SQL) | In `docs/rehearsal/` | 14:15 |
-| V15 | **P1-Claude** | `docs/QA_L1.md`: Layer 1 judge Q&A | One page | 15:00 |
-| V16 | **P1-Claude** | README "How we worked" with real numbers (PRs, reviews, findings) | In README | 15:00 |
+| ✅ V14 | **P1-Claude** | Live-question set (~30 judge-style questions, all layers, answers from independent SQL) | In `docs/rehearsal/` | 14:15 |
+| ✅ V15 | **P1-Claude** | `docs/QA_L1.md`: Layer 1 judge Q&A | One page | 15:00 |
+| ✅ V16 | **P1-Claude** | README "How we worked" with real numbers (PRs, reviews, findings) | In README | 15:00 |
 
 ## 🎯 Final hardening until 16:00 (posted 4 Oct, 06:15 IST): read this first
 
