@@ -1,6 +1,6 @@
 # Demo video (team copy)
 
-- **`OnTrack_demo_final_silent.webm`**: the final demo video (4:51, 1920×1080). Silent, with the exact voice-over lines
+- **`OnTrack_demo_final_silent.mp4`**: the final demo video (4:51, 1920×1080, H.264). Silent, with the exact voice-over lines
   burned in as subtitles and a "Layer N · presenter" tag. Presenters: Vansh (Layer 1), Garv (Layer 2), Kris (Layer 3),
   Anuj (Layer 4).
 - **`voiceover_timeline.txt`**: every line with its start time; the same lines are in
