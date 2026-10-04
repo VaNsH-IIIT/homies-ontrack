@@ -59,13 +59,15 @@ PRODUCT_CODES = {"card": 1, "personal_loan": 2, "overdraft": 3, "auto_loan": 4, 
 OPEN_REASON_CODES = {"missed_payment": 1, "returned_pad": 2, "overlimit": 3, "manual": 4}
 
 # Helper tables, built once per connection as TEMP tables (nothing is written to the shared schemas).
+# Money is summed as DECIMAL(18,2) (every source amount has at most 2 decimals): DOUBLE sums depend on the order
+# DuckDB's threads add them up, which changed a feature in the 16th digit between runs (issue: K20).
 _PREPARE = {
     "_p3_contacts": """
         SELECT t.case_id, t.contact_ts_utc, t.rpc_flag, h.direction,
                (coalesce(h.payment_taken_flag, false) OR coalesce(h.link_payment_flag, false)
                 OR coalesce(h.app_payment_after_contact_flag, false)
                 OR coalesce(h.ivr_self_serve_payment_flag, false)) AS paid,
-               coalesce(h.payment_amount, 0) AS payment_amount,
+               coalesce(h.payment_amount, 0)::DECIMAL(18, 2) AS payment_amount,
                (coalesce(h.link_clicked_flag, false) OR coalesce(h.email_clicked_flag, false)) AS clicked,
                coalesce(h.callback_requested_flag, false) AS callback,
                coalesce(h.hardship_mentioned_flag, false) AS hardship_mentioned,
@@ -90,7 +92,7 @@ _PREPARE = {
     """,
     "_p3_salary": """
         SELECT x.golden_id, strptime(s.credit_month || '-01', '%Y-%m-%d')::DATE AS month_start,
-               max(coalesce(s.gap_flag, false)::INT) AS gap, sum(coalesce(s.credit_amount_total, 0)) AS amount,
+               max(coalesce(s.gap_flag, false)::INT) AS gap, sum(coalesce(s.credit_amount_total, 0)::DECIMAL(18, 2)) AS amount,
                max((s.employer_flag = 'Y')::INT) AS payroll
         FROM bronze.salary_credit_history s
         JOIN gold.customer_xref x ON x.source_system = 'crm' AND x.source_key = s.crm_customer_id
@@ -104,8 +106,10 @@ _PREPARE = {
                             try_strptime(month_end_date::VARCHAR, '%Y%m%d'),
                             try_strptime(month_end_date::VARCHAR, '%m/%d/%Y'),
                             try_strptime(month_end_date::VARCHAR, '%d/%m/%Y'))::DATE AS month_end,
-                   coalesce(balance, 0) AS balance, coalesce(limit_or_original_amount, 0) AS lim,
-                   coalesce(minimum_due, 0) AS minimum_due, coalesce(payment_made, 0) AS payment_made,
+                   coalesce(balance, 0)::DECIMAL(18, 2) AS balance,
+                   coalesce(limit_or_original_amount, 0)::DECIMAL(18, 2) AS lim,
+                   coalesce(minimum_due, 0)::DECIMAL(18, 2) AS minimum_due,
+                   coalesce(payment_made, 0)::DECIMAL(18, 2) AS payment_made,
                    coalesce(dpd, 0) AS dpd, coalesce(overlimit_flag, false) AS overlimit
             FROM bronze.account_monthly_snapshot
         )
@@ -212,7 +216,7 @@ acct_months AS (
 accounts AS (
     SELECT golden_id,
            count(*) FILTER (WHERE rk <= 6 AND min_paid) AS acct_months_min_paid_6m,
-           max(CASE WHEN rk = 1 AND lim > 0 THEN balance / lim END) AS acct_utilisation,
+           max(CASE WHEN rk = 1 AND lim > 0 THEN balance::DOUBLE / lim::DOUBLE END) AS acct_utilisation,
            max(CASE WHEN rk = 1 THEN max_dpd END) AS acct_max_dpd,
            max(CASE WHEN rk = 1 THEN overlimit::INT END) AS acct_overlimit
     FROM acct_months WHERE rk <= 6 GROUP BY 1
@@ -233,7 +237,7 @@ SELECT p.case_id, p.golden_id, p.crm_customer_id, DATE '{as_of}' AS as_of_date,
        coalesce(c.days_since_last_rpc, 999) AS days_since_last_rpc,
        coalesce(c.payments_total, 0) AS payments_total,
        coalesce(c.payments_30d, 0) AS payments_30d,
-       coalesce(c.payment_amount_90d, 0) AS payment_amount_90d,
+       coalesce(c.payment_amount_90d, 0)::DOUBLE AS payment_amount_90d,
        coalesce(c.days_since_last_payment, 999) AS days_since_last_payment,
        coalesce(c.link_clicks_30d, 0) AS link_clicks_30d,
        coalesce(c.callback_requested_30d, 0) AS callback_requested_30d,
@@ -245,7 +249,7 @@ SELECT p.case_id, p.golden_id, p.crm_customer_id, DATE '{as_of}' AS as_of_date,
        b.inquiries_hard_6m AS bureau_inquiries_6m,
        b.bureau_age_days,
        coalesce(s.gap3, 0) AS salary_gap_months_3m,
-       CASE WHEN s.prior > 0 THEN (s.recent - s.prior) / s.prior END AS salary_drop_pct,
+       CASE WHEN s.prior > 0 THEN ((s.recent - s.prior) / s.prior)::DOUBLE END AS salary_drop_pct,
        coalesce(s.has_payroll, 0) AS has_payroll,
        a.acct_months_min_paid_6m, a.acct_utilisation, a.acct_max_dpd, a.acct_overlimit,
        h.best_rpc_hour
