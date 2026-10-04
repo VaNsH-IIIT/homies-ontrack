@@ -1,6 +1,6 @@
 """Score an answers file against the dev gold answers (owner: P2).
 
-    python -m ontrack.l2_ask.score_dev                        # benchmark/answers.csv vs labels/benchmark_dev_answers.csv
+    python -m ontrack.l2_ask.score_dev                        # submission/benchmark_answers.csv vs labels/benchmark_dev_answers.csv
     python -m ontrack.l2_ask.score_dev --answers other.csv -v # show every miss
 
 Our approximation of the organisers' automatic scoring (release README):
@@ -120,7 +120,7 @@ def score_document(gold: str, gold_sources: str, ours: str, our_sources: str) ->
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Score answers against dev gold")
-    ap.add_argument("--answers", default=str(config.REPO_ROOT / "benchmark" / "answers.csv"))
+    ap.add_argument("--answers", default=str(config.REPO_ROOT / "submission" / "benchmark_answers.csv"))
     ap.add_argument("--gold", default=str(config.DATA_DIR / "labels" / "benchmark_dev_answers.csv"))
     ap.add_argument("--questions", default=str(config.DATA_DIR / "data" / "benchmark_questions.csv"))
     ap.add_argument("-v", "--verbose", action="store_true")

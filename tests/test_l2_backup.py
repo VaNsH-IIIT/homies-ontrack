@@ -34,3 +34,15 @@ def test_validate_ok_with_everything_present(tmp_path):
     out.write_text('"question_id","answer","sql_or_sources","refused"\n"BQ-001","a","S","false"\n'
                    '"XQ-1","b","S","true"\n', encoding="utf-8")
     assert backup_run.validate(q, out, required=["BQ-001"]) == []
+
+
+def test_official_answers_file_is_where_the_organisers_want_it():
+    """G25: the committed answers live at submission/benchmark_answers.csv in the template format, and every
+    tool defaults to that path (run_benchmark --out, score_dev --answers, backup_run's copy step)."""
+    from ontrack import config
+    from ontrack.l2_ask import run_benchmark
+    assert run_benchmark.ANSWERS == config.REPO_ROOT / "submission" / "benchmark_answers.csv"
+    assert run_benchmark.ANSWERS.exists()
+    with open(run_benchmark.ANSWERS, encoding="utf-8", newline="") as f:
+        assert next(csv.reader(f)) == run_benchmark.FIELDS
+    assert not (config.REPO_ROOT / "benchmark" / "answers.csv").exists()

@@ -1,8 +1,8 @@
 """Answer a whole benchmark question file in one command (owner: P2).
 
-    python -m ontrack.l2_ask.run_benchmark --questions <csv> --out benchmark/answers.csv
-    python -m ontrack.l2_ask.run_benchmark --questions <csv> --out benchmark/answers.csv --only BQ-004,BQ-035
-    python -m ontrack.l2_ask.run_benchmark --questions <csv> --out benchmark/answers.csv --retry-failed --workers 2
+    python -m ontrack.l2_ask.run_benchmark --questions <csv> --out submission/benchmark_answers.csv
+    python -m ontrack.l2_ask.run_benchmark --questions <csv> --out submission/benchmark_answers.csv --only BQ-004,BQ-035
+    python -m ontrack.l2_ask.run_benchmark --questions <csv> --out submission/benchmark_answers.csv --retry-failed --workers 2
 
 Always writes one row per question, in question order, in the template format
 (question_id, answer, sql_or_sources, refused). A question that fails still gets a row, so the file is
@@ -26,6 +26,8 @@ from ontrack.db import connect
 from ontrack.l2_ask import ask, llm
 
 FIELDS = ["question_id", "answer", "sql_or_sources", "refused"]
+# The official answers file (organisers' required path, G25): the 35 released + the extra questions.
+ANSWERS = config.REPO_ROOT / "submission" / "benchmark_answers.csv"
 trace_lock = threading.Lock()
 FAILED_PREFIXES = ("Could not answer", "Not answered", "Could not run")
 
@@ -70,7 +72,7 @@ def read_questions(path: Path) -> list[dict]:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Answer benchmark questions")
     ap.add_argument("--questions", default=str(config.DATA_DIR / "data" / "benchmark_questions.csv"))
-    ap.add_argument("--out", default=str(config.REPO_ROOT / "benchmark" / "answers.csv"))
+    ap.add_argument("--out", default=str(ANSWERS))
     ap.add_argument("--only", default="", help="comma-separated question_ids to run (others are kept from --out)")
     ap.add_argument("--no-cache", action="store_true", help="ignore cached LLM responses")
     ap.add_argument("--workers", type=int, default=4, help="questions answered in parallel")
