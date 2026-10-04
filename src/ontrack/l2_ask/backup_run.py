@@ -79,7 +79,9 @@ def preflight(questions: Path, check_llm: bool) -> bool:
 
 def validate(questions: Path, out: Path) -> list[str]:
     from ontrack.l2_ask import run_benchmark
-    ids = [q["question_id"] for q in run_benchmark.read_questions(questions)]
+    qs = run_benchmark.read_questions(questions)
+    ids = [q["question_id"] for q in qs]
+    blank = {q["question_id"] for q in qs if not q.get("question_text")}   # G10 writes these as "Not answered"
     with open(out, encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
         cols = reader.fieldnames or []
@@ -91,7 +93,11 @@ def validate(questions: Path, out: Path) -> list[str]:
     if got != ids:
         problems.append(f"ids differ: missing {sorted(set(ids) - set(got))}, extra {sorted(set(got) - set(ids))}, "
                         f"duplicates {sorted({i for i in got if got.count(i) > 1})}")
-    failed = [r["question_id"] for r in rows if r["answer"].startswith(FAILED) or not r["answer"].strip()]
+    failed = [r["question_id"] for r in rows if r["question_id"] not in blank
+              and (r["answer"].startswith(FAILED) or not r["answer"].strip())]
+    if blank:
+        print(f"  WARNING: {len(blank)} question(s) with no text, answered 'Not answered' as expected: "
+              f"{sorted(blank)}")
     if failed:
         problems.append(f"failed or empty answers: {failed}")
     bad_ref = [r["question_id"] for r in rows if r["refused"] not in ("true", "false")]
