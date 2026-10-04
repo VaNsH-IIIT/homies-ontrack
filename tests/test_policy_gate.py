@@ -4,6 +4,7 @@ import datetime as dt
 import pytest
 
 from ontrack.l4_nba.policy_gate import (
+    ACTIONS,
     ActionResult,
     check_cease_communication,
     check_consent,
@@ -294,3 +295,141 @@ class TestNeedsHumanReview:
         flag, reason = needs_human_review(base_row())
         assert flag is False
         assert reason is None
+
+
+# --- K19: branches that matter, and the summary over a database ---
+
+OUTBOUND = {"call", "sms", "email", "push_notification", "reminder_letter"}
+
+
+def _blocked(row, ts=None) -> set[str]:
+    return set(get_allowed_actions(row, ts)[1])
+
+
+class TestMissingValues:
+    """289 open cases on the full data have no consent or hold values (no CRM record): the ranker passes None."""
+
+    def test_missing_consent_means_no_consent(self):
+        assert _blocked({}) == {"call", "sms", "email", "push_notification"}
+        assert _blocked(base_row(consent_call=None, consent_sms=None)) == {"call", "sms"}
+
+    def test_missing_flags_do_not_block(self):
+        row = base_row(**{k: None for k in ("cease_communication_flag", "insolvency_flag", "deceased_flag",
+                                            "third_party_hold_flag", "dispute_flag", "hardship_flag",
+                                            "contacts_last_7d", "contact_cap_7d")})
+        assert _blocked(row) == set()
+        assert needs_human_review(row) == (False, None)
+
+    def test_missing_language_and_autodialer_notes(self):
+        assert service_notes(base_row(preferred_language=None)) == []
+        assert service_notes(base_row(consent_autodialer=None)) == ["No autodialer consent: agent dials manually"]
+        assert service_notes(base_row(preferred_language="fr-CA"))[0].startswith("Serve in French")
+
+
+class TestWhatEachHoldBlocks:
+    def test_cease_blocks_every_outbound_action_and_the_specialist(self):
+        assert _blocked(base_row(cease_communication_flag=True)) == OUTBOUND | {"specialist_agent"}
+
+    def test_insolvency_blocks_the_same_set_with_a_trustee_reason(self):
+        allowed, blocked, reasons = get_allowed_actions(base_row(insolvency_flag=True))
+        assert set(blocked) == OUTBOUND | {"specialist_agent"}
+        assert "trustee" in reasons["call"][0]
+
+    def test_deceased_blocks_hardship_referral_too(self):
+        assert _blocked(base_row(deceased_flag=True)) == set(ACTIONS) - {"do_nothing"}
+
+    def test_dispute_or_counselling_blocks_outbound_but_not_a_person(self):
+        for flag in ("dispute_flag", "credit_counselling_agency_flag"):
+            assert _blocked(base_row(**{flag: True})) == OUTBOUND
+
+    def test_hardship_or_vulnerability_blocks_call_and_sms_only(self):
+        for flag in ("hardship_flag", "vulnerability_flag"):
+            assert _blocked(base_row(**{flag: True})) == {"call", "sms"}
+
+
+class TestContactCap:
+    def test_default_cap_is_7(self):
+        row = base_row(contacts_last_7d=6)
+        del row["contact_cap_7d"]
+        assert _blocked(row) == set()
+        assert _blocked({**row, "contacts_last_7d": 7}) == OUTBOUND
+
+    def test_case_specific_cap(self):
+        assert _blocked(base_row(contacts_last_7d=3, contact_cap_7d=3)) == OUTBOUND
+        assert _blocked(base_row(contacts_last_7d=2, contact_cap_7d=3)) == set()
+
+    def test_cap_reason_says_how_many(self):
+        reasons = get_allowed_actions(base_row(contacts_last_7d=9))[2]
+        assert reasons["sms"] == ["Contact cap reached (9/7 contacts in last 7 days)"]
+
+
+class TestTimeRules:
+    def test_start_hour_is_inclusive_end_hour_exclusive(self):
+        assert check_permitted_hours(base_row(), dt.datetime(2026, 10, 1, 8, 0)) == []
+        assert check_permitted_hours(base_row(), dt.datetime(2026, 10, 1, 20, 59)) == []
+        assert [b[0] for b in check_permitted_hours(base_row(), dt.datetime(2026, 10, 1, 21, 0))] == ["call"]
+
+    def test_only_calls_are_time_restricted(self):
+        sunday_night = dt.datetime(2026, 10, 4, 23, 0)
+        assert _blocked(base_row(sunday_contact_permitted=False), sunday_night) == {"call"}
+
+    def test_holiday_accepts_a_plain_date(self):
+        assert [b[0] for b in check_stat_holidays(base_row(), dt.date(2026, 10, 12))] == ["call"]   # Thanksgiving
+
+    def test_holiday_on_a_sunday_gives_both_reasons(self, monkeypatch):
+        import ontrack.l4_nba.policy_gate as pg
+        monkeypatch.setattr(pg, "CANADA_STAT_HOLIDAYS_2026", {dt.date(2026, 10, 4)})   # no 2026 holiday is a Sunday
+        reasons = [b[1] for b in pg.check_stat_holidays(base_row(sunday_contact_permitted=False),
+                                                        dt.datetime(2026, 10, 4, 12))]
+        assert reasons == ["Statutory holiday (2026-10-04) — no outbound calls",
+                           "Sunday contact not permitted for this customer"]
+
+
+class TestEvaluateMechanics:
+    def test_duplicate_reasons_kept_once_and_unknown_actions_ignored(self, monkeypatch):
+        import ontrack.l4_nba.policy_gate as pg
+        monkeypatch.setattr(pg, "ALL_RULES", [lambda r: [("call", "X"), ("call", "X"), ("teleport", "Y")]])
+        results = pg.evaluate(base_row())
+        assert results["call"].reasons == ["X"] and not results["call"].allowed
+        assert set(results) == set(ACTIONS)
+
+    def test_time_rules_are_skipped_without_a_timestamp(self):
+        assert _blocked(base_row(sunday_contact_permitted=False, permitted_call_start_local="23:00")) == set()
+
+    def test_first_matching_rule_gives_the_review_reason(self):
+        flag, reason = needs_human_review(base_row(cease_communication_flag=True, hardship_flag=True))
+        assert flag and reason.startswith("Hardship")
+        assert needs_human_review(base_row(complaint_flag=True))[1].startswith("Complaint")
+
+
+def test_build_gate_for_cases_summary(capsys):
+    import duckdb
+
+    from ontrack import config
+    from ontrack.l4_nba.policy_gate import build_gate_for_cases
+
+    con = duckdb.connect()
+    con.execute("CREATE SCHEMA gold")
+    flags = ("internal_do_not_call_flag", "cease_communication_flag", "insolvency_flag", "deceased_flag",
+             "third_party_hold_flag", "vulnerability_flag")
+    con.execute(f"""CREATE TABLE gold.c360_customer AS SELECT golden_id,
+        true AS consent_call, true AS consent_sms, true AS consent_email, true AS consent_push,
+        true AS consent_autodialer, {", ".join(f"false AS {f}" for f in flags)},
+        'EN' AS preferred_language, 'ON' AS province_code, 'America/Toronto' AS time_zone
+        FROM (VALUES ('G1'), ('G2')) t(golden_id)""")
+    con.execute("""CREATE TABLE gold.case_360 AS SELECT * FROM (VALUES
+        ('K1', 'G1', NULL::BOOLEAN, false, NULL),     -- fully permissive: 8 of 8 allowed
+        ('K2', 'G2', false, false, NULL),             -- 7 contacts this week: outbound blocked, 3 allowed
+        ('K3', 'G9', false, false, NULL),             -- no customer record: no consent, 4 allowed
+        ('K4', 'G1', false, false, 'paid')            -- closed: not counted
+    ) t(case_id, golden_id, hardship_flag, complaint_flag, outcome)""")
+    snap = dt.date.fromisoformat(config.SNAPSHOT_DATE)
+    con.execute("CREATE TABLE gold.contact_timeline (case_id VARCHAR, contact_ts_utc TIMESTAMP)")
+    for d in range(7):
+        con.execute("INSERT INTO gold.contact_timeline VALUES ('K2', ?)", [dt.datetime.combine(snap, dt.time(9)) - dt.timedelta(days=d)])
+    con.execute("INSERT INTO gold.contact_timeline VALUES ('K1', ?)", [dt.datetime.combine(snap, dt.time(9)) - dt.timedelta(days=8)])
+
+    build_gate_for_cases(con)
+    out = capsys.readouterr().out
+    assert "Policy gate: 3 open cases" in out
+    assert "Average allowed actions: 5.0 / 8" in out and "Average blocked actions: 3.0 / 8" in out
