@@ -48,8 +48,19 @@ def test_guard_allows_and_caps_rows():
     assert "HAVING" in out.upper()                     # minimum group size added
 
 
-def test_guard_allows_harmless_columns_with_pii_like_names():
+def test_guard_allows_harmless_columns_with_pii_like_names(monkeypatch):
+    # With the data dictionary's tags (normal case), consent_email is not PII even though its name contains "email".
+    from ontrack.l2_ask import sql_guard
+    monkeypatch.setattr(sql_guard, "_TAGGED", {"email", "first_name", "primary_phone_e164"})
     check("SELECT count(*) FROM bronze.customers WHERE consent_email", SCHEMA, min_group=0)
+
+
+def test_guard_falls_back_to_name_pattern_without_dictionary(monkeypatch):
+    # Without schema.json (fresh clone, no dataset) the name pattern is the safety net: PII-looking names are blocked.
+    from ontrack.l2_ask import sql_guard
+    monkeypatch.setattr(sql_guard, "_TAGGED", set())
+    with pytest.raises(GuardError):
+        check("SELECT count(*) FROM bronze.customers WHERE consent_email", SCHEMA, min_group=0)
 
 
 def test_guard_allows_ctes_and_subqueries():
