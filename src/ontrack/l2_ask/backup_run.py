@@ -4,7 +4,7 @@
 
 The released 35 are always kept: the organisers' file is merged after them (ids once, released first), and the
 output is checked to contain every released id. Only after check_submission passes is the scratch file copied to
-benchmark/answers.csv.
+submission/benchmark_answers.csv (the organisers' required path).
 
 Steps (each one prints OK or what to fix):
   1. preflight: data folder, database with bronze + gold tables, search index (built if missing), LLM access
@@ -141,7 +141,7 @@ def validate(questions: Path, out: Path, required: list[str] | None = None) -> l
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Backup runner for the 19:00 benchmark")
     ap.add_argument("--questions", required=True)
-    ap.add_argument("--out", default=str(config.WORK_DIR / "outputs" / "answers.csv"))
+    ap.add_argument("--out", default=str(config.WORK_DIR / "outputs" / "benchmark_answers.csv"))
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--rounds", type=int, default=3, help="retry rounds for failed questions")
     ap.add_argument("--skip-llm-check", action="store_true")
@@ -186,9 +186,9 @@ def main(argv=None) -> int:
     step("5/5 next steps")
     print("  python -m ontrack.l2_ask.score_dev --answers " + str(out) + "     # dev should still be 21/21")
     print(f"  python scripts/check_submission.py --questions {questions} --answers {out}")
-    if out.resolve() != (config.REPO_ROOT / "benchmark" / "answers.csv").resolve():
-        print(f"  copy {out} benchmark/answers.csv    # the file exactly as generated; never hand-edit")
-    print("  git checkout -b p2/final-answers && git add benchmark/answers.csv && "
+    if out.resolve() != run_benchmark.ANSWERS.resolve():
+        print(f"  copy {out} submission/benchmark_answers.csv    # the file exactly as generated; never hand-edit")
+    print("  git checkout -b p2/final-answers && git add submission/benchmark_answers.csv && "
           "git commit -m \"Benchmark: final answers\" && git push -u origin p2/final-answers")
     print("  then open the PR and ping Vansh in #13 (main is protected)")
     return 0 if not problems else 1

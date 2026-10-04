@@ -140,9 +140,9 @@ score is optimistic for the LLM path; certified-metric answers are deterministic
 
 ```bash
 git pull && python -m ontrack.l2_ask.search --build          # once, if the search index is missing
-python -m ontrack.l2_ask.run_benchmark --questions <released + extra csv> --out benchmark/answers.csv --workers 6
+python -m ontrack.l2_ask.run_benchmark --questions <released + extra csv> --out submission/benchmark_answers.csv --workers 6
 python -m ontrack.l2_ask.score_dev                            # dev still 21/21?
-git add benchmark/answers.csv && git commit -m "Benchmark: final answers" && git push
+git add submission/benchmark_answers.csv && git commit -m "Benchmark: final answers" && git push
 ```
 
 * Needs an LLM: `ANTHROPIC_API_KEY` in `.env`, or a logged-in Claude Code CLI (`claude`). Cached answers are reused.
@@ -150,7 +150,7 @@ git add benchmark/answers.csv && git commit -m "Benchmark: final answers" && git
   new ids, blank `metric_id`), no cache, Claude Code CLI, `--workers 4`: **50 answers in 132 s, 0 errors**.
 * **If something fails (fallback, in this order):**
   1. Errors in the summary line (`Wrote N answers … (k errors)`): re-run only those, keeping the rest:
-     `python -m ontrack.l2_ask.run_benchmark --questions <csv> --out benchmark/answers.csv --retry-failed --workers 2`
+     `python -m ontrack.l2_ask.run_benchmark --questions <csv> --out submission/benchmark_answers.csv --retry-failed --workers 2`
   2. A Claude usage limit or network drop shows as many errors at once (on 3 Oct a run hit the limit: 13–16 of 35
      failed). Wait for the reset, or switch account / set `ANTHROPIC_API_KEY`, then `--retry-failed` again.
   3. Still failing: `--workers 1` (slower, gentlest on rate limits). Certified-metric questions and rule refusals
@@ -186,19 +186,19 @@ SQL that does not use our templates; key facts + citation for documents and call
 ## Backup runner (Garv's machine) (G13, G17): if Vansh's laptop or account fails at 19:00
 
 On Garv's machine (own Claude Code login). Same three steps as `docs/rehearsal/1900_checklist.md`; target: full
-answers within 15 minutes. **Nothing touches `benchmark/answers.csv` until step 4.**
+answers within 15 minutes. **Nothing touches `submission/benchmark_answers.csv` until step 4.**
 
 ```bash
 export PYTHONIOENCODING=utf-8; git pull                       # latest main
 # 1. clean the organisers' file and ALWAYS put the released 35 first (ids kept once)
 python scripts/normalize_questions.py D:/bench/extra_raw.csv D:/bench/final_questions.csv        --append-released "$MAPLE_DATA_DIR/data/benchmark_questions.csv"
-# 2. answer into a scratch file ($ONTRACK_WORK_DIR/outputs/answers.csv by default)
+# 2. answer into a scratch file ($ONTRACK_WORK_DIR/outputs/benchmark_answers.csv by default)
 python -m ontrack.l2_ask.backup_run --questions D:/bench/final_questions.csv
 # 3. check against the template and every question id
-python scripts/check_submission.py --questions D:/bench/final_questions.csv --answers "$ONTRACK_WORK_DIR/outputs/answers.csv"
+python scripts/check_submission.py --questions D:/bench/final_questions.csv --answers "$ONTRACK_WORK_DIR/outputs/benchmark_answers.csv"
 # 4. only then
-cp "$ONTRACK_WORK_DIR/outputs/answers.csv" benchmark/answers.csv
-git checkout -b p2/final-answers && git add benchmark/answers.csv && git commit -m "Benchmark: final answers"   && git push -u origin p2/final-answers          # main is protected: PR, ping Vansh in #13
+cp "$ONTRACK_WORK_DIR/outputs/benchmark_answers.csv" submission/benchmark_answers.csv
+git checkout -b p2/final-answers && git add submission/benchmark_answers.csv && git commit -m "Benchmark: final answers"   && git push -u origin p2/final-answers          # main is protected: PR, ping Vansh in #13
 ```
 
 **Two safety nets in `backup_run` (G17)**, so the released questions can't be dropped even if step 1 is skipped:
