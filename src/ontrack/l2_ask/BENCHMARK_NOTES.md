@@ -161,21 +161,35 @@ SQL that does not use our templates; key facts + citation for documents and call
 | BQ-027 | `sum(contact_cost_cad)/count(*)` by channel, system events excluded, channel_v2 coalesced | ✅ |
 | BQ-030 | dialer outage INC-0923, ~60% capacity cut, calls 3,044 / 3,126 vs ~7,300 | ✅ |
 
-## Backup runner (Garv's machine) (G13): if Vansh's laptop or account fails at 19:00
+## Backup runner (Garv's machine) (G13, G17): if Vansh's laptop or account fails at 19:00
 
-On Garv's machine (own Claude Code login), one command; target: full `answers.csv` within 15 minutes.
+On Garv's machine (own Claude Code login). Same three steps as `docs/rehearsal/1900_checklist.md`; target: full
+answers within 15 minutes. **Nothing touches `benchmark/answers.csv` until step 4.**
 
 ```bash
-git pull                                              # latest main
-python -m ontrack.l2_ask.backup_run --questions <released + extra csv> --out benchmark/answers.csv
+export PYTHONIOENCODING=utf-8; git pull                       # latest main
+# 1. clean the organisers' file and ALWAYS put the released 35 first (ids kept once)
+python scripts/normalize_questions.py D:/bench/extra_raw.csv D:/bench/final_questions.csv        --append-released "$MAPLE_DATA_DIR/data/benchmark_questions.csv"
+# 2. answer into a scratch file ($ONTRACK_WORK_DIR/outputs/answers.csv by default)
+python -m ontrack.l2_ask.backup_run --questions D:/bench/final_questions.csv
+# 3. check against the template and every question id
+python scripts/check_submission.py --questions D:/bench/final_questions.csv --answers "$ONTRACK_WORK_DIR/outputs/answers.csv"
+# 4. only then
+cp "$ONTRACK_WORK_DIR/outputs/answers.csv" benchmark/answers.csv
+git checkout -b p2/final-answers && git add benchmark/answers.csv && git commit -m "Benchmark: final answers"   && git push -u origin p2/final-answers          # main is protected: PR, ping Vansh in #13
 ```
 
-It checks the data folder, database (bronze + gold), search index (builds it if missing), LLM access (one test
-call) and that the questions file is readable; runs `run_benchmark --workers 4`; re-runs only failed questions up to
-3 rounds with fewer workers; validates one row per unique id, no failed rows, `refused` true/false; prints the git
-steps (branch + PR, main is protected). Exit 0 only when the file is complete.
+**Two safety nets in `backup_run` (G17)**, so the released questions can't be dropped even if step 1 is skipped:
+* it merges the given file after the released 35 by itself (released first, ids once; `--no-append-released` turns
+  this off, only for a file that already is the full set);
+* `validate()` fails if any released id (BQ-001 … BQ-035, read from `$MAPLE_DATA_DIR`) is missing from the answers.
 
-Tested 4 Oct on the **released 35** from the cache: 35 rows, 0 errors, 2 s, `score_dev` **21/21**, and the file is
-byte-identical to the committed `benchmark/answers.csv`. Also 50 questions (35 released + 15 mock extras) in 50 s, exit 0; with the LLM broken the preflight stops
-at the test call (exit 2), and with `--skip-llm-check` only the failed id is retried and reported (exit 1), while
-certified-metric questions still answer without any LLM.
+`backup_run` also checks the data folder, database (bronze + gold), search index (builds it if missing), LLM access
+(one test call) and that the file is readable; runs `run_benchmark --workers 4`; re-runs only failed questions up to
+3 rounds with fewer workers; validates one row per unique id, no failed rows, `refused` true/false. Exit 0 only when
+the file is complete.
+
+Tested 4 Oct: the released 35 from the cache gave 35 rows, 0 errors, 2 s, `score_dev` **21/21**, byte-identical to
+the committed answers. A file with **only one new question** gave 35 + 1 = 36 answers, `check_submission` "covers 36
+question ids"; the same file with `--no-append-released` is caught by `validate` ("released questions missing (35)",
+exit 1). Also 50 questions in 50 s; LLM broken → preflight stops (exit 2); certified questions answer without an LLM.
