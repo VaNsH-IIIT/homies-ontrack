@@ -80,6 +80,8 @@ def check_answers(path: Path, question_ids: list[str] | None = None) -> list[str
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Pre-submission check")
     ap.add_argument("--questions", help="the questions file the answers must cover (any shape run_benchmark reads)")
+    ap.add_argument("--answers", default=str(REPO / "benchmark" / "answers.csv"),
+                    help="answers file to check (default: the committed benchmark/answers.csv)")
     args = ap.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")   # placeholders and names print correctly on a Windows console
@@ -102,9 +104,9 @@ def main(argv: list[str] | None = None) -> int:
         # the same reader run_benchmark uses: any encoding, delimiter and column order (G10)
         from ontrack.l2_ask.run_benchmark import read_questions
         qids = [q["question_id"] for q in read_questions(Path(args.questions))]
-    problems = check_answers(REPO / "benchmark" / "answers.csv", qids)
-    results.append(("benchmark/answers.csv matches the template" + (f": {'; '.join(problems)}" if problems else ""),
-                    not problems))
+    problems = check_answers(Path(args.answers), qids)
+    results.append((f"{Path(args.answers).name} matches the template" + (f" and covers {len(qids)} question ids" if qids else "")
+                    + (f": {'; '.join(problems)}" if problems else ""), not problems))
 
     try:
         contract = yaml.safe_load((REPO / "contracts" / "c360_customer.yaml").read_text(encoding="utf-8"))
