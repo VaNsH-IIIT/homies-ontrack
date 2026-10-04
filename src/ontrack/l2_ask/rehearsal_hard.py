@@ -40,7 +40,7 @@ HARD = [
              "FROM gold.c360_customer WHERE open_case_count > 0"),
     dict(id="H05", kind="table", tol="exact",
          q="How many accounts have a stored DPD bucket that conflicts with their days past due, by product type?",
-         sql="SELECT product_type, count(*) AS accounts FROM gold.c360_account WHERE bucket_conflict "
+         sql="SELECT product_type, count(*) AS accounts FROM gold.c360_account WHERE bucket_conflict AND dpd IS NOT NULL "
              "GROUP BY 1 ORDER BY 1"),
     # ---- two-step comparisons and single numbers ----
     dict(id="H06", kind="numbers", tol="exact",
@@ -143,6 +143,25 @@ L1SET = [
          sql="SELECT count(*) FROM gold.case_360 WHERE bucket_conflict"),
 ]
 
+def c360_set() -> list[dict]:
+    """P1's V8 set (docs/rehearsal/): 15 C360 / data-quality questions with answers from independent SQL."""
+    base = config.REPO_ROOT / "docs" / "rehearsal"
+    qs = {r["question_id"]: r for r in csv.DictReader(open(base / "c360_questions.csv", encoding="utf-8-sig"))}
+    out = []
+    for a in csv.DictReader(open(base / "c360_answers.csv", encoding="utf-8-sig")):
+        q, exp = qs[a["question_id"]], a["expected_answer"].strip()
+        if exp.upper().startswith("REFUSE") or a.get("should_refuse", "").lower() == "true":
+            out.append(dict(id=a["question_id"], kind="refuse", q=q["question_text"]))
+            continue
+        nums = [float(x.replace(",", "")) for x in NUM.findall(exp)]
+        words = [w for w in re.findall(r"[A-Za-z]{2,}", exp)]
+        tol = "±1 CAD" if any(abs(n) >= 1000 and n != int(n) for n in nums) else (
+            "±0.05" if any(n != int(n) for n in nums) else "exact")
+        out.append(dict(id=a["question_id"], kind="numbers", tol=tol, q=q["question_text"], expected=nums,
+                        facts=["|".join({w, {"ON": "Ontario"}.get(w, w)}) for w in words]))
+    return out
+
+
 QUESTIONS = config.WORK_DIR / "rehearsal_hard_questions.csv"
 ANSWERS = config.WORK_DIR / "rehearsal_hard_answers.csv"
 # "36,230" is one number; "46,96000" (two CSV cells) is two.
@@ -201,7 +220,7 @@ def score(items) -> int:
             if r["kind"] == "table":
                 ok, why = score_table(format_table(con.execute(r["sql"]).df()), a["answer"], r["tol"])
             elif r["kind"] == "numbers":
-                exp = [float(v) for row in con.execute(r["sql"]).fetchall() for v in row if v is not None]
+                exp = r["expected"] if "expected" in r else                     [float(v) for row in con.execute(r["sql"]).fetchall() for v in row if v is not None]
                 ok, why = check_numbers(exp, a["answer"], r["tol"])
             miss = [f for f in r.get("facts", []) if not _has(a["answer"], f)]
             cites = [c for c in r.get("cite", []) if not _has(both, c)]
@@ -219,9 +238,10 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--score", action="store_true")
     ap.add_argument("--workers", type=int, default=4)
-    ap.add_argument("--set", choices=["hard", "l1"], default="hard", help="hard (29 questions) or l1 (Layer 1 / DQ)")
+    ap.add_argument("--set", choices=["hard", "l1", "c360"], default="hard",
+                    help="hard (29), l1 (8 Layer 1 / DQ) or c360 (P1's 15 V8 questions)")
     args = ap.parse_args(argv)
-    items = HARD if args.set == "hard" else L1SET
+    items = {"hard": HARD, "l1": L1SET}.get(args.set) or c360_set()
     if not args.score:
         from ontrack.l2_ask import run_benchmark
         write_questions(items)

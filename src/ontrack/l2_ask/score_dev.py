@@ -95,6 +95,7 @@ def score_table(gold: str, ours: str, tol: str) -> tuple[bool, str]:
 
 
 def key_terms(text: str) -> set[str]:
+    text = re.sub(r"(\$\d[\d,]*)\.00\b", r"\1", text)          # "$595.00" and "$595" are the same amount
     words = re.findall(r"[a-z0-9$%.]+", text.lower())
     return {w.strip(".") for w in words if w not in STOP and len(w.strip(".")) > 2 or re.match(r"\$?\d", w)}
 
