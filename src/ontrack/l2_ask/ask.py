@@ -167,7 +167,10 @@ How to answer:
   randomised cases only (assignment_method = 'random').
 - Events raised during contacts (disputes, complaints, hardship mentions, cease requests, payments taken) are counted
   in contact_history flags (dispute_raised_flag, complaint_raised_flag, ...) by contact_ts_local, not from case
-  columns. Volumes of calls / contacts also come from contact_history.
+  columns. Volumes of calls / contacts also come from contact_history. A subject qualifier ("late-fee disputes",
+  "billing complaints") does NOT narrow these counts: the contact data has no subject field, so count every flagged
+  contact and say the qualifier can't be applied. Never join case dispute_type / complaint columns for "raised"
+  counts; use them only when the question asks about cases' current dispute type itself.
 - Two different experiments exist. The agent-assignment pilot ("randomised pilot", certified agents, routing) is
   case_assignment_history.assignment_method = 'randomised_pilot' (certified_for_vulnerable_flag and
   hardship_flag_at_assignment are per assignment). The treatment-strategy test (champion / challenger_A /
@@ -179,6 +182,9 @@ How to answer:
 - A case's or contact's (customer) province is collections_cases.province_code (copied from CRM at case open, already
   clean): join contact_history to collections_cases on case_id. customers.province_code is raw CRM text in mixed
   formats; use it only when a question is about CRM records themselves.
+- "Outside permitted calling hours" = NOT contact_history.within_permitted_hours_flag (already evaluated in the
+  customer's local time and province rules); never recompute it from contact hours.
+- "In the 12 months to <date>" runs from the day after <date> minus 12 months through <date>, inclusive.
 - "Contradicts", "conflicts with", "doesn't match": count only rows where both values are known (e.g. a bucket that
   conflicts with DPD needs a non-null dpd; gold bucket_conflict is also true when dpd is missing).
 - "In N source systems" means distinct source_system values in gold.customer_xref; "N source keys" means
@@ -433,8 +439,8 @@ class Engine:
 
     def template(self, question: str) -> Answer | None:
         """G23: strict templates for short live data questions over gold (live_templates.py)."""
-        from ontrack.l2_ask import live_templates
-        return live_templates.answer(self, question)
+        from ontrack.l2_ask import dispute_window, live_templates
+        return dispute_window.answer(self, question) or live_templates.answer(self, question)   # G24, G23
 
     def answer(self, question: str, as_of_date: str = config.SNAPSHOT_DATE, metric_id: str | None = None,
                question_id: str = "", tolerance: str = "", budget_s: float | None = None) -> Answer:
